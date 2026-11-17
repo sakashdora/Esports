@@ -1,0 +1,6 @@
+{
+  "name": "Srusti Campus Event & Esports Championship 2K26",
+  "description": "Official event registration, UPI QR payment verification, team tracking, and admin console for Srusti Academy of Management and Technology (SAMT) Campus LAN Esports Championship 2K26.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
