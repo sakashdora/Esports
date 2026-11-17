@@ -102,7 +102,7 @@ interface LocalStoreData {
   eventSequences: Record<string, number>;
 }
 
-const DATA_DIR = path.resolve(process.cwd(), '.data');
+const DATA_DIR = process.env.VERCEL ? path.join('/tmp', '.data') : path.resolve(process.cwd(), '.data');
 const STORE_FILE = path.join(DATA_DIR, 'store.json');
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 const QR_DIR = path.join(DATA_DIR, 'qr');
