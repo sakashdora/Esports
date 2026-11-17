@@ -282,13 +282,13 @@ export function createApiApp(): Express {
         })),
         latestProof: latestProof
           ? {
-              utrNumber: latestProof.utrNumber,
-              upiApp: latestProof.upiApp,
-              paidAmount: latestProof.paidAmount,
-              reviewStatus: latestProof.reviewStatus,
-              rejectionReason: latestProof.rejectionReason,
-              createdAt: latestProof.createdAt,
-            }
+            utrNumber: latestProof.utrNumber,
+            upiApp: latestProof.upiApp,
+            paidAmount: latestProof.paidAmount,
+            reviewStatus: latestProof.reviewStatus,
+            rejectionReason: latestProof.rejectionReason,
+            createdAt: latestProof.createdAt,
+          }
           : null,
       });
     } catch (err) {
@@ -418,8 +418,8 @@ export function createApiApp(): Express {
         bundle.registration.status === 'verified'
           ? 'verified'
           : bundle.registration.status === 'reupload_required'
-          ? 'reupload_required'
-          : 'rejected';
+            ? 'reupload_required'
+            : 'rejected';
 
       const emailRes = await sendTeamConfirmationEmail({
         toEmail: bundle.registration.iglEmail,
@@ -477,10 +477,10 @@ export function createApiApp(): Express {
           bundle.registration.status === 'verified'
             ? 'verified'
             : bundle.registration.status === 'reupload_required'
-            ? 'reupload_required'
-            : bundle.registration.status === 'rejected'
-            ? 'rejected'
-            : 'pending';
+              ? 'reupload_required'
+              : bundle.registration.status === 'rejected'
+                ? 'rejected'
+                : 'pending';
 
         const emailRes = await sendTeamConfirmationEmail({
           toEmail: bundle.registration.iglEmail,

@@ -1,4 +1,6 @@
 export const HERO_ARENA_IMAGE = '/src/assets/images/hero_fire_esports_arena_1794848520848.jpg';
+export const CONTROLLER_HERO_IMAGE = '/src/assets/images/nexus_controller_hero.jpg';
+export const PRIZE_POOL_TROPHY_IMAGE = '/src/assets/images/prize_pool_trophy.jpg';
 export const BGMI_BANNER_IMAGE = '/src/assets/images/bgmi_erangel_keyart_1794845847605.jpg';
 export const FREEFIRE_BANNER_IMAGE = '/src/assets/images/freefire_bermuda_keyart_1794845847011.jpg';
 export const CAMPUS_EVENT_BANNER_IMAGE = '/src/assets/images/hero_fire_esports_arena_1794848520848.jpg';

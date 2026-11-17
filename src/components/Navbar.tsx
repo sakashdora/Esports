@@ -22,19 +22,39 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
 
   const navItems: Array<{ label: string; active: boolean; action: () => void }> = [
     {
-      label: 'Events',
+      label: 'Home',
       active: route.page === 'home',
       action: () => onNavigate({ page: 'home' }),
     },
     {
-      label: 'Live Teams',
+      label: 'Tournaments',
+      active: route.page === 'event',
+      action: () => onNavigate({ page: 'event', slug: defaultEventSlug }),
+    },
+    {
+      label: 'Teams',
       active: route.page === 'live',
       action: () => onNavigate({ page: 'live' }),
     },
     {
-      label: 'Rulebook',
-      active: route.page === 'event',
-      action: () => onNavigate({ page: 'event', slug: defaultEventSlug }),
+      label: 'Schedule',
+      active: false,
+      action: () => {
+        if (route.page !== 'home') onNavigate({ page: 'home' });
+        setTimeout(() => {
+          document.getElementById('tournament-schedule')?.scrollIntoView({ behavior: 'smooth' });
+        }, 80);
+      },
+    },
+    {
+      label: 'News',
+      active: false,
+      action: () => {
+        if (route.page !== 'home') onNavigate({ page: 'home' });
+        setTimeout(() => {
+          document.getElementById('latest-news')?.scrollIntoView({ behavior: 'smooth' });
+        }, 80);
+      },
     },
     {
       label: 'Track Status',
@@ -122,14 +142,25 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
           ))}
         </nav>
 
-        {/* Zone 3: Single Primary Action */}
-        <div className="flex shrink-0 items-center gap-3">
+        {/* Zone 3: Actions */}
+        <div className="flex shrink-0 items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => onNavigate({ page: 'track' })}
+            className="hidden shrink-0 rounded-md border border-white/15 bg-white/[0.04] px-3.5 py-1.5 text-xs font-medium text-neutral-200 transition-all duration-150 hover:border-white/30 hover:bg-white/[0.08] lg:inline-flex"
+          >
+            Track Status
+          </button>
+
           <button
             type="button"
             onClick={() => onNavigate({ page: 'register', slug: defaultEventSlug })}
-            className="group relative hidden shrink-0 overflow-hidden whitespace-nowrap rounded-md bg-gradient-to-r from-[#D41B14] to-[#B41510] px-4 py-2 text-xs font-semibold tracking-wide text-white shadow-md shadow-[#D41B14]/30 transition-all duration-200 hover:shadow-[#D41B14]/55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D41B14] sm:inline-flex"
+            className="group relative hidden shrink-0 overflow-hidden whitespace-nowrap rounded-md bg-gradient-to-r from-[#D41B14] to-[#B41510] px-4 py-1.5 text-xs font-semibold tracking-wide text-white shadow-md shadow-[#D41B14]/30 transition-all duration-200 hover:shadow-[#D41B14]/55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D41B14] sm:inline-flex"
           >
-            <span className="relative z-10">Register Squad</span>
+            <span className="relative z-10 inline-flex items-center gap-1.5">
+              Register Squad
+              <span className="text-[11px]">→</span>
+            </span>
             <span
               aria-hidden="true"
               className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:translate-x-full"
