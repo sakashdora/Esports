@@ -29,7 +29,7 @@ export function HeroCountdown({ deadlineText = EVENT_ENTRY_ISO }: { deadlineText
     { label: 'Minutes', value: countdown.minutes }, { label: 'Seconds', value: countdown.seconds },
   ];
   return <div className="center-countdown" data-testid="hero-countdown" role="timer" aria-live="off" aria-label={`Time until campus entry on ${dateLabel} at ${timeLabel} IST`}>
-    <p className="countdown-heading"><span className="countdown-status-dot" aria-hidden="true" />{countdown.expired ? 'Campus entry has opened' : 'Your next battle begins in'}</p>
+    <p className="countdown-heading"><span className="countdown-status-dot" aria-hidden="true" />{countdown.expired ? 'Campus entry has opened' : 'Campus entry opens in'}</p>
     <div className="countdown-grid">{segments.map(segment => <div className="countdown-tile" key={segment.label}>
       <span className="countdown-digit-tick" key={segment.value}>{String(segment.value).padStart(2, '0')}</span>
       <span className="countdown-unit">{segment.label}</span>

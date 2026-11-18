@@ -471,3 +471,73 @@ button:disabled { cursor: not-allowed; }
  .section-kicker { font-size: 9px; }
 }
 @media (prefers-reduced-motion: reduce) { .esports-wordmark::before { animation: none; } }
+/* Compact hero keeps the full timer above the fold on shorter screens. */
+.hero-content { padding-top: 22px; }
+.hero-organizer { display: flex; justify-content: center; align-items: center; gap: 12px; margin: 0 auto 16px; }
+.hero-organizer .hero-college-crest { width: 44px; height: auto; margin: 0; flex-shrink: 0; }
+.hero-organizer .stage-eyebrow { max-width: 290px; margin: 0; text-align: left; font-size: 10px; line-height: 1.6; }
+.hero-identity { width: min(68%,600px); }
+.srusti-title > span:first-child { font-size: clamp(40px,4.5vw,64px); letter-spacing: .13em; }
+.esports-wordmark { width: min(100%,510px); aspect-ratio: 5.3; overflow: hidden; margin: 14px auto 16px; }
+.esports-wordmark img { position: absolute; width: 100%; height: auto; top: 50%; left: 0; transform: translateY(-50%); filter: drop-shadow(0 3px 8px #d41b1444); }
+.esports-wordmark i { inset: 0; width: 100%; height: 100%; }
+.esports-wordmark::before { inset: 0; }
+.championship-subtitle { font-size: clamp(15px,1.7vw,22px); }
+.center-countdown { margin-top: 18px; }
+.hero-bottom { margin-top: 24px; }
+@media (max-height: 760px) {
+ .hero-content { padding-top: 18px; }
+ .hero-organizer { margin-bottom: 12px; }
+ .hero-organizer .hero-college-crest { width: 36px; }
+ .srusti-title > span:first-child { font-size: clamp(36px,4vw,54px); }
+ .esports-wordmark { max-width: 440px; margin-block: 10px 12px; }
+ .center-countdown { margin-top: 14px; padding-block: 12px 9px; }
+ .countdown-heading { margin-bottom: 8px; }
+ .countdown-tile { padding-block: 9px 7px; }
+ .countdown-target { margin-top: 9px; }
+ .hero-bottom { margin-top: 18px; }
+}
+@media (max-width: 767px) {
+ .hero-content { padding-top: 48px; }
+ .hero-identity { width: 100%; max-width: 510px; }
+ .hero-organizer { gap: 10px; margin-bottom: 14px; }
+ .hero-organizer .stage-eyebrow { font-size: 9px; max-width: 250px; }
+ .hero-organizer .hero-college-crest { width: 38px; }
+ .srusti-title > span:first-child { font-size: clamp(36px,7.5vw,54px); }
+ .esports-wordmark { width: 96%; max-width: 420px; margin-block: 10px 14px; }
+ .countdown-heading { font-size: 14px; }
+ .center-countdown { margin-top: 16px; }
+}
+/* Intro is decorative, bounded to 1.8 seconds, dismissible and shown once per tab. */
+.cinematic-intro { position: fixed; inset: 0; margin: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; border: 0; padding: 24px; color: #f4f3ef; background: #06070c; overflow: hidden; }
+.cinematic-intro[open] { display: grid; place-items: center; }
+.cinematic-intro::backdrop { background: #06070c; }
+.intro-brand { width: min(100%,650px); text-align: center; position: relative; z-index: 1; animation: introReveal 600ms cubic-bezier(.16,1,.3,1) both; }
+.intro-crest { display: block; width: 68px; height: auto; margin: 0 auto 22px; }
+.intro-eyebrow { font: 500 10px var(--font-mono); color: #c0c0c0; letter-spacing: .25em; }
+.intro-brand h2 { font: 800 clamp(34px,7vw,70px)/1 var(--font-display); letter-spacing: .03em; margin: 14px 0; }
+.intro-wordmark { position: relative; display: block; width: min(100%,420px); aspect-ratio: 5.3; overflow: hidden; margin: 25px auto; }
+.intro-wordmark img { position: absolute; width: 100%; top: 50%; transform: translateY(-50%); left: 0; }
+.intro-caption { font-size: 11px; color: #c1c3cc; line-height: 1.7; }
+.intro-light { position: absolute; width: 70vw; height: 120vh; top: -10vh; opacity: .6; pointer-events: none; }
+.intro-light-blue { left: -45vw; background: radial-gradient(ellipse,#233d8b77,transparent 65%); transform: rotate(-25deg); }
+.intro-light-red { right: -45vw; background: radial-gradient(ellipse,#d41b1477,transparent 65%); transform: rotate(25deg); }
+.intro-sweep { display: block; position: relative; overflow: hidden; width: 160px; height: 2px; background: #ffffff15; margin: 30px auto 0; }
+.intro-sweep::after { content: ''; display: block; height: 100%; width: 50%; background: linear-gradient(90deg,transparent,#e5c736,transparent); animation: introSweep 1.3s ease-in-out infinite; }
+.intro-skip { position: absolute; bottom: max(24px,env(safe-area-inset-bottom)); right: 24px; z-index: 2; padding: 12px 18px; border: 1px solid #ffffff44; background: #151211; color: #fff; border-radius: 3px; font-size: 12px; min-height: 44px; }
+.page-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: 50vh; color: #ddd; }
+.page-loading strong { font: 700 24px var(--font-display); letter-spacing: .05em; }
+.page-loading > span:last-child { font-size: 12px; color: #aaa; }
+.page-loading-orbit { width: 36px; height: 36px; border: 2px solid #233d8b66; border-top-color: #e5c736; border-right-color: #d41b14; border-radius: 50%; animation: loadingOrbit 1s linear infinite; }
+@keyframes introReveal { from { opacity: 0; transform: translateY(15px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes introSweep { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+@keyframes loadingOrbit { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .intro-brand,.intro-sweep::after,.page-loading-orbit { animation: none; } }
+/* Light follows the logo artwork rather than a rectangular overlay. */
+.esports-wordmark i { display: none; }
+.esports-wordmark img { animation: logoLight 6s ease-in-out infinite; }
+@keyframes logoLight {
+  0%,70%,100% { filter: brightness(1) drop-shadow(0 3px 8px #d41b1444); }
+  35% { filter: brightness(1.16) drop-shadow(0 3px 12px #d41b1477); }
+}
+@media (prefers-reduced-motion: reduce) { .esports-wordmark img { animation: none; } }

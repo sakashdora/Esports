@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { CinematicIntro, PageLoading, shouldShowIntro } from './components/CinematicIntro';
 import { HomeView } from './components/HomeView';
 import { Navbar, type AppRoute } from './components/Navbar';
 import { DEFAULT_EVENTS, type CampusEvent } from './lib/defaultEvents';
@@ -49,6 +50,8 @@ function routeToPath(route: AppRoute): string {
 }
 
 export default function App() {
+  const [showIntro, setShowIntro] = useState(shouldShowIntro);
+  const completeIntro = useCallback(() => setShowIntro(false), []);
   const [route, setRoute] = useState<AppRoute>(() => parseLocationRoute());
   const [events, setEvents] = useState<CampusEvent[]>(DEFAULT_EVENTS);
   const [loadingEvents, setLoadingEvents] = useState(true);
@@ -93,9 +96,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
+      {showIntro && <CinematicIntro onComplete={completeIntro} />}
       <Navbar route={route} onNavigate={navigate} defaultEventSlug={defaultSlug} />
 
-      <Suspense fallback={<div role="status" className="mx-auto max-w-6xl px-6 py-16 text-neutral-300">Loading page…</div>}>
+      <Suspense fallback={<PageLoading />}>
       {route.page === 'home' && (
         <HomeView events={events} loading={loadingEvents} onNavigate={navigate} />
       )}

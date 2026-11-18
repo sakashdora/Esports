@@ -18,10 +18,10 @@ export function ChampionshipStage({ events, loading, onNavigate }: { events: Cam
       {!motionPaused && <EmberParticles density={32} />}
       <div className="stage-container hero-content">
         <div className="hero-identity animate-stage-enter">
-          <img className="hero-college-crest" src="/assets/aistudio/Prospectus_2026_-_27_-_1_bb4cb47c.png" alt="Srusti Academy of Management and Technology crest" width="100" height="104" /><p className="stage-eyebrow">Srusti Academy of Management &amp; Technology</p>
+          <div className="hero-organizer"><img className="hero-college-crest" src="/assets/aistudio/Prospectus_2026_-_27_-_1_bb4cb47c.png" alt="Srusti Academy of Management and Technology crest" width="100" height="104" /><p className="stage-eyebrow">Srusti Academy of Management &amp; Technology</p></div>
           <h1 id="championship-title" className="srusti-title" aria-label="Srusti e-Sports">
             <span>SRUSTI</span>
-            <span className="esports-wordmark"><img src="/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.png" alt="" /><i aria-hidden="true" /></span>
+            <span className="esports-wordmark"><img src="/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.png" alt="" width="1400" height="500" /><i aria-hidden="true" /></span>
           </h1>
           <p className="championship-subtitle">Campus LAN Championship 2026</p>
 
