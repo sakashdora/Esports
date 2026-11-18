@@ -185,3 +185,16 @@ on conflict (id) do nothing;
 insert into storage.buckets (id, name, public)
 values ('event-assets', 'event-assets', true)
 on conflict (id) do nothing;
+
+-- 7. Whitelist Default Super Admin
+insert into public.admin_users (user_id, email, full_name, role)
+values (
+  'be18a4fc-e262-4bfb-9fb9-a4d81deba092',
+  'admin@srustiacademy.edu.in',
+  'SAMT Tournament Director',
+  'super_admin'
+)
+on conflict (user_id) do update set
+  email = excluded.email,
+  role = 'super_admin';
+

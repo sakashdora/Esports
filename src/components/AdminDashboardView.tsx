@@ -463,7 +463,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                 type="email"
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
-                placeholder="coordinator@srustiacademy.edu.in"
+                placeholder="info.esport@srustiacademy.ac.in"
                 required={systemMode === 'supabase'}
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-[#233D8B] focus:outline-none"
               />

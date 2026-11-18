@@ -334,7 +334,7 @@ export function createApiApp(): Express {
         if (password !== expected) {
           return res.status(401).json({ error: 'Invalid admin passcode.' });
         }
-        const adminEmail = email || 'coordinator@srustiacademy.edu.in';
+        const adminEmail = email || 'info.esport@srustiacademy.ac.in';
         return res.json({
           token: issueLocalAdminToken(adminEmail),
           email: adminEmail,
