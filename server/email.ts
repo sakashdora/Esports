@@ -276,10 +276,21 @@ export async function sendTeamConfirmationEmail(params: {
 
       <!-- Footer -->
       <tr>
-        <td style="padding: 20px 32px; background-color: #080B10; border-top: 1px solid #1E293B; text-align: center; color: #64748B; font-size: 11px; line-height: 1.5;">
-          Official communication from Srusti Academy of Management and Technology.<br>
-          Need assistance or roster adjustments? Reach out to <a href="mailto:info.esport@srustiacademy.ac.in" style="color: #FF6B1A; text-decoration: none;">info.esport@srustiacademy.ac.in</a><br>
-          &copy; 2026 Srusti Academy of Management and Technology. All rights reserved.
+        <td style="padding: 24px 32px; background-color: #080B10; border-top: 1px solid #1E293B; text-align: center; color: #64748B; font-size: 11px; line-height: 1.6;">
+          <div style="margin-bottom: 12px;">
+            Official communication from <strong>Srusti Academy of Management and Technology</strong>.<br>
+            Campus Esports Tournament Directorate &bull; Edition 2K26
+          </div>
+
+          <!-- No Reply Notice Box -->
+          <div style="margin: 12px auto; max-width: 500px; padding: 10px 14px; background-color: #0E131F; border: 1px dashed #334155; border-radius: 8px; color: #94A3B8; font-size: 11px;">
+            🔒 <strong>AUTOMATED NOTIFICATION &bull; PLEASE DO NOT REPLY</strong><br>
+            This email was sent from an unmonitored notification service. Direct replies to this address will not be received. If you need assistance or wish to request roster updates, please email our support desk at <a href="mailto:info.esport@srustiacademy.ac.in" style="color: #FF6B1A; text-decoration: none; font-weight: 600;">info.esport@srustiacademy.ac.in</a>.
+          </div>
+
+          <div style="margin-top: 12px; font-size: 10px; color: #475569;">
+            &copy; 2026 Srusti Academy of Management and Technology. All rights reserved.
+          </div>
         </td>
       </tr>
 
@@ -293,6 +304,7 @@ export async function sendTeamConfirmationEmail(params: {
     const transporter = createTransporter();
     const info = await transporter.sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      replyTo: process.env.SMTP_REPLY_TO || 'noreply@srustiacademy.ac.in',
       to: params.toEmail,
       subject,
       html,
