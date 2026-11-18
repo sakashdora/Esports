@@ -16,6 +16,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distDir = path.resolve(process.cwd(), 'dist');
+    app.use('/server.js', (_req, res) => { res.sendStatus(404); });
     app.use(express.static(distDir));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distDir, 'index.html'));
@@ -23,8 +24,9 @@ async function startServer() {
   }
 
   const PORT = Number(process.env.PORT || 3000);
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`SAMT Event Platform listening on http://0.0.0.0:${PORT}`);
+  const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
+  app.listen(PORT, host, () => {
+    console.log(`SAMT Event Platform listening on http://${host}:${PORT}`);
   });
 }
 

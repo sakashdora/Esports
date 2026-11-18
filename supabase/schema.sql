@@ -180,21 +180,11 @@ create policy "Admins view audit_logs"
 -- Storage Buckets (run once in Supabase SQL Editor)
 insert into storage.buckets (id, name, public)
 values ('payment-proofs', 'payment-proofs', false)
-on conflict (id) do nothing;
+on conflict (id) do update set public = false;
 
 insert into storage.buckets (id, name, public)
 values ('event-assets', 'event-assets', true)
 on conflict (id) do nothing;
 
--- 7. Whitelist Default Super Admin
-insert into public.admin_users (user_id, email, full_name, role)
-values (
-  'be18a4fc-e262-4bfb-9fb9-a4d81deba092',
-  'admin@srustiacademy.edu.in',
-  'SAMT Tournament Director',
-  'super_admin'
-)
-on conflict (user_id) do update set
-  email = excluded.email,
-  role = 'super_admin';
-
+-- Add your own verified administrator through the Supabase dashboard.
+-- Never seed a shared administrator identity in public source code.

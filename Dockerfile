@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for SAMT Esports & Campus Events Platform
 # Stage 1: Build client and server
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Install build dependencies
@@ -12,7 +12,7 @@ COPY . .
 RUN npm run build
 
 # Stage 2: Production runtime
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -24,6 +24,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy compiled frontend and bundled server from builder
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/build ./build
 COPY --from=builder /app/package.json ./
 
 # Ensure non-root node user permissions
@@ -32,4 +33,4 @@ USER node
 
 EXPOSE 3000
 
-CMD ["node", "dist/server.js"]
+CMD ["node", "build/server.js"]

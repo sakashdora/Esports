@@ -1,8 +1,9 @@
+import { ClientInputError } from './errors';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { DEFAULT_EVENTS, type CampusEvent } from '../src/lib/defaultEvents';
+import { DEFAULT_EVENTS, EVENT_DATE_LABEL, type CampusEvent } from '../src/lib/defaultEvents';
 import { sanitizePublicTeam, type PublicRegisteredTeam } from '../src/lib/liveBoard';
 import {
   assignTournamentSlot,
@@ -167,7 +168,9 @@ function readLocalStore(): LocalStoreData {
     return initial;
   }
   const raw = fs.readFileSync(STORE_FILE, 'utf-8');
-  return JSON.parse(raw) as LocalStoreData;
+  const store = JSON.parse(raw) as LocalStoreData;
+  store.events = store.events.map(event => ({ ...event, eventDateLabel: DEFAULT_EVENTS.some(e => e.slug === event.slug) ? EVENT_DATE_LABEL : event.eventDateLabel }));
+  return store;
 }
 
 function writeLocalStore(data: LocalStoreData) {
@@ -226,7 +229,7 @@ function mapSupabaseEvent(row: Record<string, unknown>, stats?: { verified: numb
     qrImageUrl: String(row.qr_image_url || ''),
     upiVpa: String(row.upi_vpa || ''),
     upiPayeeName: String(row.upi_payee_name || 'Srusti Academy of Management and Technology'),
-    eventDateLabel: String(row.event_date_label || 'Dates to be announced'),
+    eventDateLabel: DEFAULT_EVENTS.some(e => e.slug === row.slug) ? EVENT_DATE_LABEL : String(row.event_date_label || 'Dates to be announced'),
     registrationDeadline: String(row.registration_deadline || 'Open until 24 slots fill'),
     venueLabel: String(row.venue_label || 'SAMT Campus LAN Arena'),
     isOpen: Boolean(row.is_open),
@@ -370,7 +373,7 @@ export async function listPublicEvents(): Promise<CampusEvent[]> {
     .from('events')
     .select('*')
     .order('created_at', { ascending: true });
-  if (error) throw new Error(error.message);
+  if (error) throw new ClientInputError('Unable to complete the database request. Please try again.');
 
   const { data: regStats } = await sb
     .from('registrations')
@@ -414,10 +417,10 @@ export async function createRegistrationWithProof(input: {
 }): Promise<RegistrationBundle> {
   const event = await getEventBySlug(input.eventSlug);
   if (!event) {
-    throw new Error('Selected event was not found.');
+    throw new ClientInputError('Selected event was not found.');
   }
   if (!event.isOpen) {
-    throw new Error('Registrations for this event are currently closed.');
+    throw new ClientInputError('Registrations for this event are currently closed.');
   }
 
   const squadValidation = validateSquadSubmission({
@@ -435,20 +438,20 @@ export async function createRegistrationWithProof(input: {
 
   if (!squadValidation.valid) {
     const firstMsg = Object.values(squadValidation.errors)[0] || 'Invalid squad details.';
-    throw new Error(firstMsg);
+    throw new ClientInputError(firstMsg);
   }
 
   const normalizedUtr = normalizeUtr(input.utrNumber);
   if (!isValidUtr(normalizedUtr)) {
-    throw new Error('Enter a valid 12-digit UPI UTR / Transaction Reference Number.');
+    throw new ClientInputError('Enter a valid 12-digit UPI UTR / Transaction Reference Number.');
   }
 
   const mime = detectImageMimeFromMagicBytes(input.fileBuffer);
   if (!mime) {
-    throw new Error('Payment screenshot must be a valid JPEG, PNG, or WebP image.');
+    throw new ClientInputError('Payment screenshot must be a valid JPEG, PNG, or WebP image.');
   }
   if (input.fileBuffer.length > 5 * 1024 * 1024) {
-    throw new Error('Payment screenshot exceeds the 5 MB upload limit.');
+    throw new ClientInputError('Payment screenshot exceeds the 5 MB upload limit.');
   }
 
   const fileSha256 = crypto.createHash('sha256').update(input.fileBuffer).digest('hex');
@@ -472,7 +475,7 @@ export async function createRegistrationWithProof(input: {
     if (
       activeEventRegs.some((r) => r.teamName.toLowerCase() === cleanTeamName.toLowerCase())
     ) {
-      throw new Error(`Team name "${cleanTeamName}" is already registered for ${event.title}.`);
+      throw new ClientInputError(`Team name "${cleanTeamName}" is already registered for ${event.title}.`);
     }
 
     const activeEventMemberIds = new Set(
@@ -485,7 +488,7 @@ export async function createRegistrationWithProof(input: {
     );
     for (const member of activeMembers) {
       if (activeEventMemberIds.has(member.characterId.trim().toLowerCase())) {
-        throw new Error(
+        throw new ClientInputError(
           `Character ID "${member.characterId}" is already registered in another squad for ${event.title}.`
         );
       }
@@ -493,12 +496,12 @@ export async function createRegistrationWithProof(input: {
 
     const activeProofs = store.proofs.filter((p) => p.reviewStatus !== 'rejected');
     if (activeProofs.some((p) => p.utrNumber.toUpperCase() === normalizedUtr)) {
-      throw new Error(
+      throw new ClientInputError(
         `UTR / Reference "${normalizedUtr}" has already been used for another registration.`
       );
     }
     if (activeProofs.some((p) => p.fileSha256 === fileSha256)) {
-      throw new Error('This exact payment screenshot file has already been submitted.');
+      throw new ClientInputError('This exact payment screenshot file has already been submitted.');
     }
 
     const nextSeq = (store.eventSequences[event.id] || 0) + 1;
@@ -605,7 +608,7 @@ export async function createRegistrationWithProof(input: {
     .neq('review_status', 'rejected')
     .limit(1);
   if (dupUtr && dupUtr.length > 0) {
-    throw new Error(`UTR / Reference "${normalizedUtr}" has already been submitted.`);
+    throw new ClientInputError(`UTR / Reference "${normalizedUtr}" has already been submitted.`);
   }
 
   const { data: dupHash } = await sb
@@ -615,7 +618,7 @@ export async function createRegistrationWithProof(input: {
     .neq('review_status', 'rejected')
     .limit(1);
   if (dupHash && dupHash.length > 0) {
-    throw new Error('This exact payment screenshot file has already been submitted.');
+    throw new ClientInputError('This exact payment screenshot file has already been submitted.');
   }
 
   const { count: eventTotalCount } = await sb
@@ -632,7 +635,7 @@ export async function createRegistrationWithProof(input: {
     .from('payment-proofs')
     .upload(storagePath, input.fileBuffer, { contentType: mime, upsert: false });
   if (uploadErr) {
-    throw new Error(`Screenshot upload failed: ${uploadErr.message}`);
+    throw new ClientInputError('Unable to save payment screenshot. Please try again.');
   }
 
   const { data: regRow, error: regErr } = await sb
@@ -661,7 +664,7 @@ export async function createRegistrationWithProof(input: {
 
   if (regErr || !regRow) {
     await sb.storage.from('payment-proofs').remove([storagePath]);
-    throw new Error(regErr?.message || 'Registration insert failed (team name may already exist).');
+    throw new ClientInputError('Registration insert failed (team name may already exist).');
   }
 
   const regId = String(regRow.id);
@@ -686,7 +689,7 @@ export async function createRegistrationWithProof(input: {
   if (memErr) {
     await sb.from('registrations').delete().eq('id', regId);
     await sb.storage.from('payment-proofs').remove([storagePath]);
-    throw new Error(`Player roster conflict: ${memErr.message}`);
+    throw new ClientInputError('Unable to save roster. Check that players are not already registered.');
   }
 
   const { data: proofRow, error: proofErr } = await sb
@@ -706,7 +709,7 @@ export async function createRegistrationWithProof(input: {
   if (proofErr || !proofRow) {
     await sb.from('registrations').delete().eq('id', regId);
     await sb.storage.from('payment-proofs').remove([storagePath]);
-    throw new Error(proofErr?.message || 'Payment proof insert failed.');
+    throw new ClientInputError('Payment proof insert failed.');
   }
 
   const { data: auditRow } = await sb
@@ -838,25 +841,25 @@ export async function resubmitPaymentProof(input: {
 }): Promise<RegistrationBundle> {
   const bundle = await trackRegistration(input.teamCode, input.iglPhone);
   if (!bundle) {
-    throw new Error('Team Registration ID and IGL Phone Number did not match any record.');
+    throw new ClientInputError('Team Registration ID and IGL Phone Number did not match any record.');
   }
   if (
     bundle.registration.status !== 'reupload_required' &&
     bundle.registration.status !== 'rejected'
   ) {
-    throw new Error('Re-upload is only permitted when payment proof is flagged or rejected.');
+    throw new ClientInputError('Re-upload is only permitted when payment proof is flagged or rejected.');
   }
 
   const normalizedUtr = normalizeUtr(input.utrNumber);
   if (!isValidUtr(normalizedUtr)) {
-    throw new Error('Enter a valid 12-digit UPI UTR / Reference Number.');
+    throw new ClientInputError('Enter a valid 12-digit UPI UTR / Reference Number.');
   }
   const mime = detectImageMimeFromMagicBytes(input.fileBuffer);
   if (!mime) {
-    throw new Error('Payment screenshot must be JPEG, PNG, or WebP.');
+    throw new ClientInputError('Payment screenshot must be JPEG, PNG, or WebP.');
   }
   if (input.fileBuffer.length > 5 * 1024 * 1024) {
-    throw new Error('Payment screenshot exceeds 5 MB.');
+    throw new ClientInputError('Payment screenshot exceeds 5 MB.');
   }
   const fileSha256 = crypto.createHash('sha256').update(input.fileBuffer).digest('hex');
   const now = new Date().toISOString();
@@ -866,10 +869,10 @@ export async function resubmitPaymentProof(input: {
     const store = readLocalStore();
     const activeProofs = store.proofs.filter((p) => p.reviewStatus !== 'rejected');
     if (activeProofs.some((p) => p.utrNumber.toUpperCase() === normalizedUtr)) {
-      throw new Error(`UTR "${normalizedUtr}" is already used by another submission.`);
+      throw new ClientInputError(`UTR "${normalizedUtr}" is already used by another submission.`);
     }
     if (activeProofs.some((p) => p.fileSha256 === fileSha256)) {
-      throw new Error('This exact screenshot file has already been uploaded.');
+      throw new ClientInputError('This exact screenshot file has already been uploaded.');
     }
 
     const ext = extFromMime(mime);
@@ -915,7 +918,7 @@ export async function resubmitPaymentProof(input: {
   const { error: uploadErr } = await sb.storage
     .from('payment-proofs')
     .upload(storagePath, input.fileBuffer, { contentType: mime });
-  if (uploadErr) throw new Error(uploadErr.message);
+  if (uploadErr) throw new ClientInputError('Unable to save the image. Please try again.');
 
   const { error: proofErr } = await sb.from('payment_proofs').insert({
     registration_id: bundle.registration.id,
@@ -928,7 +931,7 @@ export async function resubmitPaymentProof(input: {
   });
   if (proofErr) {
     await sb.storage.from('payment-proofs').remove([storagePath]);
-    throw new Error(proofErr.message);
+    throw new ClientInputError('Unable to save payment proof. Please try again.');
   }
 
   await sb
@@ -1083,7 +1086,7 @@ export async function decideRegistrationPayment(input: {
   if (!sb) {
     const store = readLocalStore();
     const reg = store.registrations.find((r) => r.id === input.registrationId);
-    if (!reg) throw new Error('Registration not found.');
+    if (!reg) throw new ClientInputError('Registration not found.');
     const event = store.events.find((e) => e.id === reg.eventId) || DEFAULT_EVENTS[0];
     const latestProof = store.proofs
       .filter((p) => p.registrationId === reg.id)
@@ -1154,7 +1157,7 @@ export async function decideRegistrationPayment(input: {
     .select('*')
     .eq('id', input.registrationId)
     .single();
-  if (!regRow) throw new Error('Registration not found.');
+  if (!regRow) throw new ClientInputError('Registration not found.');
   const reg = mapSupabaseRegistration(regRow as Record<string, unknown>);
   const { data: evtRow } = await sb.from('events').select('*').eq('id', reg.eventId).single();
   const event = mapSupabaseEvent((evtRow || {}) as Record<string, unknown>);
@@ -1274,7 +1277,7 @@ export async function updateEventConfig(
   if (!sb) {
     const store = readLocalStore();
     const evt = store.events.find((e) => e.id === eventId);
-    if (!evt) throw new Error('Event not found.');
+    if (!evt) throw new ClientInputError('Event not found.');
     Object.assign(evt, patch);
     writeLocalStore(store);
     return evt;
@@ -1301,7 +1304,7 @@ export async function updateEventConfig(
     .eq('id', eventId)
     .select()
     .single();
-  if (error || !data) throw new Error(error?.message || 'Failed to update event.');
+  if (error || !data) throw new ClientInputError('Failed to update event.');
   return mapSupabaseEvent(data as Record<string, unknown>);
 }
 
@@ -1425,14 +1428,14 @@ export async function createExtensibleEvent(input: {
     })
     .select()
     .single();
-  if (error || !data) throw new Error(error?.message || 'Failed to create event.');
+  if (error || !data) throw new ClientInputError('Failed to create event.');
   return mapSupabaseEvent(data as Record<string, unknown>);
 }
 
 export async function saveOfficialQrImage(eventId: string, fileBuffer: Buffer): Promise<string> {
   const mime = detectImageMimeFromMagicBytes(fileBuffer);
-  if (!mime) throw new Error('QR image must be a valid PNG, JPEG, or WebP file.');
-  if (fileBuffer.length > 3 * 1024 * 1024) throw new Error('QR image must be under 3 MB.');
+  if (!mime) throw new ClientInputError('QR image must be a valid PNG, JPEG, or WebP file.');
+  if (fileBuffer.length > 3 * 1024 * 1024) throw new ClientInputError('QR image must be under 3 MB.');
   const ext = extFromMime(mime);
 
   const sb = getSupabaseServiceClient();
@@ -1449,7 +1452,7 @@ export async function saveOfficialQrImage(eventId: string, fileBuffer: Buffer): 
   const { error } = await sb.storage
     .from('event-assets')
     .upload(storagePath, fileBuffer, { contentType: mime, upsert: true });
-  if (error) throw new Error(error.message);
+  if (error) throw new ClientInputError('Unable to complete the database request. Please try again.');
   const { data } = sb.storage.from('event-assets').getPublicUrl(storagePath);
   await updateEventConfig(eventId, { qrImageUrl: data.publicUrl });
   return data.publicUrl;
@@ -1468,17 +1471,18 @@ export async function verifyAdminToken(authHeader: string | undefined): Promise<
 
   if (!sb) {
     // Local preview token HMAC validation
-    const secret = process.env.ADMIN_DEMO_PASSCODE || 'SAMT-2K26-ADMIN';
+    const secret = process.env.ADMIN_DEMO_PASSCODE;
+    if (!secret) return { ok: false, email: '', userId: null };
     const [payloadB64, sig] = token.split('.');
     if (!payloadB64 || !sig) return { ok: false, email: '', userId: null };
     const expectedSig = crypto
       .createHmac('sha256', secret)
       .update(payloadB64)
       .digest('hex');
-    if (sig !== expectedSig) return { ok: false, email: '', userId: null };
+    if (Buffer.byteLength(sig) !== Buffer.byteLength(expectedSig) || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))) return { ok: false, email: '', userId: null };
     try {
       const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf-8'));
-      if (Date.now() > payload.exp) return { ok: false, email: '', userId: null };
+      if (!Number.isFinite(payload.exp) || Date.now() > payload.exp) return { ok: false, email: '', userId: null };
       return { ok: true, email: String(payload.email || 'admin@samt.local'), userId: null };
     } catch {
       return { ok: false, email: '', userId: null };
@@ -1537,12 +1541,12 @@ export async function listPublicLiveBoard(): Promise<{
     )
     .neq('status', 'rejected')
     .order('created_at', { ascending: false });
-  if (regErr) throw new Error(regErr.message);
+  if (regErr) throw new ClientInputError('Unable to load registration data.');
 
   const { data: memRows, error: memErr } = await sb
     .from('team_members')
     .select('registration_id, slot_role, in_game_name');
-  if (memErr) throw new Error(memErr.message);
+  if (memErr) throw new ClientInputError('Unable to load roster data.');
 
   const membersByReg = new Map<
     string,
@@ -1589,7 +1593,8 @@ export async function listPublicLiveBoard(): Promise<{
 }
 
 export function issueLocalAdminToken(email: string): string {
-  const secret = process.env.ADMIN_DEMO_PASSCODE || 'SAMT-2K26-ADMIN';
+  const secret = process.env.ADMIN_DEMO_PASSCODE;
+  if (!secret) throw new ClientInputError('Administrator login is not configured.');
   const payload = Buffer.from(
     JSON.stringify({ email, exp: Date.now() + 12 * 60 * 60 * 1000 })
   ).toString('base64url');

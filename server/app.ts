@@ -1,3 +1,4 @@
+import { clientErrorMessage } from './errors';
 import 'dotenv/config';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { EventEmitter } from 'node:events';
@@ -65,9 +66,7 @@ interface AdminRequest extends Request {
 
 async function requireAdmin(req: AdminRequest, res: Response, next: NextFunction) {
   const headerToken = req.headers.authorization;
-  const queryToken =
-    typeof req.query.token === 'string' && req.query.token ? `Bearer ${req.query.token}` : undefined;
-  const auth = await verifyAdminToken(headerToken || queryToken);
+  const auth = await verifyAdminToken(headerToken).catch(() => ({ ok: false, email: '', userId: null }));
   if (!auth.ok) {
     return res.status(401).json({ error: 'Unauthorized. Valid Admin session required.' });
   }
@@ -77,6 +76,16 @@ async function requireAdmin(req: AdminRequest, res: Response, next: NextFunction
 
 export function createApiApp(): Express {
   const app = express();
+  app.disable('x-powered-by');
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'none'; object-src 'none'; base-uri 'self'");
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
   app.use(express.json({ limit: '2mb' }));
 
   // 1. Health & System Status
@@ -95,7 +104,7 @@ export function createApiApp(): Express {
       const events = await listPublicEvents();
       res.json({ events });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load events';
+      const message = 'Failed to load events';
       res.status(500).json({ error: message });
     }
   });
@@ -107,7 +116,7 @@ export function createApiApp(): Express {
       res.setHeader('Cache-Control', 'no-store');
       res.json(board);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load live registered teams.';
+      const message = 'Failed to load live registered teams.';
       res.status(500).json({ error: message });
     }
   });
@@ -154,7 +163,7 @@ export function createApiApp(): Express {
       if (!event) return res.status(404).json({ error: 'Event not found.' });
       return res.json({ event });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load event';
+      const message = 'Failed to load event';
       return res.status(500).json({ error: message });
     }
   });
@@ -179,7 +188,9 @@ export function createApiApp(): Express {
           return res.status(400).json({ error: 'Payment screenshot image is required.' });
         }
 
-        const rawPayload = typeof req.body.payload === 'string' ? JSON.parse(req.body.payload) : req.body;
+        let rawPayload;
+        try { rawPayload = typeof req.body.payload === 'string' ? JSON.parse(req.body.payload) : req.body; } catch { return res.status(400).json({ error: 'Invalid registration details.' }); }
+        if (!rawPayload || typeof rawPayload !== 'object') return res.status(400).json({ error: 'Invalid registration details.' });
         const members = (rawPayload.members || []) as PlayerInput[];
 
         const bundle = await createRegistrationWithProof({
@@ -236,7 +247,7 @@ export function createApiApp(): Express {
             : 'Registration saved; email delivery pending SMTP setup.',
         });
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Registration submission failed.';
+        const message = clientErrorMessage(err, 'Registration submission failed.');
         return res.status(400).json({ error: message });
       }
     }
@@ -292,7 +303,7 @@ export function createApiApp(): Express {
           : null,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Lookup failed.';
+      const message = 'Lookup failed.';
       return res.status(500).json({ error: message });
     }
   });
@@ -317,7 +328,7 @@ export function createApiApp(): Express {
         emitLiveBoardUpdate();
         return res.json({ ok: true, registration: bundle.registration });
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Re-upload failed.';
+        const message = clientErrorMessage(err, 'Re-upload failed.');
         return res.status(400).json({ error: message });
       }
     }
@@ -330,7 +341,8 @@ export function createApiApp(): Express {
       const password = String(req.body.password || '');
 
       if (!isSupabaseConfigured()) {
-        const expected = process.env.ADMIN_DEMO_PASSCODE || 'SAMT-2K26-ADMIN';
+        const expected = process.env.ADMIN_DEMO_PASSCODE;
+        if (!expected) return res.status(503).json({ error: 'Administrator login is not configured.' });
         if (password !== expected) {
           return res.status(401).json({ error: 'Invalid admin passcode.' });
         }
@@ -349,7 +361,7 @@ export function createApiApp(): Express {
       }
       const { data, error } = await anon.auth.signInWithPassword({ email, password });
       if (error || !data.session || !data.user) {
-        return res.status(401).json({ error: error?.message || 'Invalid credentials.' });
+        return res.status(401).json({ error: 'Invalid credentials.' });
       }
       const { data: allowRow } = await svc
         .from('admin_users')
@@ -369,7 +381,7 @@ export function createApiApp(): Express {
         mode: 'supabase',
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Login failed.';
+      const message = 'Login failed.';
       return res.status(500).json({ error: message });
     }
   });
@@ -384,7 +396,7 @@ export function createApiApp(): Express {
         smtpConfigured: isSmtpConfigured(),
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load admin overview.';
+      const message = 'Failed to load admin overview.';
       res.status(500).json({ error: message });
     }
   });
@@ -394,7 +406,7 @@ export function createApiApp(): Express {
     const file = await getLocalProofFile(req.params.proofId);
     if (!file) return res.status(404).send('Screenshot not found');
     res.setHeader('Content-Type', file.mime);
-    res.setHeader('Cache-Control', 'private, max-age=120');
+    res.setHeader('Cache-Control', 'no-store');
     return res.send(file.buffer);
   });
 
@@ -457,7 +469,7 @@ export function createApiApp(): Express {
         emailNote: emailRes.sent ? 'Confirmation email sent to IGL.' : emailRes.error,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Decision update failed.';
+      const message = clientErrorMessage(err, 'Decision update failed.');
       return res.status(400).json({ error: message });
     }
   });
@@ -511,8 +523,8 @@ export function createApiApp(): Express {
 
         return res.json({ ok: emailRes.sent, error: emailRes.error });
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Resend failed.';
-        return res.status(500).json({ error: message });
+        const message = 'Resend failed.';
+      return res.status(500).json({ error: message });
       }
     }
   );
@@ -524,7 +536,7 @@ export function createApiApp(): Express {
       emitLiveBoardUpdate();
       res.status(201).json({ event: evt });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create event.';
+      const message = clientErrorMessage(err, 'Failed to create event.');
       res.status(400).json({ error: message });
     }
   });
@@ -535,7 +547,7 @@ export function createApiApp(): Express {
       emitLiveBoardUpdate();
       res.json({ event: evt });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update event.';
+      const message = clientErrorMessage(err, 'Failed to update event.');
       res.status(400).json({ error: message });
     }
   });
@@ -546,7 +558,7 @@ export function createApiApp(): Express {
       const qrImageUrl = await saveOfficialQrImage(req.params.id, req.file.buffer);
       return res.json({ qrImageUrl });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'QR upload failed.';
+      const message = clientErrorMessage(err, 'QR upload failed.');
       return res.status(400).json({ error: message });
     }
   });
@@ -562,7 +574,8 @@ export function createApiApp(): Express {
     if (err instanceof multer.MulterError) {
       return res.status(400).json({ error: `Upload error: ${err.message} (max 5 MB)` });
     }
-    return next(err);
+    const invalidBody = err instanceof SyntaxError || (typeof err === 'object' && err !== null && 'status' in err && [400, 413].includes(Number(err.status)));
+    return res.status(invalidBody ? 400 : 500).json({ error: invalidBody ? 'Invalid request body.' : 'Unable to complete the request. Please try again.' });
   });
 
   return app;

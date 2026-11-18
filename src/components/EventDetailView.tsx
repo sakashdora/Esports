@@ -118,7 +118,7 @@ export function EventDetailView({ event, allEvents, onNavigate }: EventDetailVie
               <div className="flex justify-between gap-4">
                 <span className="text-neutral-400">Lunch Add-On</span>
                 <span className="font-mono font-semibold text-white whitespace-nowrap tabular-nums">
-                  +Rs. {event.lunchFee} / Member
+                  +Rs. {event.lunchFee} / Team (optional)
                 </span>
               </div>
               <div className="flex justify-between gap-4">

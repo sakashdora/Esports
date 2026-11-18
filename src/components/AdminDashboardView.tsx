@@ -13,6 +13,24 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+
+function ProtectedProofImage({ url, token, zoom }: { url: string; token: string; zoom: boolean }) {
+  const [source, setSource] = useState('');
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    let objectUrl = '';
+    setSource(''); setFailed(false);
+    fetch(url, { headers: url.startsWith('/api/') ? { Authorization: 'Bearer ' + token } : {}, signal: controller.signal })
+      .then(response => { if (!response.ok) throw new Error('Proof unavailable'); return response.blob(); })
+      .then(blob => { objectUrl = URL.createObjectURL(blob); setSource(objectUrl); })
+      .catch(() => { if (!controller.signal.aborted) setFailed(true); });
+    return () => { controller.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [url, token]);
+  if (!source) return <p role="status">{failed ? 'Unable to load proof. Refresh to retry.' : 'Loading payment proof…'}</p>;
+  return <img src={source} alt="Uploaded UPI Payment Proof" className={zoom ? 'mx-auto max-h-[600px] w-full rounded object-contain' : 'mx-auto max-h-60 rounded object-contain'} />;
+}
+
 import type { CampusEvent } from '../lib/defaultEvents';
 import { escapeCsvCell } from '../lib/tournamentRules';
 
@@ -80,9 +98,9 @@ const STORAGE_TOKEN_KEY = 'samt_admin_token';
 const STORAGE_EMAIL_KEY = 'samt_admin_email';
 
 export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps) {
-  const [token, setToken] = useState<string>(() => localStorage.getItem(STORAGE_TOKEN_KEY) || '');
+  const [token, setToken] = useState<string>(() => sessionStorage.getItem(STORAGE_TOKEN_KEY) || '');
   const [adminEmail, setAdminEmail] = useState<string>(
-    () => localStorage.getItem(STORAGE_EMAIL_KEY) || ''
+    () => sessionStorage.getItem(STORAGE_EMAIL_KEY) || ''
   );
   const [systemMode, setSystemMode] = useState<'supabase' | 'local'>('local');
   const [smtpConfigured, setSmtpConfigured] = useState(false);
@@ -178,8 +196,8 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Authentication failed.');
-      localStorage.setItem(STORAGE_TOKEN_KEY, json.token);
-      localStorage.setItem(STORAGE_EMAIL_KEY, json.email);
+      sessionStorage.setItem(STORAGE_TOKEN_KEY, json.token);
+      sessionStorage.setItem(STORAGE_EMAIL_KEY, json.email);
       setToken(json.token);
       setAdminEmail(json.email);
     } catch (err) {
@@ -190,8 +208,8 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   }
 
   function handleLogout() {
-    localStorage.removeItem(STORAGE_TOKEN_KEY);
-    localStorage.removeItem(STORAGE_EMAIL_KEY);
+    sessionStorage.removeItem(STORAGE_TOKEN_KEY);
+    sessionStorage.removeItem(STORAGE_EMAIL_KEY);
     setToken('');
     setAdminEmail('');
     setSelectedId(null);
@@ -478,13 +496,13 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                 type="password"
                 value={loginPass}
                 onChange={(e) => setLoginPass(e.target.value)}
-                placeholder={systemMode === 'supabase' ? '••••••••' : 'Enter SAMT-2K26-ADMIN'}
+                placeholder={systemMode === 'supabase' ? '••••••••' : 'Enter configured administrator password'}
                 required
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-[#233D8B] focus:outline-none"
               />
               {systemMode === 'local' && (
                 <p className="mt-1 text-[11px] text-slate-500">
-                  Local preview default passcode: <code className="font-mono">SAMT-2K26-ADMIN</code>
+                  Use the administrator password configured on the server.
                 </p>
               )}
             </div>
@@ -816,18 +834,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
 
                     {selectedBundle.latestProofUrl ? (
                       <div className="mt-1.5 overflow-auto rounded border border-slate-200 bg-slate-100 p-2 text-center">
-                        <img
-                          src={
-                            systemMode === 'local'
-                              ? `${selectedBundle.latestProofUrl}?token=${encodeURIComponent(token)}`
-                              : selectedBundle.latestProofUrl
-                          }
-                          alt="Uploaded UPI Payment Proof"
-                          referrerPolicy="no-referrer"
-                          className={`mx-auto rounded object-contain ${
-                            zoomImage ? 'max-h-[600px] w-full' : 'max-h-60'
-                          }`}
-                        />
+                        <ProtectedProofImage url={selectedBundle.latestProofUrl} token={token} zoom={zoomImage} />
                       </div>
                     ) : (
                       <div className="mt-1.5 rounded border border-slate-200 bg-slate-50 p-6 text-center text-xs text-slate-400">

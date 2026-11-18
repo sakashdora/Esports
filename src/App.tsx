@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
-import { AdminDashboardView } from './components/AdminDashboardView';
-import { EventDetailView } from './components/EventDetailView';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { HomeView } from './components/HomeView';
-import { LiveDashboardView } from './components/LiveDashboardView';
 import { Navbar, type AppRoute } from './components/Navbar';
-import { RegisterView } from './components/RegisterView';
-import { TrackStatusView } from './components/TrackStatusView';
 import { DEFAULT_EVENTS, type CampusEvent } from './lib/defaultEvents';
+
+const AdminDashboardView = lazy(() => import('./components/AdminDashboardView').then(module => ({ default: module.AdminDashboardView })));
+const EventDetailView = lazy(() => import('./components/EventDetailView').then(module => ({ default: module.EventDetailView })));
+const LiveDashboardView = lazy(() => import('./components/LiveDashboardView').then(module => ({ default: module.LiveDashboardView })));
+const RegisterView = lazy(() => import('./components/RegisterView').then(module => ({ default: module.RegisterView })));
+const TrackStatusView = lazy(() => import('./components/TrackStatusView').then(module => ({ default: module.TrackStatusView })));
 
 function parseLocationRoute(): AppRoute {
   const path = window.location.pathname;
@@ -94,6 +95,7 @@ export default function App() {
     <div className="min-h-screen">
       <Navbar route={route} onNavigate={navigate} defaultEventSlug={defaultSlug} />
 
+      <Suspense fallback={<div role="status" className="mx-auto max-w-6xl px-6 py-16 text-neutral-300">Loading page…</div>}>
       {route.page === 'home' && (
         <HomeView events={events} loading={loadingEvents} onNavigate={navigate} />
       )}
@@ -118,6 +120,7 @@ export default function App() {
       {route.page === 'track' && <TrackStatusView prefillCode={route.prefillCode} />}
 
       {route.page === 'admin' && <AdminDashboardView onEventsUpdated={refreshEvents} />}
+      </Suspense>
     </div>
   );
 }

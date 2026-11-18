@@ -6,6 +6,7 @@ import {
   calculateRegistrationFee,
   computeCountdown,
   escapeHtml,
+  escapeCsvCell,
   formatTeamCode,
   isStrict12DigitUtr,
   isValidEmail,
@@ -30,7 +31,7 @@ function makeMembers(lunchFlags: Array<{ lunch: boolean; diet: 'VEG' | 'NON_VEG'
   }));
 }
 
-test('calculateRegistrationFee applies Rs. 299 base + Rs. 100 per member opting for lunch', () => {
+test('calculateRegistrationFee applies Rs. 299 base + Rs. 100 once per team opting for lunch', () => {
   const noLunch = calculateRegistrationFee(
     makeMembers([
       { lunch: false, diet: 'NONE' },
@@ -54,8 +55,8 @@ test('calculateRegistrationFee applies Rs. 299 base + Rs. 100 per member opting 
   assert.equal(twoMeals.lunchCount, 2);
   assert.equal(twoMeals.vegCount, 1);
   assert.equal(twoMeals.nonVegCount, 1);
-  assert.equal(twoMeals.lunchTotal, 200);
-  assert.equal(twoMeals.totalFee, 499);
+  assert.equal(twoMeals.lunchTotal, 100);
+  assert.equal(twoMeals.totalFee, 399);
 
   const fiveMeals = calculateRegistrationFee(
     makeMembers([
@@ -66,7 +67,7 @@ test('calculateRegistrationFee applies Rs. 299 base + Rs. 100 per member opting 
       { lunch: true, diet: 'VEG' },
     ])
   );
-  assert.equal(fiveMeals.totalFee, 799);
+  assert.equal(fiveMeals.totalFee, 399);
   assert.equal(fiveMeals.vegCount, 3);
   assert.equal(fiveMeals.nonVegCount, 2);
 });
@@ -83,6 +84,24 @@ test('UTR, phone, and email validation enforce clean formats', () => {
 
   assert.equal(isValidEmail('leader@srustiacademy.edu.in'), true);
   assert.equal(isValidEmail('invalid-email'), false);
+});
+
+test('CSV export neutralizes spreadsheet formulas', () => {
+  assert.equal(escapeCsvCell('=1+1'), "'=1+1");
+  assert.equal(escapeCsvCell('@SUM(A1)'), "'@SUM(A1)");
+  assert.equal(escapeCsvCell('Squad One'), 'Squad One');
+});
+
+test('roster validation rejects malformed and duplicated roles', () => {
+  const input = {
+    eventSlug: 'kalinga-warriors-bgmi', teamName: 'Test', collegeName: 'College',
+    iglPhone: '9876543210', iglEmail: 'test@example.test', hasSubstitute: false,
+    eligibilityConfirmed: true, fairPlayConfirmed: true,
+    members: makeMembers(Array.from({ length: 4 }, () => ({ lunch: false, diet: 'NONE' as const }))),
+  };
+  input.members[3].slotRole = 'P3';
+  assert.equal(validateSquadSubmission(input).valid, false);
+  assert.equal(validateSquadSubmission({ ...input, members: [null] as unknown as PlayerInput[] }).valid, false);
 });
 
 test('assignTournamentSlot assigns Group A (1-12), Group B (1-12), and Waitlist', () => {
@@ -160,4 +179,12 @@ test('resolveDeadlineTimestamp & computeCountdown compute accurate remaining tim
     seconds: 0,
     expired: true,
   });
+});
+
+test('entry countdown uses IST and never expires before the target instant', () => {
+  const entry = Date.parse('2026-12-13T09:30:00+05:30');
+  assert.equal(entry, Date.parse('2026-12-13T04:00:00Z'));
+  assert.deepEqual(computeCountdown(entry, entry - 1), { days: 0, hours: 0, minutes: 0, seconds: 1, expired: false });
+  assert.deepEqual(computeCountdown(entry, entry), { days: 0, hours: 0, minutes: 0, seconds: 0, expired: true });
+  assert.equal(computeCountdown(Number.NaN).expired, true);
 });

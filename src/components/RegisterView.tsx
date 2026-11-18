@@ -318,7 +318,7 @@ export function RegisterView({
               <div>
                 <div className="text-xs text-neutral-400">Meal Add-On</div>
                 <div className="font-mono text-sm font-medium text-neutral-200 tabular-nums">
-                  {feeSummary.lunchCount} × Rs. {event.lunchFee} ({feeSummary.vegCount}V /{' '}
+                  Rs. {feeSummary.lunchTotal} per team ({feeSummary.vegCount}V /{' '}
                   {feeSummary.nonVegCount}NV)
                 </div>
               </div>
@@ -451,11 +451,11 @@ export function RegisterView({
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h2 className="font-display text-2xl font-bold text-white uppercase">
-                  Step 2 · Squad Roster &amp; Optional Lunch (+Rs. {event.lunchFee}/Member)
+                  Step 2 · Squad Roster &amp; Optional Lunch (+Rs. {event.lunchFee}/Team)
                 </h2>
                 <p className="mt-1 text-xs text-neutral-400">
                   Enter exact Full Name, In-Game Name (IGN), and Character ID as required by Section
-                  1.3 of the official rulebook.
+                  1.3 of the official rulebook. Lunch is optional: select meals below for a single Rs. {event.lunchFee} team charge. No meals means no lunch charge.
                 </p>
               </div>
               <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-white/15 bg-[#110D0C] px-3.5 py-2 text-xs font-medium text-neutral-200">
@@ -492,7 +492,7 @@ export function RegisterView({
                             }
                             className="h-4 w-4 accent-[#D41B14]"
                           />
-                          Lunch (+Rs. {event.lunchFee})
+                          Include this player’s meal
                         </label>
 
                         {member.wantsLunch && (
@@ -757,7 +757,7 @@ export function RegisterView({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-neutral-400">
-                    Lunch ({feeSummary.lunchCount} members)
+                    Team lunch · {feeSummary.lunchCount} meals
                   </span>
                   <span className="font-mono tabular-nums">Rs. {feeSummary.lunchTotal}</span>
                 </div>

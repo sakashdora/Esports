@@ -61,6 +61,9 @@ export interface CampusEvent {
   pendingCount?: number;
 }
 
+export const EVENT_ENTRY_ISO = '2026-12-13T09:30:00+05:30';
+export const EVENT_DATE_LABEL = '13 December 2026 · Entry 9:30 AM IST';
+
 export const DEFAULT_EVENTS: CampusEvent[] = [
   {
     id: 'evt-kalinga-warriors-bgmi',
@@ -85,7 +88,7 @@ export const DEFAULT_EVENTS: CampusEvent[] = [
     qrImageUrl: '',
     upiVpa: '',
     upiPayeeName: 'Srusti Academy of Management and Technology',
-    eventDateLabel: 'Campus LAN Championship 2K26 (Dates TBA)',
+    eventDateLabel: EVENT_DATE_LABEL,
     registrationDeadline: 'Open until 24 squad slots fill',
     venueLabel: 'SAMT Campus LAN Arena',
     isOpen: true,
@@ -178,7 +181,7 @@ export const DEFAULT_EVENTS: CampusEvent[] = [
     qrImageUrl: '',
     upiVpa: '',
     upiPayeeName: 'Srusti Academy of Management and Technology',
-    eventDateLabel: 'Campus LAN Championship 2K26 (Dates TBA)',
+    eventDateLabel: EVENT_DATE_LABEL,
     registrationDeadline: 'Open until 24 squad slots fill',
     venueLabel: 'SAMT Campus LAN Arena',
     isOpen: true,

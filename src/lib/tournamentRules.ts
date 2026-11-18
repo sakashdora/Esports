@@ -24,7 +24,7 @@ export interface PlayerInput {
 
 export interface FeeBreakdown {
   baseFee: number;
-  lunchFeePerMember: number;
+  lunchFeePerTeam: number;
   lunchCount: number;
   vegCount: number;
   nonVegCount: number;
@@ -39,12 +39,12 @@ export interface ValidationResult {
 
 /**
  * Computes exact tournament registration fee using the official rule:
- * Base Team Fee (Rs. 299) + (Rs. 100 * number of members opting for lunch).
+ * Base Team Fee (Rs. 299) + one optional team lunch charge (Rs. 100).
  */
 export function calculateRegistrationFee(
   members: Pick<PlayerInput, 'wantsLunch' | 'dietType'>[],
   baseFee = 299,
-  lunchFeePerMember = 100
+  lunchFeePerTeam = 100
 ): FeeBreakdown {
   let lunchCount = 0;
   let vegCount = 0;
@@ -61,10 +61,10 @@ export function calculateRegistrationFee(
     }
   }
 
-  const lunchTotal = lunchCount * lunchFeePerMember;
+  const lunchTotal = lunchCount > 0 ? lunchFeePerTeam : 0;
   return {
     baseFee,
-    lunchFeePerMember,
+    lunchFeePerTeam,
     lunchCount,
     vegCount,
     nonVegCount,
@@ -181,6 +181,15 @@ export function validateSquadSubmission(input: {
 }): ValidationResult {
   const errors: Record<string, string> = {};
 
+  if (!Array.isArray(input.members) || input.members.some((member) =>
+    !member || !['IGL', 'P2', 'P3', 'P4', 'SUB'].includes(member.slotRole) ||
+    ['fullName', 'inGameName', 'characterId', 'academicLevel'].some(key =>
+      typeof member[key as keyof PlayerInput] !== 'string') ||
+    typeof member.wantsLunch !== 'boolean'
+  )) {
+    return { valid: false, errors: { members: 'Provide a valid squad roster.' } };
+  }
+
   if (!input.teamName.trim() || input.teamName.trim().length < 2) {
     errors.teamName = 'Team Name must be at least 2 characters.';
   }
@@ -198,6 +207,10 @@ export function validateSquadSubmission(input: {
   const activeMembers = input.members.filter((m) =>
     input.hasSubstitute ? true : m.slotRole !== 'SUB'
   );
+  const expectedCount = input.hasSubstitute ? 5 : 4;
+  if (activeMembers.length !== expectedCount || new Set(activeMembers.map(m => m.slotRole)).size !== expectedCount) {
+    errors.members = 'Provide exactly four active players and, if selected, one substitute.';
+  }
 
   for (const role of requiredRoles) {
     if (!activeMembers.find((m) => m.slotRole === role)) {
@@ -260,7 +273,8 @@ export function escapeHtml(unsafe: string): string {
  * Escapes CSV cell values cleanly.
  */
 export function escapeCsvCell(value: string | number | boolean | null | undefined): string {
-  const str = value === null || value === undefined ? '' : String(value);
+  const raw = value === null || value === undefined ? '' : String(value);
+  const str = /^[=+@\-\t\r]/.test(raw) ? `'${raw}` : raw;
   if (/[",\n\r]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }
@@ -303,7 +317,7 @@ export function computeCountdown(targetMs: number, nowMs = Date.now()): Countdow
   if (!Number.isFinite(diffMs) || diffMs <= 0) {
     return { days: 0, hours: 0, minutes: 0, seconds: 0, expired: true };
   }
-  const totalSeconds = Math.floor(diffMs / 1000);
+  const totalSeconds = Math.ceil(diffMs / 1000);
   const days = Math.floor(totalSeconds / 86400);
   const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);

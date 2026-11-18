@@ -22,7 +22,7 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
 
   const navItems: Array<{ label: string; active: boolean; action: () => void }> = [
     {
-      label: 'Events',
+      label: 'Tournaments',
       active: route.page === 'home',
       action: () => onNavigate({ page: 'home' }),
     },
@@ -32,19 +32,17 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
       action: () => onNavigate({ page: 'live' }),
     },
     {
-      label: 'Rulebook',
-      active: route.page === 'event',
-      action: () => onNavigate({ page: 'event', slug: defaultEventSlug }),
+      label: 'How it works',
+      active: false,
+      action: () => {
+        onNavigate({ page: 'home' });
+        window.setTimeout(() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }), 0);
+      },
     },
     {
       label: 'Track Status',
       active: route.page === 'track',
       action: () => onNavigate({ page: 'track' }),
-    },
-    {
-      label: 'Admin',
-      active: route.page === 'admin',
-      action: () => onNavigate({ page: 'admin' }),
     },
   ];
 
@@ -56,7 +54,7 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
           : 'border-slate-200 bg-white text-slate-900'
       }`}
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-8 px-4 py-2.5 sm:px-6">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
         {/* Zone 1: Highlighted SRUSTI e-SPORTS Brand Lockup */}
         <button
           type="button"
@@ -73,11 +71,11 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
             src="/assets/aistudio/Prospectus_2026_-_27_-_1_bb4cb47c.png"
             alt="SAMT Crest"
             referrerPolicy="no-referrer"
-            className="relative h-7 w-7 shrink-0 object-contain drop-shadow-[0_2px_8px_rgba(212,27,20,0.35)] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105"
+            className="relative h-12 w-12 shrink-0 object-contain drop-shadow-[0_2px_8px_rgba(212,27,20,0.35)] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105"
           />
           <span className="relative flex items-center gap-1.5 whitespace-nowrap">
             <span
-              className={`font-display text-[1.35rem] leading-none font-extrabold tracking-wider uppercase ${
+              className={`font-display text-[1.65rem] leading-none font-extrabold tracking-wider uppercase ${
                 isDarkShell ? 'text-white' : 'text-slate-900'
               }`}
             >
@@ -87,7 +85,7 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
               src="/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.png"
               alt="SRUSTI e-SPORTS"
               referrerPolicy="no-referrer"
-              className={`h-6 w-auto shrink-0 object-contain transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.04] ${
+              className={`hidden h-6 w-auto sm:block shrink-0 object-contain transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.04] ${
                 isDarkShell ? 'drop-shadow-[0_0_10px_rgba(212,27,20,0.65)]' : ''
               }`}
             />
@@ -101,7 +99,7 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
         </button>
 
         {/* Zone 2: Single-line Navigation Links */}
-        <nav aria-label="Primary" className="hidden items-center gap-7 md:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-7 lg:flex">
           {navItems.map((item) => (
             <button
               key={item.label}
@@ -141,7 +139,7 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
             aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((prev) => !prev)}
-            className={`inline-flex h-10 w-10 items-center justify-center rounded-md border md:hidden ${
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-md border lg:hidden ${
               isDarkShell
                 ? 'border-white/15 text-neutral-200 hover:bg-white/5'
                 : 'border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -155,7 +153,7 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
       {/* Mobile Drawer */}
       {mobileOpen && (
         <div
-          className={`border-t px-4 py-3 md:hidden ${
+          className={`border-t px-4 py-3 lg:hidden ${
             isDarkShell
               ? 'border-white/10 bg-[#1A1716] text-neutral-100'
               : 'border-slate-200 bg-slate-50 text-slate-900'

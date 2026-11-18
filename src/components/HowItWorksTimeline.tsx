@@ -211,16 +211,16 @@ export function HowItWorksTimeline({ defaultEventSlug, onNavigate }: HowItWorksT
       cardCaption: 'Select meal options and pay the fee.',
       title: 'Add Optional Campus Lunch',
       summary:
-        'Your squad pays a flat Rs. 299 entry fee. Optionally toggle campus lunch (+Rs. 100 per opting player) with Veg or Non-Veg preferences.',
+        'Your squad pays a flat Rs. 299 entry fee. Optionally toggle campus lunch (+Rs. 100 once per team) with Veg or Non-Veg preferences.',
       requirements: [
         'Flat Rs. 299 team registration fee per squad',
-        'Optional lunch add-on: Rs. 100 only for players who opt in',
+        'Optional lunch add-on: Rs. 100 per team, regardless of meal count',
         'Veg or Non-Veg choice recorded individually for catering',
       ],
       checkpointLabel: 'Fee Formula',
-      checkpointValue: 'Rs. 299 + (Opt-In Players × Rs. 100)',
+      checkpointValue: 'Rs. 299 + optional Rs. 100 per team',
       checkpointNote:
-        'For example, 4 players choosing lunch brings your squad total to Rs. 699.',
+        'For example, 4 players choosing lunch brings your squad total to Rs. 399.',
       actionLabel: 'Calculate Fee & Register',
       actionRoute: { page: 'register', slug: defaultEventSlug },
     },

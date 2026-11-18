@@ -1,0 +1,66 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+test('local registration, review, reupload, privacy and admin authorization', async () => {
+  // Use a separate child process with an isolated cwd: never touch actual registrations.
+  const { spawnSync } = await import('node:child_process');
+  const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'efest-workflow-'));
+  const result = spawnSync(process.execPath, ['--import', pathToFileURL(path.resolve('node_modules/tsx/dist/loader.mjs')).href, '--input-type=module', '-e', `
+    import assert from 'node:assert/strict';
+    const { createRegistrationWithProof, trackRegistration, decideRegistrationPayment, resubmitPaymentProof, listPublicLiveBoard, issueLocalAdminToken, verifyAdminToken } = await import(${JSON.stringify(new URL('./store.ts', import.meta.url).href)});
+    const { createApiApp } = await import(${JSON.stringify(new URL('./app.ts', import.meta.url).href)});
+    const members = ['IGL','P2','P3','P4','SUB'].map((slotRole, index) => ({ slotRole, fullName: 'Private Student '+index, inGameName: 'Player'+index, characterId: '10000'+index, academicLevel: 'UG', wantsLunch: true, dietType: 'VEG' }));
+    const input = { eventSlug:'kalinga-warriors-bgmi', teamName:'Test Squad', collegeName:'Test College', iglPhone:'9876543210', iglEmail:'captain@example.test', hasSubstitute:true, members, eligibilityConfirmed:true, fairPlayConfirmed:true, utrNumber:'123456789012', upiApp:'UPI', fileBuffer:Buffer.from('89504e470d0a1a0a000000000000','hex') };
+    const bundle = await createRegistrationWithProof(input);
+    assert.equal(bundle.registration.totalFee,399);
+    assert.equal(bundle.registration.lunchCount,5);
+    assert.equal(bundle.event.eventDateLabel,'13 December 2026 · Entry 9:30 AM IST');
+    assert.equal(await trackRegistration(bundle.registration.teamCode,'9876543211'),null);
+    assert.ok(await trackRegistration(bundle.registration.teamCode,input.iglPhone));
+    await assert.rejects(createRegistrationWithProof(input));
+    await decideRegistrationPayment({registrationId:bundle.registration.id, decision:'reupload_required', reason:'Please provide a clearer proof', actorEmail:'admin@example.test', actorId:null});
+    await resubmitPaymentProof({teamCode:bundle.registration.teamCode,iglPhone:input.iglPhone,utrNumber:'123456789013',upiApp:'UPI',fileBuffer:Buffer.from('89504e470d0a1a0a000000000001','hex')});
+    const approved = await decideRegistrationPayment({registrationId:bundle.registration.id,decision:'approve',actorEmail:'admin@example.test',actorId:null});
+    assert.equal(approved.registration.status,'verified');
+    assert.equal(approved.registration.slotNumber,'A1');
+    const board = JSON.stringify(await listPublicLiveBoard());
+    for (const privateValue of ['9876543210','captain@example.test','Private Student','123456789013','screenshotPath']) assert.equal(board.includes(privateValue),false);
+    delete process.env.ADMIN_DEMO_PASSCODE;
+    assert.equal((await verifyAdminToken('Bearer invalid')).ok,false);
+    assert.throws(()=>issueLocalAdminToken('admin@example.test'));
+    process.env.ADMIN_DEMO_PASSCODE='isolated-test-password';
+    const token=issueLocalAdminToken('admin@example.test');
+    assert.equal((await verifyAdminToken('Bearer '+token)).ok,true);
+    assert.equal((await verifyAdminToken('Bearer '+token+'x')).ok,false);
+    const app=createApiApp();
+    const server=app.listen(0,'127.0.0.1');
+    await new Promise(resolve=>server.once('listening',resolve));
+    const base='http://127.0.0.1:'+server.address().port;
+    try {
+      assert.equal((await fetch(base+'/api/admin/overview')).status,401);
+      assert.equal((await fetch(base+'/api/admin/overview?token='+token)).status,401);
+      const allowed=await fetch(base+'/api/admin/overview',{headers:{Authorization:'Bearer '+token}});
+      assert.equal(allowed.status,200);
+      assert.equal(allowed.headers.get('cache-control'),'no-store');
+      assert.equal(allowed.headers.get('x-frame-options'),'DENY');
+      const malformed=await fetch(base+'/api/registrations/track',{method:'POST',headers:{'Content-Type':'application/json'},body:'{private-test-body'});
+      assert.equal(malformed.status,400);
+      assert.deepEqual(await malformed.json(),{error:'Invalid request body.'});
+      const proofDenied=await fetch(base+'/api/admin/proof-image/'+bundle.proofs[0].id);
+      assert.equal(proofDenied.status,401);
+      const publicBoard=await fetch(base+'/api/live-registrations');
+      const publicText=await publicBoard.text();
+      assert.equal(publicText.includes(input.iglEmail),false);
+      assert.equal(publicText.includes(input.iglPhone),false);
+    } finally { server.close(); }
+  `], { cwd: fixture, encoding: 'utf8', env: { ...process.env, SUPABASE_URL: '', SUPABASE_ANON_KEY: '', SUPABASE_SERVICE_ROLE_KEY: '', VERCEL: '' } });
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  // Only the generated, verified test directory may be removed.
+  assert.equal(path.dirname(fixture), os.tmpdir());
+  assert.ok(path.basename(fixture).startsWith('efest-workflow-'));
+  fs.rmSync(fixture, { recursive: true });
+});

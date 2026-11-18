@@ -22,10 +22,10 @@ interface EmberParticlesProps {
 }
 
 const EMBER_PALETTE = [
-  'rgba(255, 118, 38,', // warm fire orange
+  'rgba(35, 61, 139,', // college blue
   'rgba(212, 27, 20,',  // SAMT crimson spark
   'rgba(229, 199, 54,', // championship gold
-  'rgba(255, 174, 88,', // soft ember core
+  'rgba(192, 192, 192,', // metallic silver
 ];
 
 function buildEmberSprites(): HTMLCanvasElement[] {
@@ -79,7 +79,8 @@ export function EmberParticles({ density = 44, className = '' }: EmberParticlesP
     if (!ctx) return;
 
     const sprites = buildEmberSprites();
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let visible = true;
     let width = 0;
     let height = 0;
     let particles: EmberParticle[] = [];
@@ -99,7 +100,7 @@ export function EmberParticles({ density = 44, className = '' }: EmberParticlesP
       canvas.style.height = `${height}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      const targetCount = width < 640 ? Math.max(20, Math.floor(density * 0.5)) : density;
+      const targetCount = width < 640 ? Math.max(8, Math.floor(density * 0.5)) : density;
       if (particles.length === 0) {
         particles = Array.from({ length: targetCount }, () => createEmber(width, height, false));
       } else if (particles.length !== targetCount) {
@@ -110,6 +111,7 @@ export function EmberParticles({ density = 44, className = '' }: EmberParticlesP
           particles.length = targetCount;
         }
       }
+      if (motionQuery.matches) drawFrame(0, false);
     };
 
     const drawFrame = (dt: number, animate: boolean) => {
@@ -156,32 +158,40 @@ export function EmberParticles({ density = 44, className = '' }: EmberParticlesP
     if (ro && canvas.parentElement) ro.observe(canvas.parentElement);
     window.addEventListener('resize', resize);
 
-    if (reducedMotion) {
-      drawFrame(0, false);
-      return () => {
-        window.removeEventListener('resize', resize);
-        if (ro) ro.disconnect();
-      };
-    }
-
     const tick = (now: number) => {
-      if (document.visibilityState === 'hidden') {
+      rafId = 0;
+      if (document.hidden || !visible || motionQuery.matches) return;
+      if (now - lastTime >= 1000 / 30) {
+        const dt = Math.min(0.05, (now - lastTime) / 1000);
         lastTime = now;
-        rafId = window.requestAnimationFrame(tick);
-        return;
+        drawFrame(dt, true);
       }
-      const dt = Math.min(0.05, Math.max(0.001, (now - lastTime) / 1000));
-      lastTime = now;
-      drawFrame(dt, true);
       rafId = window.requestAnimationFrame(tick);
     };
-
-    rafId = window.requestAnimationFrame(tick);
-
+    const syncAnimation = () => {
+      window.cancelAnimationFrame(rafId);
+      rafId = 0;
+      if (motionQuery.matches) { drawFrame(0, false); return; }
+      if (!document.hidden && visible) {
+        lastTime = performance.now();
+        rafId = window.requestAnimationFrame(tick);
+      }
+    };
+    const observer = typeof IntersectionObserver !== 'undefined' ? new IntersectionObserver(entries => {
+      visible = entries.some(entry => entry.isIntersecting);
+      syncAnimation();
+    }) : null;
+    observer?.observe(canvas);
+    document.addEventListener('visibilitychange', syncAnimation);
+    motionQuery.addEventListener('change', syncAnimation);
+    syncAnimation();
     return () => {
       window.cancelAnimationFrame(rafId);
       window.removeEventListener('resize', resize);
-      if (ro) ro.disconnect();
+      document.removeEventListener('visibilitychange', syncAnimation);
+      motionQuery.removeEventListener('change', syncAnimation);
+      observer?.disconnect();
+      ro?.disconnect();
     };
   }, [density]);
 
