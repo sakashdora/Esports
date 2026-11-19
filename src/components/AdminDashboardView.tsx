@@ -33,6 +33,7 @@ function ProtectedProofImage({ url, token, zoom }: { url: string; token: string;
 
 import type { CampusEvent } from '../lib/defaultEvents';
 import { adminRequest } from '../lib/adminRequest';
+import { readAdminLoginResponse } from '../lib/adminLogin';
 import { filterAdminRegistrations } from '../lib/adminFilters';
 import { escapeCsvCell } from '../lib/tournamentRules';
 
@@ -107,7 +108,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   const activeToken = useRef(token);
   const overviewSequence = useRef(0);
   const [creatingEvent, setCreatingEvent] = useState(false);
-  const [systemMode, setSystemMode] = useState<'supabase' | 'local'>('local');
+  const [systemMode, setSystemMode] = useState<'supabase' | 'local' | null>(null);
   const [smtpConfigured, setSmtpConfigured] = useState(false);
 
   // Login form state
@@ -157,12 +158,12 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
 
   useEffect(() => {
     fetch('/api/health')
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error('Service unavailable'); return r.json(); })
       .then((d) => {
         setSystemMode(d.mode === 'supabase' ? 'supabase' : 'local');
         setSmtpConfigured(Boolean(d.smtpConfigured));
       })
-      .catch(() => {});
+      .catch(() => { setLoginError('Unable to reach the sign-in server. Please try again later or contact the site administrator.'); });
   }, []);
 
   async function fetchAdmin(url: string, init: RequestInit = {}) {
@@ -214,8 +215,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: loginEmail, password: loginPass }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Authentication failed.');
+      const json = await readAdminLoginResponse(res);
       sessionStorage.setItem(STORAGE_TOKEN_KEY, json.token);
       sessionStorage.setItem(STORAGE_EMAIL_KEY, json.email);
       activeToken.current = json.token;
@@ -543,7 +543,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
 
             <div>
               <label htmlFor="admin-pass" className="block text-xs font-medium text-slate-700">
-                {systemMode === 'supabase' ? 'Password' : 'Admin Passcode'}
+                {systemMode === 'local' ? 'Admin Passcode' : 'Password'}
               </label>
               <input
                 id="admin-pass"
