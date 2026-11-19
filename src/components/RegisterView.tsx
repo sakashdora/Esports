@@ -734,7 +734,7 @@ export function RegisterView({
                       Official College QR Pending Upload
                     </p>
                     <p className="mt-1 max-w-xs text-[11px] text-slate-500">
-                      Tournament coordinators can upload the official static UPI QR or set the
+                      Tournament administrators can upload the official static UPI QR or set the
                       college UPI VPA inside Admin → Events &amp; QR Setup.
                     </p>
                   </div>

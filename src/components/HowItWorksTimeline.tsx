@@ -269,18 +269,18 @@ export function HowItWorksTimeline({ defaultEventSlug, onNavigate }: HowItWorksT
       phase: 'Slot Pass',
       shortTitle: 'Confirmed Pass',
       cardCaption: 'Get your confirmation pass.',
-      title: 'Coordinator Approval & Slot Pass',
+      title: 'Administrator Approval & Slot Pass',
       summary:
-        'Coordinators match your UTR against the college statement, assign your Group A or Group B LAN seat, and email your verified pass.',
+        'Administrators match your UTR against the college statement, assign your Group A or Group B LAN seat, and email your verified pass.',
       requirements: [
-        'Coordinator audit against the official SAMT payment statement',
+        'Administrator audit against the official SAMT payment statement',
         'Automatic seat assignment in Group A (A1–A12) or Group B (B1–B12)',
         'Verified confirmation email + printable LAN Slot Pass unlocked',
       ],
       checkpointLabel: 'Final Outcome',
       checkpointValue: 'Verified · Group Seat + Printable Pass',
       checkpointNote:
-        'If a screenshot is blurry, coordinators can request a quick proof re-upload without losing your squad spot.',
+        'If a screenshot is blurry, administrators can request a quick proof re-upload without losing your squad spot.',
       actionLabel: 'Open Status Tracker',
       actionRoute: { page: 'track' },
     },

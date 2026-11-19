@@ -476,7 +476,7 @@ export function LiveDashboardView({ initialEvents, onNavigate }: LiveDashboardVi
                 </h2>
                 <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-neutral-400">
                   {teams.length === 0
-                    ? 'Submitted teams appear here in real time the moment their UPI proof is submitted. Once verified by SAMT Coordinators, their LAN Group and Slot Seat update automatically.'
+                    ? 'Submitted teams appear here in real time the moment their UPI proof is submitted. Once verified by SAMT Administrators, their LAN Group and Slot Seat update automatically.'
                     : 'Try clearing your search term or switching the event/status filter.'}
                 </p>
                 <div className="mt-5 flex justify-center gap-3">

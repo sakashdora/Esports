@@ -1,4 +1,6 @@
 import { clientErrorMessage } from './errors';
+import { filterAdminRegistrations, type AdminFilters } from '../src/lib/adminFilters';
+import { exportAdminPdf, exportAdminWorkbook } from './adminExports';
 import 'dotenv/config';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { EventEmitter } from 'node:events';
@@ -398,6 +400,27 @@ export function createApiApp(): Express {
     } catch (err) {
       const message = 'Failed to load admin overview.';
       res.status(500).json({ error: message });
+    }
+  });
+
+  app.post('/api/admin/export/:format', requireAdmin, rateLimit(10, 60_000), async (req, res) => {
+    if (!['xlsx', 'pdf'].includes(req.params.format)) return res.status(400).json({ error: 'Choose Excel or PDF.' });
+    const filters: AdminFilters = {};
+    for (const key of ['search', 'event', 'status', 'lunch', 'from', 'to', 'sort'] as const) {
+      if (typeof req.body?.[key] === 'string') filters[key] = req.body[key].slice(0, 200);
+    }
+    if (filters.from && filters.to && filters.from > filters.to) return res.status(400).json({ error: 'Start date must be before end date.' });
+    try {
+      const data = await listAdminDashboardData();
+      const bundles = filterAdminRegistrations(data.bundles, filters);
+      const format = req.params.format;
+      const bytes = format === 'xlsx' ? await exportAdminWorkbook(bundles) : await exportAdminPdf(bundles);
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Content-Disposition', `attachment; filename="srusti-registrations.${format}"`);
+      res.type(format === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf');
+      return res.send(bytes);
+    } catch {
+      return res.status(500).json({ error: 'Export failed. Please try again.' });
     }
   });
 

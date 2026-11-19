@@ -53,6 +53,25 @@ test('local registration, review, reupload, privacy and admin authorization', as
       assert.equal(login.status,200);
       const loginData = await login.json();
       const adminHeaders = {Authorization:'Bearer '+loginData.token,'Content-Type':'application/json'};
+      for (const format of ['xlsx','pdf']) {
+        const denied = await fetch(base+'/api/admin/export/'+format,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+        assert.equal(denied.status,401);
+        const exported = await fetch(base+'/api/admin/export/'+format,{method:'POST',headers:adminHeaders,body:JSON.stringify({status:'verified'})});
+        assert.equal(exported.status,200);
+        assert.equal(exported.headers.get('cache-control'),'no-store');
+        const bytes = Buffer.from(await exported.arrayBuffer());
+        assert.equal(bytes.subarray(0,format==='xlsx'?2:4).toString(),format==='xlsx'?'PK':'%PDF');
+        if (format==='xlsx') {
+          const {default: ExcelJS} = await import(${JSON.stringify(pathToFileURL(path.resolve('node_modules/exceljs/excel.js')).href)});
+          const workbook = new ExcelJS.Workbook();
+          await workbook.xlsx.load(bytes);
+          assert.equal(workbook.getWorksheet('Registrations').rowCount,2);
+          assert.equal(workbook.getWorksheet('Players').rowCount,6);
+          assert.equal(workbook.getWorksheet('Registrations').getCell('H2').value,'9876543210');
+          assert.equal(JSON.stringify(workbook.model).includes(bundle.registration.id),false);
+          assert.equal(JSON.stringify(workbook.model).includes(loginData.token),false);
+        }
+      }
       const createDenied = await fetch(base+'/api/admin/events',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
       assert.equal(createDenied.status,401);
       const created = await fetch(base+'/api/admin/events',{method:'POST',headers:adminHeaders,body:JSON.stringify({title:'Workflow Test Event',gameTitle:'BGMI',maxTeams:24,baseFee:299,lunchFee:100,prizePoolTotal:1000})});

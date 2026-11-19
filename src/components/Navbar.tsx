@@ -44,6 +44,7 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
       active: route.page === 'track',
       action: () => onNavigate({ page: 'track' }),
     },
+    { label: 'Admin sign in', active: route.page === 'admin', action: () => onNavigate({ page: 'admin' }) },
   ];
 
   return (
@@ -99,7 +100,7 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
         </button>
 
         {/* Zone 2: Single-line Navigation Links */}
-        <nav aria-label="Primary" className="hidden items-center gap-7 lg:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-4 xl:flex">
           {navItems.map((item) => (
             <button
               key={item.label}
@@ -139,7 +140,7 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
             aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((prev) => !prev)}
-            className={`inline-flex h-10 w-10 items-center justify-center rounded-md border lg:hidden ${
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-md border xl:hidden ${
               isDarkShell
                 ? 'border-white/15 text-neutral-200 hover:bg-white/5'
                 : 'border-slate-200 text-slate-700 hover:bg-slate-50'

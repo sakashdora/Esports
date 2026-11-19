@@ -33,6 +33,7 @@ function ProtectedProofImage({ url, token, zoom }: { url: string; token: string;
 
 import type { CampusEvent } from '../lib/defaultEvents';
 import { adminRequest } from '../lib/adminRequest';
+import { filterAdminRegistrations } from '../lib/adminFilters';
 import { escapeCsvCell } from '../lib/tournamentRules';
 
 interface AdminBundle {
@@ -127,6 +128,12 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [eventFilter, setEventFilter] = useState('all');
+  const [lunchFilter, setLunchFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [sortOrder, setSortOrder] = useState('newest');
+  const [exporting, setExporting] = useState(false);
+  const filters = { search: searchQuery, event: eventFilter, status: statusFilter, lunch: lunchFilter, from: dateFrom, to: dateTo, sort: sortOrder };
 
   // Side-by-side Verification Inspector Modal
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -240,22 +247,25 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
     [bundles, selectedId]
   );
 
-  const filteredBundles = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return bundles.filter((b) => {
-      if (statusFilter !== 'all' && b.registration.status !== statusFilter) return false;
-      if (eventFilter !== 'all' && b.registration.eventId !== eventFilter) return false;
-      if (!q) return true;
-      const latestUtr = b.proofs[0]?.utrNumber || '';
-      return (
-        b.registration.teamCode.toLowerCase().includes(q) ||
-        b.registration.teamName.toLowerCase().includes(q) ||
-        b.registration.collegeName.toLowerCase().includes(q) ||
-        b.registration.iglPhone.includes(q) ||
-        latestUtr.toLowerCase().includes(q)
-      );
-    });
-  }, [bundles, statusFilter, eventFilter, searchQuery]);
+  const filteredBundles = useMemo(() => filterAdminRegistrations(bundles, filters),
+    [bundles, searchQuery, statusFilter, eventFilter, lunchFilter, dateFrom, dateTo, sortOrder]);
+
+  async function exportReport(format: 'xlsx' | 'pdf') {
+    if (exporting) return;
+    if (dateFrom && dateTo && dateFrom > dateTo) { setActionMsg('Start date must be before end date.'); return; }
+    setExporting(true);
+    try {
+      const res = await fetchAdmin('/api/admin/export/' + format, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(filters) });
+      const blob = await res.blob();
+      if (!activeToken.current) return;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url; link.download = 'srusti-registrations.' + format;
+      link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setActionMsg('Filtered ' + format.toUpperCase() + ' report downloaded.');
+    } catch (error) { setActionMsg(error instanceof Error ? error.message : 'Export failed.'); }
+    finally { setExporting(false); }
+  }
 
   const kpis = useMemo(() => {
     let pending = 0;
@@ -525,7 +535,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                 type="email"
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
-                placeholder="info.esport@srustiacademy.ac.in"
+                placeholder="Administrator email"
                 required={systemMode === 'supabase'}
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-[#233D8B] focus:outline-none"
               />
@@ -622,6 +632,11 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
           </div>
         </div>
 
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button disabled={exporting || loading} onClick={() => exportReport('xlsx')} className="rounded-md bg-[#233D8B] px-4 py-2 text-sm text-white disabled:opacity-50">{exporting ? 'Preparing report…' : 'Export Excel (.xlsx)'}</button>
+          <button disabled={exporting || loading} onClick={() => exportReport('pdf')} className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm disabled:opacity-50">Export PDF</button>
+          <span className="text-xs text-slate-500">Exports use the filters below.</span>
+        </div>
         {/* KPI Grid */}
         <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
           <div className="rounded-lg border border-slate-200 bg-white p-4">
@@ -662,6 +677,49 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
           </div>
         )}
 
+        <section aria-label="Registration filters" className="mt-5 rounded-lg bg-white">              <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-4">
+                <div className="relative min-w-[200px] flex-1">
+                  <Search className="pointer-events-none absolute top-2.5 left-3 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    aria-label="Search registrations" placeholder="Search team, college, email, phone or UTR"
+                    className="w-full rounded border border-slate-300 py-1.5 pr-3 pl-8 text-xs focus:border-[#233D8B] focus:outline-none"
+                  />
+                </div>
+                <select aria-label="Filter by lunch" value={lunchFilter} onChange={e => setLunchFilter(e.target.value)} className="rounded border border-slate-300 p-2 text-xs"><option value="all">All lunch preferences</option><option value="yes">Lunch opted in</option><option value="no">No lunch</option></select>
+                <label className="text-xs">From (IST) <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="rounded border border-slate-300 p-2" /></label>
+                <label className="text-xs">To (IST) <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="rounded border border-slate-300 p-2" /></label>
+                <select aria-label="Sort registrations" value={sortOrder} onChange={e => setSortOrder(e.target.value)} className="rounded border border-slate-300 p-2 text-xs"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="team">Team name A–Z</option></select>
+                <button onClick={() => { setSearchQuery(''); setEventFilter('all'); setStatusFilter('all'); setLunchFilter('all'); setDateFrom(''); setDateTo(''); setSortOrder('newest'); }} className="p-2 text-xs underline">Clear filters</button>
+                <span className="text-xs" role="status">{filteredBundles.length} of {bundles.length} teams</span>
+                <select
+                  aria-label="Filter by event"
+                  value={eventFilter}
+                  onChange={(e) => setEventFilter(e.target.value)}
+                  className="rounded border border-slate-300 px-2.5 py-1.5 text-xs"
+                >
+                  <option value="all">All Events</option>
+                  {events.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.title}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Filter by status"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="rounded border border-slate-300 px-2.5 py-1.5 text-xs"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="verified">Verified</option>
+                  <option value="reupload_required">Re-upload Needed</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div></section>
         {/* Navigation Tabs */}
         <div className="no-print mt-6 flex flex-wrap items-center gap-1 border-b border-slate-200">
           {(
@@ -695,43 +753,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
           <div className="mt-6 grid gap-6 lg:grid-cols-12">
             {/* Queue List */}
             <div className="rounded-lg border border-slate-200 bg-white lg:col-span-7">
-              <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-4">
-                <div className="relative flex-1">
-                  <Search className="pointer-events-none absolute top-2.5 left-3 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="search"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search Team ID, Name, UTR, Phone..."
-                    className="w-full rounded border border-slate-300 py-1.5 pr-3 pl-8 text-xs focus:border-[#233D8B] focus:outline-none"
-                  />
-                </div>
-                <select
-                  aria-label="Filter by event"
-                  value={eventFilter}
-                  onChange={(e) => setEventFilter(e.target.value)}
-                  className="rounded border border-slate-300 px-2.5 py-1.5 text-xs"
-                >
-                  <option value="all">All Events</option>
-                  {events.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.gameTitle}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Filter by status"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="rounded border border-slate-300 px-2.5 py-1.5 text-xs"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="pending">Pending</option>
-                  <option value="verified">Verified</option>
-                  <option value="reupload_required">Re-upload Needed</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-              </div>
+
 
               {filteredBundles.length === 0 ? (
                 <div className="p-10 text-center text-xs text-slate-500">
@@ -759,7 +781,6 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                             onClick={() => {
                               setSelectedId(b.registration.id);
                               setRejectReason(''); setZoomImage(false);
-                              setZoomImage(false);
                             }}
                             className={`cursor-pointer transition-colors ${
                               isSel ? 'bg-blue-50' : 'hover:bg-slate-50'
