@@ -1320,6 +1320,15 @@ export async function createExtensibleEvent(input: {
   venueLabel: string;
   upiVpa?: string;
 }): Promise<CampusEvent> {
+  if (typeof input.title !== 'string' || !input.title.trim() || typeof input.gameTitle !== 'string' || !input.gameTitle.trim()) {
+    throw new ClientInputError('Event title and game are required.');
+  }
+  for (const [field, fallback] of [['maxTeams',24],['baseFee',299],['lunchFee',100],['prizePoolTotal',5000]] as const) {
+    const value = Number(input[field] ?? fallback);
+    if (!Number.isFinite(value) || value < (field === 'maxTeams' ? 2 : 0) || (field === 'maxTeams' && !Number.isInteger(value))) {
+      throw new ClientInputError('Enter valid fees, prize amount and a whole-number team capacity of at least 2.');
+    }
+  }
   const slug =
     input.title
       .toLowerCase()
@@ -1333,31 +1342,31 @@ export async function createExtensibleEvent(input: {
     id: crypto.randomUUID(),
     slug,
     title: input.title.trim(),
-    subtitle: input.subtitle.trim() || 'Official SAMT College Event',
+    subtitle: String(input.subtitle ?? '').trim() || 'Official SAMT College Event',
     gameTitle: input.gameTitle.trim(),
     eventType: 'esports_squad',
     maxTeams: Math.max(2, Number(input.maxTeams || 24)),
-    baseFee: Math.max(0, Number(input.baseFee || 299)),
-    lunchFee: Math.max(0, Number(input.lunchFee || 100)),
-    prizePoolTotal: Math.max(0, Number(input.prizePoolTotal || 5000)),
+    baseFee: Math.max(0, Number(input.baseFee ?? 299)),
+    lunchFee: Math.max(0, Number(input.lunchFee ?? 100)),
+    prizePoolTotal: Math.max(0, Number(input.prizePoolTotal ?? 5000)),
     prizeBreakdown: [
       {
         position: '1st Position',
-        cashPrize: Math.round(Number(input.prizePoolTotal || 5000) * 0.6),
+        cashPrize: Math.round(Number(input.prizePoolTotal ?? 5000) * 0.6),
         award: 'Winner Trophy & Certificate',
       },
       {
         position: '2nd Position',
-        cashPrize: Math.round(Number(input.prizePoolTotal || 5000) * 0.4),
+        cashPrize: Math.round(Number(input.prizePoolTotal ?? 5000) * 0.4),
         award: 'Runner-Up Trophy & Certificate',
       },
     ],
     qrImageUrl: '',
     upiVpa: input.upiVpa?.trim() || '',
     upiPayeeName: 'Srusti Academy of Management and Technology',
-    eventDateLabel: input.eventDateLabel.trim() || 'Dates to be announced',
+    eventDateLabel: String(input.eventDateLabel ?? '').trim() || 'Dates to be announced',
     registrationDeadline: `Open until ${input.maxTeams || 24} teams fill`,
-    venueLabel: input.venueLabel.trim() || 'SAMT Campus',
+    venueLabel: String(input.venueLabel ?? '').trim() || 'SAMT Campus',
     isOpen: true,
     rulesJson: {
       codePrefix: `${prefix}26`,

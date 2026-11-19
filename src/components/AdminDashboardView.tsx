@@ -12,7 +12,7 @@ import {
   Upload,
   XCircle,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 function ProtectedProofImage({ url, token, zoom }: { url: string; token: string; zoom: boolean }) {
   const [source, setSource] = useState('');
@@ -23,7 +23,7 @@ function ProtectedProofImage({ url, token, zoom }: { url: string; token: string;
     setSource(''); setFailed(false);
     fetch(url, { headers: url.startsWith('/api/') ? { Authorization: 'Bearer ' + token } : {}, signal: controller.signal })
       .then(response => { if (!response.ok) throw new Error('Proof unavailable'); return response.blob(); })
-      .then(blob => { objectUrl = URL.createObjectURL(blob); setSource(objectUrl); })
+      .then(blob => { if (controller.signal.aborted) return; objectUrl = URL.createObjectURL(blob); setSource(objectUrl); })
       .catch(() => { if (!controller.signal.aborted) setFailed(true); });
     return () => { controller.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [url, token]);
@@ -32,6 +32,7 @@ function ProtectedProofImage({ url, token, zoom }: { url: string; token: string;
 }
 
 import type { CampusEvent } from '../lib/defaultEvents';
+import { adminRequest } from '../lib/adminRequest';
 import { escapeCsvCell } from '../lib/tournamentRules';
 
 interface AdminBundle {
@@ -102,6 +103,9 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   const [adminEmail, setAdminEmail] = useState<string>(
     () => sessionStorage.getItem(STORAGE_EMAIL_KEY) || ''
   );
+  const activeToken = useRef(token);
+  const overviewSequence = useRef(0);
+  const [creatingEvent, setCreatingEvent] = useState(false);
   const [systemMode, setSystemMode] = useState<'supabase' | 'local'>('local');
   const [smtpConfigured, setSmtpConfigured] = useState(false);
 
@@ -154,25 +158,34 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
       .catch(() => {});
   }, []);
 
-  async function fetchOverview(activeToken = token) {
-    if (!activeToken) return;
+  async function fetchAdmin(url: string, init: RequestInit = {}) {
+    const requestToken = activeToken.current;
+    const response = await adminRequest(url, requestToken, init, () => {
+      if (activeToken.current !== requestToken) return;
+      handleLogout();
+      setLoginError('Your admin session expired. Please sign in again.');
+    });
+    if (activeToken.current !== requestToken) throw new Error('Session changed. Please retry.');
+    return response;
+  }
+
+  async function fetchOverview(requestToken = token) {
+    if (!requestToken) return;
+    const sequence = ++overviewSequence.current;
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/overview', {
-        headers: { Authorization: `Bearer ${activeToken}` },
+      const res = await fetchAdmin('/api/admin/overview', {
+        headers: { Authorization: `Bearer ${requestToken}` },
       });
-      if (res.status === 401) {
-        handleLogout();
-        return;
-      }
       const json = await res.json();
+      if (activeToken.current !== requestToken || sequence !== overviewSequence.current) return;
       setEvents(json.events || []);
       setBundles(json.bundles || []);
       setAuditLogs(json.auditLogs || []);
       setSystemMode(json.mode === 'supabase' ? 'supabase' : 'local');
       setSmtpConfigured(Boolean(json.smtpConfigured));
     } catch {
-      setActionMsg('Failed to refresh dashboard data.');
+      if (activeToken.current === requestToken && sequence === overviewSequence.current) setActionMsg('Failed to refresh dashboard data. Your previous data is still shown; try Refresh.');
     } finally {
       setLoading(false);
     }
@@ -198,6 +211,9 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
       if (!res.ok) throw new Error(json.error || 'Authentication failed.');
       sessionStorage.setItem(STORAGE_TOKEN_KEY, json.token);
       sessionStorage.setItem(STORAGE_EMAIL_KEY, json.email);
+      activeToken.current = json.token;
+      setLoginPass('');
+      setLoginError('');
       setToken(json.token);
       setAdminEmail(json.email);
     } catch (err) {
@@ -210,6 +226,10 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   function handleLogout() {
     sessionStorage.removeItem(STORAGE_TOKEN_KEY);
     sessionStorage.removeItem(STORAGE_EMAIL_KEY);
+    activeToken.current = '';
+    overviewSequence.current += 1;
+    setBundles([]); setEvents([]); setAuditLogs([]); setSchemaSql('');
+    setRejectReason(''); setZoomImage(false); setActionMsg(''); setLoginPass('');
     setToken('');
     setAdminEmail('');
     setSelectedId(null);
@@ -268,11 +288,15 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   }, [bundles]);
 
   async function handleDecision(decision: 'approve' | 'reject' | 'reupload_required') {
-    if (!selectedBundle) return;
+    if (!selectedBundle || processingDecision) return;
+    if (decision !== 'approve' && !rejectReason.trim()) {
+      setActionMsg('Enter a reason before rejecting or requesting a new payment proof.');
+      return;
+    }
     setProcessingDecision(true);
     setActionMsg('');
     try {
-      const res = await fetch(
+      const res = await fetchAdmin(
         `/api/admin/registrations/${selectedBundle.registration.id}/decision`,
         {
           method: 'POST',
@@ -303,7 +327,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   async function handleResendEmail(regId: string) {
     setActionMsg('');
     try {
-      const res = await fetch(`/api/admin/registrations/${regId}/resend-email`, {
+      const res = await fetchAdmin(`/api/admin/registrations/${regId}/resend-email`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -320,69 +344,83 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   }
 
   async function handleQrUpload(eventId: string, file: File | undefined) {
-    if (!file) return;
-    const fd = new FormData();
-    fd.append('qr', file);
-    const res = await fetch(`/api/admin/events/${eventId}/qr`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: fd,
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      setActionMsg(json.error || 'QR upload failed.');
-      return;
+    try {
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('qr', file);
+      const res = await fetchAdmin(`/api/admin/events/${eventId}/qr`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setActionMsg(json.error || 'QR upload failed.');
+        return;
+      }
+      setActionMsg('Official UPI QR image updated.');
+      await fetchOverview();
+      onEventsUpdated();
+    } catch (error) {
+      setActionMsg(error instanceof Error ? error.message : 'Request failed. Please try again.');
     }
-    setActionMsg('Official UPI QR image updated.');
-    await fetchOverview();
-    onEventsUpdated();
   }
 
   async function handleEventFieldUpdate(eventId: string, patch: Record<string, unknown>) {
-    const res = await fetch(`/api/admin/events/${eventId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(patch),
-    });
-    if (res.ok) {
-      setActionMsg('Event configuration saved.');
-      await fetchOverview();
-      onEventsUpdated();
+    try {
+      const res = await fetchAdmin(`/api/admin/events/${eventId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(patch),
+      });
+      if (res.ok) {
+        setActionMsg('Event configuration saved.');
+        await fetchOverview();
+        onEventsUpdated();
+      }
+    } catch (error) {
+      setActionMsg(error instanceof Error ? error.message : 'Request failed. Please try again.');
     }
   }
 
   async function handleCreateEvent(e: React.FormEvent) {
     e.preventDefault();
-    if (!newEvtTitle.trim() || !newEvtGame.trim()) return;
-    const res = await fetch('/api/admin/events', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        title: newEvtTitle,
-        gameTitle: newEvtGame,
-        subtitle: newEvtSubtitle,
-        maxTeams: newEvtMaxTeams,
-        baseFee: newEvtBaseFee,
-        lunchFee: 100,
-        prizePoolTotal: newEvtPrize,
-        venueLabel: newEvtVenue,
-        eventDateLabel: newEvtDate,
-      }),
-    });
-    if (res.ok) {
-      setNewEvtTitle('');
-      setNewEvtGame('');
-      setNewEvtSubtitle('');
-      setActionMsg('New college event created and published.');
-      await fetchOverview();
-      onEventsUpdated();
-    }
+    if (creatingEvent) return;
+    setCreatingEvent(true);
+    try {
+      if (!newEvtTitle.trim() || !newEvtGame.trim()) return;
+      const res = await fetchAdmin('/api/admin/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: newEvtTitle,
+          gameTitle: newEvtGame,
+          subtitle: newEvtSubtitle,
+          maxTeams: newEvtMaxTeams,
+          baseFee: newEvtBaseFee,
+          lunchFee: 100,
+          prizePoolTotal: newEvtPrize,
+          venueLabel: newEvtVenue,
+          eventDateLabel: newEvtDate,
+        }),
+      });
+      if (res.ok) {
+        setNewEvtTitle('');
+        setNewEvtGame('');
+        setNewEvtSubtitle('');
+        setActionMsg('New college event created and published.');
+        await fetchOverview();
+        onEventsUpdated();
+      }
+    } catch (error) {
+      setActionMsg(error instanceof Error ? error.message : 'Request failed. Please try again.');
+    } finally { setCreatingEvent(false); }
   }
 
   function exportCsv() {
@@ -439,11 +477,16 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   }
 
   async function loadSchemaSql() {
-    const res = await fetch('/api/admin/schema.sql', {
+    try {
+    const res = await fetchAdmin('/api/admin/schema.sql', {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
-      setSchemaSql(await res.text());
+      const sql = await res.text();
+      if (activeToken.current) setSchemaSql(sql);
+    }
+    } catch (error) {
+      setActionMsg(error instanceof Error ? error.message : 'Unable to load schema.');
     }
   }
 
@@ -461,12 +504,12 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
             />
             <div>
               <h1 className="text-lg font-bold text-slate-900">
-                Coordinator Verification Console
+                Tournament Admin Console
               </h1>
               <p className="text-xs text-slate-500">
                 {systemMode === 'supabase'
-                  ? 'Supabase Auth Required (Admin Allowlist)'
-                  : 'Local Preview Mode (Connect Supabase in .env for Production)'}
+                  ? 'Sign in with your authorized administrator account.'
+                  : 'Sign in to manage registrations and tournament settings.'}
               </p>
             </div>
           </div>
@@ -474,10 +517,11 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
           <form onSubmit={handleLogin} className="mt-6 space-y-4">
             <div>
               <label htmlFor="admin-email" className="block text-xs font-medium text-slate-700">
-                Coordinator Email
+                Administrator Email
               </label>
               <input
                 id="admin-email"
+                autoComplete="username"
                 type="email"
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
@@ -493,6 +537,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
               </label>
               <input
                 id="admin-pass"
+                autoComplete="current-password"
                 type="password"
                 value={loginPass}
                 onChange={(e) => setLoginPass(e.target.value)}
@@ -612,7 +657,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
         </div>
 
         {actionMsg && (
-          <div className="no-print mt-4 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-xs font-medium text-slate-800">
+          <div role="status" aria-live="polite" className="no-print mt-4 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-xs font-medium text-slate-800">
             {actionMsg}
           </div>
         )}
@@ -713,6 +758,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                             key={b.registration.id}
                             onClick={() => {
                               setSelectedId(b.registration.id);
+                              setRejectReason(''); setZoomImage(false);
                               setZoomImage(false);
                             }}
                             className={`cursor-pointer transition-colors ${
@@ -1117,9 +1163,10 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
               </div>
               <button
                 type="submit"
+                disabled={creatingEvent}
                 className="mt-4 rounded bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
               >
-                Publish New Event
+                {creatingEvent ? 'Publishing…' : 'Publish New Event'}
               </button>
             </form>
           </div>
