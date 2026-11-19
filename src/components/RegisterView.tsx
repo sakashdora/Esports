@@ -143,6 +143,12 @@ export function RegisterView({
     });
   }, [event, feeSummary.totalFee, teamName]);
 
+  // A static QR that fails to load (moved/deleted file, private bucket) falls back to the
+  // VPA-generated QR when a VPA is configured, instead of a broken image.
+  const [failedQrUrl, setFailedQrUrl] = useState('');
+  const qrLoadFailed = Boolean(event?.qrImageUrl) && failedQrUrl === event?.qrImageUrl;
+  const showStaticQr = Boolean(event?.qrImageUrl) && !qrLoadFailed;
+
   function updateMember(role: SlotRole, patch: Partial<PlayerInput>) {
     setMembers((prev) =>
       prev.map((m) => {
@@ -718,13 +724,40 @@ export function RegisterView({
               </p>
 
               <div className="mt-5 flex flex-col items-center justify-center rounded-lg border border-white/10 bg-white p-5 text-slate-900">
-                {event.qrImageUrl ? (
-                  <img
-                    src={event.qrImageUrl}
-                    alt={`Official UPI QR for ${event.title.replace(/2k26/gi, '2026')}`}
-                    referrerPolicy="no-referrer"
-                    className="max-h-60 w-auto object-contain"
-                  />
+                {showStaticQr ? (
+                  <>
+                    <a
+                      href={event.qrImageUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Open the QR at full size"
+                      className="block w-full"
+                    >
+                      <img
+                        src={event.qrImageUrl}
+                        alt={`Official UPI QR for ${event.title.replace(/2k26/gi, '2026')}`}
+                        referrerPolicy="no-referrer"
+                        onError={() => setFailedQrUrl(event.qrImageUrl)}
+                        className="mx-auto h-auto max-h-[26rem] w-full max-w-[18rem] object-contain"
+                      />
+                    </a>
+                    {event.upiVpa && (
+                      <span className="mt-2 font-mono text-xs break-all text-slate-600">
+                        VPA: {event.upiVpa}
+                      </span>
+                    )}
+                    <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] font-semibold text-slate-700">
+                      <a href={event.qrImageUrl} target="_blank" rel="noreferrer" className="underline hover:text-slate-900">
+                        View full size
+                      </a>
+                      <a href={event.qrImageUrl} download={`${event.slug}-upi-qr`} className="underline hover:text-slate-900">
+                        Save QR image
+                      </a>
+                    </div>
+                    <p className="mt-2 max-w-xs text-center text-[11px] text-slate-500">
+                      Paying from this phone? Save the QR, then choose “Scan from gallery” in your UPI app.
+                    </p>
+                  </>
                 ) : upiIntentUri ? (
                   <>
                     <QRCodeSVG value={upiIntentUri} size={200} />
@@ -735,13 +768,27 @@ export function RegisterView({
                 ) : (
                   <div className="flex flex-col items-center py-8 text-center">
                     <QrCode className="h-16 w-16 text-slate-400" />
-                    <p className="mt-3 text-xs font-semibold text-slate-800">
-                      Official College QR Pending Upload
-                    </p>
-                    <p className="mt-1 max-w-xs text-[11px] text-slate-500">
-                      Tournament administrators can upload the official static UPI QR or set the
-                      college UPI VPA inside Admin → Events &amp; QR Setup.
-                    </p>
+                    {qrLoadFailed ? (
+                      <>
+                        <p className="mt-3 text-xs font-semibold text-slate-800">
+                          Official College QR Could Not Be Loaded
+                        </p>
+                        <p className="mt-1 max-w-xs text-[11px] text-slate-500">
+                          Refresh the page to try again, or contact the tournament coordinators
+                          for the official payment details before paying.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="mt-3 text-xs font-semibold text-slate-800">
+                          Official College QR Pending Upload
+                        </p>
+                        <p className="mt-1 max-w-xs text-[11px] text-slate-500">
+                          Tournament administrators can upload the official static UPI QR or set the
+                          college UPI VPA inside Admin → Events &amp; QR Setup.
+                        </p>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

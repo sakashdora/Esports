@@ -36,6 +36,7 @@ import { adminRequest } from '../lib/adminRequest';
 import { readAdminLoginResponse } from '../lib/adminLogin';
 import { filterAdminRegistrations } from '../lib/adminFilters';
 import { escapeCsvCell } from '../lib/tournamentRules';
+import { compressScreenshot } from '../lib/imageCompression';
 
 interface AdminBundle {
   registration: {
@@ -108,6 +109,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   const activeToken = useRef(token);
   const overviewSequence = useRef(0);
   const [creatingEvent, setCreatingEvent] = useState(false);
+  const [uploadingQrFor, setUploadingQrFor] = useState<string | null>(null);
   const [systemMode, setSystemMode] = useState<'supabase' | 'local' | null>(null);
   const [smtpConfigured, setSmtpConfigured] = useState(false);
 
@@ -354,10 +356,15 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   }
 
   async function handleQrUpload(eventId: string, file: File | undefined) {
+    if (!file || uploadingQrFor) return;
+    setUploadingQrFor(eventId);
+    setActionMsg('');
     try {
-      if (!file) return;
+      // Phone photos of a printed QR are often far above the 3 MB server limit;
+      // downscale large images in the browser first (small QR files are sent unchanged).
+      const prepared = await compressScreenshot(file);
       const fd = new FormData();
-      fd.append('qr', file);
+      fd.append('qr', prepared);
       const res = await fetchAdmin(`/api/admin/events/${eventId}/qr`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -368,12 +375,19 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
         setActionMsg(json.error || 'QR upload failed.');
         return;
       }
-      setActionMsg('Official UPI QR image updated.');
+      setActionMsg('Official UPI QR image updated. Check the preview before opening registrations.');
       await fetchOverview();
       onEventsUpdated();
     } catch (error) {
       setActionMsg(error instanceof Error ? error.message : 'Request failed. Please try again.');
+    } finally {
+      setUploadingQrFor(null);
     }
+  }
+
+  async function handleQrRemove(eventId: string) {
+    if (!window.confirm('Remove the uploaded QR image? Students will see the UPI ID QR (if set) instead.')) return;
+    await handleEventFieldUpdate(eventId, { qrImageUrl: '' });
   }
 
   async function handleEventFieldUpdate(eventId: string, patch: Record<string, unknown>) {
@@ -1104,17 +1118,57 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                     </div>
                   </div>
 
-                  <div className="mt-4 flex items-center justify-between gap-4 border-t border-slate-100 pt-4">
-                    <div className="text-xs text-slate-600">
-                      {evt.qrImageUrl ? 'Static UPI QR Uploaded' : 'No Static QR Image Uploaded'}
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
+                    <div className="flex min-w-0 items-center gap-3 text-xs text-slate-600">
+                      {evt.qrImageUrl ? (
+                        <a
+                          href={evt.qrImageUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Open uploaded QR at full size"
+                          className="shrink-0 rounded border border-slate-200 bg-white p-1"
+                        >
+                          <img
+                            src={evt.qrImageUrl}
+                            alt={`Uploaded UPI QR for ${evt.title}`}
+                            referrerPolicy="no-referrer"
+                            className="h-20 w-20 object-contain"
+                          />
+                        </a>
+                      ) : null}
+                      <div>
+                        <div>
+                          {evt.qrImageUrl ? 'Static UPI QR Uploaded' : 'No Static QR Image Uploaded'}
+                        </div>
+                        {evt.qrImageUrl ? (
+                          <div className="mt-1 flex gap-3 text-[11px] font-medium">
+                            <a href={evt.qrImageUrl} target="_blank" rel="noreferrer" className="text-[#233D8B] hover:underline">
+                              View full size
+                            </a>
+                            <button type="button" onClick={() => handleQrRemove(evt.id)} className="text-red-700 hover:underline">
+                              Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="mt-1 text-[11px] text-slate-500">
+                            {evt.upiVpa ? 'Students see a QR generated from the UPI VPA.' : 'Upload a QR or set a UPI VPA so students can pay.'}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded bg-[#233D8B] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1a2f6e]">
+                    <label className={`inline-flex cursor-pointer items-center gap-1.5 rounded bg-[#233D8B] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1a2f6e] ${uploadingQrFor ? 'pointer-events-none opacity-50' : ''}`}>
                       <Upload className="h-3.5 w-3.5" />
-                      Upload Official QR
+                      {uploadingQrFor === evt.id ? 'Uploading…' : evt.qrImageUrl ? 'Replace QR' : 'Upload Official QR'}
                       <input
                         type="file"
                         accept="image/png,image/jpeg,image/webp"
-                        onChange={(e) => handleQrUpload(evt.id, e.target.files?.[0])}
+                        disabled={Boolean(uploadingQrFor)}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          // Reset so choosing the same file again still triggers an upload.
+                          e.target.value = '';
+                          void handleQrUpload(evt.id, file);
+                        }}
                         className="sr-only"
                       />
                     </label>
