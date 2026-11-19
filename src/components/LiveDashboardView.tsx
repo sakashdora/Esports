@@ -139,7 +139,7 @@ export function LiveDashboardView({ initialEvents, onNavigate }: LiveDashboardVi
           <div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-400">
               <span className="font-semibold text-[#E5C736] uppercase">
-                SAMT Campus LAN 2K26 · Public Roster Feed
+                SAMT Campus LAN 2026 · Public Roster Feed
               </span>
               <span aria-hidden="true">·</span>
               <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-neutral-300">
@@ -257,7 +257,7 @@ export function LiveDashboardView({ initialEvents, onNavigate }: LiveDashboardVi
               >
                 <img
                   src={artUrl}
-                  alt={`${evtStat.title} (${evtStat.gameTitle}) Arena Backdrop`}
+                  alt={`${evtStat.title.replace(/2k26/gi, '2026')} (${evtStat.gameTitle}) Arena Backdrop`}
                   referrerPolicy="no-referrer"
                   className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center opacity-35 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.04]"
                 />
@@ -272,7 +272,7 @@ export function LiveDashboardView({ initialEvents, onNavigate }: LiveDashboardVi
                       {evtStat.gameTitle} · {evtStat.isOpen ? 'Registration Open' : 'Closed'}
                     </div>
                     <h2 className="mt-0.5 font-display text-xl font-bold text-white uppercase">
-                      {evtStat.title}
+                      {evtStat.title.replace(/2k26/gi, '2026')}
                     </h2>
                   </div>
                   <button
@@ -648,7 +648,7 @@ export function LiveDashboardView({ initialEvents, onNavigate }: LiveDashboardVi
                         {evt.gameTitle} · Official Group Seatings
                       </div>
                       <h2 className="mt-0.5 font-display text-2xl font-bold text-white uppercase">
-                        {evt.title}
+                        {evt.title.replace(/2k26/gi, '2026')}
                       </h2>
                     </div>
                     <div className="font-mono text-xs text-neutral-300 tabular-nums">

@@ -202,7 +202,7 @@ export function TrackStatusView({ prefillCode }: TrackStatusViewProps) {
             <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-5 print:border-slate-200">
               <div>
                 <div className="text-xs text-[#E5C736] print:text-slate-600">
-                  {data.event.title} · {data.event.gameTitle}
+                  {data.event.title.replace(/2k26/gi, '2026')} · {data.event.gameTitle}
                 </div>
                 <h2 className="mt-1 font-display text-3xl font-bold text-white uppercase print:text-slate-900">
                   {data.registration.teamName}

@@ -308,8 +308,6 @@ button:disabled { cursor: not-allowed; }
 .energy-ribbon { position: absolute; pointer-events: none; z-index: -1; height: 160px; width: 35%; border-radius: 50%; animation: ribbonFloat 9s ease-in-out infinite alternate; }
 .ribbon-blue { left: -20%; bottom: 15px; border-top: 2px solid #527aff; transform: rotate(30deg); }
 .ribbon-red { right: -20%; bottom: 15px; border-top: 2px solid #d41b14; transform: rotate(-30deg); animation-delay: -4s; }
-.motion-control { position: absolute; top: 10px; right: 12px; display: flex; gap: 5px; align-items: center; padding: 8px; color: #ddd; background: #0d0a09cc; border: 1px solid #ffffff22; border-radius: 3px; font-size: 10px; min-height: 36px; }
-.motion-control svg { width: 12px; height: 12px; }
 .battlegrounds { padding-block: 32px 16px; scroll-margin-top: 95px; }
 .battleground-heading { display: flex; gap: 24px; align-items: center; justify-content: center; margin-bottom: 26px; }
 .battleground-heading h2 { font: 700 clamp(24px,2.8vw,36px)/1.15 Georgia,serif; text-transform: uppercase; text-align: center; text-wrap: balance; }
@@ -353,7 +351,6 @@ button:disabled { cursor: not-allowed; }
 .college-footer p { color: #e5c736; }
 .college-footer button { display: inline-flex; gap: 8px; align-items: center; min-height: 44px; }
 .college-footer button svg { width: 18px; }
-.motion-paused *, .motion-paused *::before,.motion-paused *::after { animation-play-state: paused !important; }
 @keyframes titleShimmer { 0%,20% { background-position: 130% 0; } 60%,100% { background-position: -70% 0; } }
 @keyframes ribbonFloat { from { translate: 0 -8px; opacity: .3; } to { translate: 12px 15px; opacity: .65; } }
 @media (max-width: 1023px) {
@@ -367,7 +364,7 @@ button:disabled { cursor: not-allowed; }
 }
 @media (max-width: 767px) {
  .stage-container { width: calc(100% - 32px); }
- .hero-content { padding-top: 48px; }
+ .hero-content { padding-top: 22px; }
  .hero-identity { width: 100%; max-width: 510px; }
  .campus-arena { object-fit: contain; object-position: center top; opacity: .45; }
  .arena-scrim { background: linear-gradient(0deg,#0d0a09 30%,#0d0a0977 80%,#0d0a0944); }
@@ -535,9 +532,55 @@ button:disabled { cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) { .intro-brand,.intro-sweep::after,.page-loading-orbit { animation: none; } }
 /* Light follows the logo artwork rather than a rectangular overlay. */
 .esports-wordmark i { display: none; }
-.esports-wordmark img { animation: logoLight 6s ease-in-out infinite; }
+.esports-wordmark img { animation: esportsReveal 900ms cubic-bezier(.16,1,.3,1) both, logoLight 4s ease-in-out 900ms 1; }
 @keyframes logoLight {
   0%,70%,100% { filter: brightness(1) drop-shadow(0 3px 8px #d41b1444); }
   35% { filter: brightness(1.16) drop-shadow(0 3px 12px #d41b1477); }
 }
 @media (prefers-reduced-motion: reduce) { .esports-wordmark img { animation: none; } }
+
+/* Supplied campus identities stay below the timer and registration controls. */
+.campus-brand-row { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 24px; margin: 26px auto 0; padding-top: 20px; border-top: 1px solid #ffffff14; }
+.campus-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.campus-brand img { display: block; width: 48px; height: 52px; object-fit: contain; flex-shrink: 0; }
+.campus-brand span { font: 600 12px var(--font-sans); color: #d4d2cf; letter-spacing: .04em; }
+.campus-brand-divider { width: 1px; height: 32px; background: #ffffff20; }
+.esports-wordmark img { transition: filter 300ms ease; }
+.esports-wordmark:hover img { filter: brightness(1.12) drop-shadow(0 3px 12px #d41b1477); }
+@keyframes esportsReveal {
+ from { opacity: 0; transform: translateY(-50%) scale(.9); clip-path: inset(0 50%); }
+ to { opacity: 1; transform: translateY(-50%) scale(1); clip-path: inset(0); }
+}
+@media (max-width: 480px) {
+ .campus-brand-row { gap: 14px; margin-top: 20px; padding-top: 16px; }
+ .campus-brand { gap: 8px; }
+ .campus-brand img { width: 38px; height: 42px; }
+ .campus-brand span { font-size: 10px; letter-spacing: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+ .esports-wordmark img { animation: none; transition: none; }
+}
+
+/* Stable digit slots let only changing numerals roll, without layout shifts. */
+.countdown-number { display: inline-flex; font: 600 clamp(28px,3.3vw,44px)/1.2 var(--font-mono); color: #f2f1ed; font-variant-numeric: tabular-nums; }
+.countdown-reel { position: relative; display: block; width: .64em; height: 1.2em; overflow: hidden; }
+.countdown-reel-digit { position: absolute; inset: 0; display: grid; place-items: center; }
+.countdown-tile { border-radius: 10px; border-top-width: 1px; }
+.match-day-strip { width: fit-content; max-width: 100%; margin-inline: auto; padding: 12px 18px; gap: 12px 24px; border: 1px solid #ffffff14; border-radius: 12px; background: #0d0a09b8; }
+.match-day-strip > span { font: 500 11px/1.5 var(--font-sans); letter-spacing: .025em; color: #dedbd5; }
+.match-day-strip svg { width: 16px; height: 16px; color: #c5b76d; }
+@media (max-width: 767px) {
+ .countdown-number { font-size: clamp(24px,7vw,38px); }
+ .match-day-strip { gap: 10px 16px; padding: 12px; }
+ .match-day-strip > span { font-size: 10px; gap: 6px; }
+ .match-day-strip > span:last-child { flex-basis: 100%; justify-content: center; }
+}
+
+.countdown-roll .countdown-digit-in { animation: clockRollIn 480ms cubic-bezier(.22,1,.36,1) both; }
+.countdown-roll .countdown-digit-out { animation: clockRollOut 480ms cubic-bezier(.22,1,.36,1) both; }
+@keyframes clockRollIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes clockRollOut { from { transform: translateY(0); opacity: 1; } to { transform: translateY(100%); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+ .countdown-roll .countdown-digit-in { animation: none; }
+ .countdown-roll .countdown-digit-out { display: none; }
+}

@@ -68,7 +68,7 @@ export const DEFAULT_EVENTS: CampusEvent[] = [
   {
     id: 'evt-kalinga-warriors-bgmi',
     slug: 'kalinga-warriors-bgmi',
-    title: 'Kalinga Warriors (2K26)',
+    title: 'Kalinga Warriors (2026)',
     subtitle: 'Campus LAN Battle Royale Championship',
     gameTitle: 'BGMI',
     eventType: 'esports_squad',

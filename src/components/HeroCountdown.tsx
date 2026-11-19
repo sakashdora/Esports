@@ -2,6 +2,25 @@ import { useEffect, useState } from 'react';
 import { computeCountdown } from '../lib/tournamentRules';
 import { EVENT_ENTRY_ISO } from '../lib/defaultEvents';
 
+function RollingDigit({ digit }: { digit: string }) {
+  const [frame, setFrame] = useState({ current: digit, previous: digit });
+  if (frame.current !== digit) setFrame({ current: digit, previous: frame.current });
+  const changed = frame.previous !== frame.current;
+  return <span className="countdown-reel" aria-hidden="true">
+    <span className={changed ? 'countdown-roll' : undefined} key={frame.current}>
+      {changed && <span className="countdown-reel-digit countdown-digit-out">{frame.previous}</span>}
+      <span className="countdown-reel-digit countdown-digit-in">{frame.current}</span>
+    </span>
+  </span>;
+}
+
+function RollingNumber({ value }: { value: number }) {
+  const text = String(value).padStart(2, '0');
+  return <span className="countdown-number" aria-label={text}>
+    {text.split('').map((digit, index) => <RollingDigit digit={digit} key={index} />)}
+  </span>;
+}
+
 export function HeroCountdown({ deadlineText = EVENT_ENTRY_ISO }: { deadlineText?: string }) {
   const parsed = Date.parse(deadlineText);
   const targetMs = Number.isFinite(parsed) ? parsed : Date.parse(EVENT_ENTRY_ISO);
@@ -31,7 +50,7 @@ export function HeroCountdown({ deadlineText = EVENT_ENTRY_ISO }: { deadlineText
   return <div className="center-countdown" data-testid="hero-countdown" role="timer" aria-live="off" aria-label={`Time until campus entry on ${dateLabel} at ${timeLabel} IST`}>
     <p className="countdown-heading"><span className="countdown-status-dot" aria-hidden="true" />{countdown.expired ? 'Campus entry has opened' : 'Campus entry opens in'}</p>
     <div className="countdown-grid">{segments.map(segment => <div className="countdown-tile" key={segment.label}>
-      <span className="countdown-digit-tick" key={segment.value}>{String(segment.value).padStart(2, '0')}</span>
+      <RollingNumber value={segment.value} />
       <span className="countdown-unit">{segment.label}</span>
     </div>)}</div>
     <time className="countdown-target" dateTime={new Date(targetMs).toISOString()}>{dateLabel} · Entry {timeLabel.toUpperCase()} IST</time>

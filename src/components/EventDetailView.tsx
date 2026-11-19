@@ -60,7 +60,7 @@ export function EventDetailView({ event, allEvents, onNavigate }: EventDetailVie
               {bannerUrl && !imgFailed ? (
                 <img
                   src={bannerUrl}
-                  alt={`${event.title} — ${event.gameTitle} Promotional Key Art`}
+                  alt={`${event.title.replace(/2k26/gi, '2026')} — ${event.gameTitle} Promotional Key Art`}
                   referrerPolicy="no-referrer"
                   onError={() => setImgFailed(true)}
                   className="h-full w-full object-cover object-center transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.03]"
@@ -82,7 +82,7 @@ export function EventDetailView({ event, allEvents, onNavigate }: EventDetailVie
                   Official Rulebook &amp; Fixtures · {event.gameTitle}
                 </p>
                 <h1 className="mt-1 font-display text-4xl font-extrabold tracking-tight text-white uppercase sm:text-5xl">
-                  {event.title}
+                  {event.title.replace(/2k26/gi, '2026')}
                 </h1>
               </div>
             </div>

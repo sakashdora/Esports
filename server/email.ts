@@ -86,7 +86,7 @@ export async function sendTeamConfirmationEmail(params: {
     logoSrc = 'cid:srusti-esports-logo';
   }
 
-  let subject = `[SAMT Esports 2K26] Registration Received — ${params.teamCode}`;
+  let subject = `[SAMT Esports 2026] Registration Received — ${params.teamCode}`;
   let statusBadge = 'Pending Verification';
   let badgeColor = '#D97706';
   let badgeBg = 'rgba(217, 119, 6, 0.15)';
@@ -133,7 +133,7 @@ export async function sendTeamConfirmationEmail(params: {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SAMT Esports 2K26</title>
+  <title>SAMT Esports 2026</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #080B10; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
   <div style="background-color: #080B10; padding: 30px 12px;">
@@ -155,7 +155,7 @@ export async function sendTeamConfirmationEmail(params: {
                   Srusti Academy of Management and Technology
                 </div>
                 <div style="font-size: 13px; font-weight: 500; color: #94A3B8; letter-spacing: 0.5px;">
-                  Campus LAN Esports Championship &bull; Edition 2K26
+                  Campus LAN Esports Championship &bull; Edition 2026
                 </div>
               </td>
             </tr>
@@ -279,7 +279,7 @@ export async function sendTeamConfirmationEmail(params: {
         <td style="padding: 24px 32px; background-color: #080B10; border-top: 1px solid #1E293B; text-align: center; color: #64748B; font-size: 11px; line-height: 1.6;">
           <div style="margin-bottom: 12px;">
             Official communication from <strong>Srusti Academy of Management and Technology</strong>.<br>
-            Campus Esports Tournament Directorate &bull; Edition 2K26
+            Campus Esports Tournament Directorate &bull; Edition 2026
           </div>
 
           <!-- No Reply Notice Box -->

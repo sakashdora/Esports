@@ -311,7 +311,7 @@ export function RegisterView({
             <div>
               <div className="text-xs text-neutral-400">Registering For</div>
               <div className="font-display text-xl font-bold text-white uppercase">
-                {event.title} ({event.gameTitle})
+                {event.title.replace(/2k26/gi, '2026')} ({event.gameTitle})
               </div>
             </div>
             <div className="flex items-center gap-6 text-right">
@@ -356,7 +356,7 @@ export function RegisterView({
                 >
                   {events.map((item) => (
                     <option key={item.id} value={item.slug}>
-                      {item.title} — {item.gameTitle} ({item.registeredCount || 0}/{item.maxTeams}{' '}
+                      {item.title.replace(/2k26/gi, '2026')} — {item.gameTitle} ({item.registeredCount || 0}/{item.maxTeams}{' '}
                       Teams)
                     </option>
                   ))}
@@ -716,7 +716,7 @@ export function RegisterView({
                 {event.qrImageUrl ? (
                   <img
                     src={event.qrImageUrl}
-                    alt={`Official UPI QR for ${event.title}`}
+                    alt={`Official UPI QR for ${event.title.replace(/2k26/gi, '2026')}`}
                     referrerPolicy="no-referrer"
                     className="max-h-60 w-auto object-contain"
                   />
