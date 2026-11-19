@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import path from 'node:path';
 import express from 'express';
-import { createApiApp } from './server/app';
+import { createApiApp } from './server/app.js';
 
 async function startServer() {
   const app = createApiApp();

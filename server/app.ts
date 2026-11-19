@@ -1,13 +1,13 @@
-import { clientErrorMessage } from './errors';
-import { filterAdminRegistrations, type AdminFilters } from '../src/lib/adminFilters';
-import { exportAdminPdf, exportAdminWorkbook } from './adminExports';
+import { clientErrorMessage } from './errors.js';
+import { filterAdminRegistrations, type AdminFilters } from '../src/lib/adminFilters.js';
+import { exportAdminPdf, exportAdminWorkbook } from './adminExports.js';
 import 'dotenv/config';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
-import { isSmtpConfigured, sendTeamConfirmationEmail } from './email';
+import { isSmtpConfigured, sendTeamConfirmationEmail } from './email.js';
 import {
   createExtensibleEvent,
   createRegistrationWithProof,
@@ -28,8 +28,8 @@ import {
   trackRegistration,
   updateEventConfig,
   verifyAdminToken,
-} from './store';
-import type { PlayerInput } from '../src/lib/tournamentRules';
+} from './store.js';
+import type { PlayerInput } from '../src/lib/tournamentRules.js';
 
 const liveBoardEmitter = new EventEmitter();
 liveBoardEmitter.setMaxListeners(100);

@@ -1,10 +1,10 @@
-import { ClientInputError } from './errors';
+import { ClientInputError } from './errors.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { DEFAULT_EVENTS, EVENT_DATE_LABEL, type CampusEvent } from '../src/lib/defaultEvents';
-import { sanitizePublicTeam, type PublicRegisteredTeam } from '../src/lib/liveBoard';
+import { DEFAULT_EVENTS, EVENT_DATE_LABEL, type CampusEvent } from '../src/lib/defaultEvents.js';
+import { sanitizePublicTeam, type PublicRegisteredTeam } from '../src/lib/liveBoard.js';
 import {
   assignTournamentSlot,
   calculateRegistrationFee,
@@ -17,7 +17,7 @@ import {
   validateSquadSubmission,
   type PlayerInput,
   type RegistrationStatus,
-} from '../src/lib/tournamentRules';
+} from '../src/lib/tournamentRules.js';
 
 export interface StoredTeamMember extends PlayerInput {
   id: string;

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import nodemailer from 'nodemailer';
-import { escapeHtml } from '../src/lib/tournamentRules';
+import { escapeHtml } from '../src/lib/tournamentRules.js';
 
 export interface EmailSendResult {
   sent: boolean;

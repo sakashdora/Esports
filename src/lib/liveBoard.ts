@@ -1,5 +1,5 @@
-import type { CampusEvent } from './defaultEvents';
-import type { RegistrationStatus, SlotRole } from './tournamentRules';
+import type { CampusEvent } from './defaultEvents.js';
+import type { RegistrationStatus, SlotRole } from './tournamentRules.js';
 
 export interface PublicRosterMember {
   slotRole: SlotRole;

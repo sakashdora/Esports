@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
-import type { listAdminDashboardData } from './store';
+import type { listAdminDashboardData } from './store.js';
 
 type Bundles = Awaited<ReturnType<typeof listAdminDashboardData>>['bundles'];
 
