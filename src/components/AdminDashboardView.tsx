@@ -377,6 +377,9 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   }
 
   async function handleEventFieldUpdate(eventId: string, patch: Record<string, unknown>) {
+    // Leaving a field without editing it should not save or reload the whole dashboard.
+    const current = events.find((evt) => evt.id === eventId) as unknown as Record<string, unknown> | undefined;
+    if (current && Object.entries(patch).every(([key, value]) => current[key] === value)) return;
     try {
       const res = await fetchAdmin(`/api/admin/events/${eventId}`, {
         method: 'PATCH',
@@ -401,7 +404,10 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
     if (creatingEvent) return;
     setCreatingEvent(true);
     try {
-      if (!newEvtTitle.trim() || !newEvtGame.trim()) return;
+      if (!newEvtTitle.trim() || !newEvtGame.trim()) {
+        setActionMsg('Enter an event title and game before publishing.');
+        return;
+      }
       const res = await fetchAdmin('/api/admin/events', {
         method: 'POST',
         headers: {
@@ -483,7 +489,8 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
     a.href = url;
     a.download = `samt-registrations-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
-    URL.revokeObjectURL(url);
+    // Revoking synchronously can cancel the download in some browsers.
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   async function loadSchemaSql() {
@@ -717,6 +724,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                   <option value="pending">Pending</option>
                   <option value="verified">Verified</option>
                   <option value="reupload_required">Re-upload Needed</option>
+                  <option value="waitlisted">Waitlisted</option>
                   <option value="rejected">Rejected</option>
                 </select>
               </div></section>
@@ -752,7 +760,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
         {tab === 'queue' && (
           <div className="mt-6 grid gap-6 lg:grid-cols-12">
             {/* Queue List */}
-            <div className="rounded-lg border border-slate-200 bg-white lg:col-span-7">
+            <div className="min-w-0 rounded-lg border border-slate-200 bg-white lg:col-span-7">
 
 
               {filteredBundles.length === 0 ? (
@@ -828,7 +836,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
             </div>
 
             {/* Right: Side-by-Side Payment Proof Inspector */}
-            <div className="rounded-lg border border-slate-200 bg-white p-5 lg:col-span-5">
+            <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 lg:col-span-5">
               {!selectedBundle ? (
                 <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center text-xs text-slate-500">
                   Select a team row from the queue to inspect the uploaded payment screenshot,
@@ -1196,7 +1204,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
         {/* TAB 4: Audit Logs & Supabase / SMTP Setup */}
         {tab === 'audit' && (
           <div className="mt-6 grid gap-6 lg:grid-cols-12">
-            <div className="rounded-lg border border-slate-200 bg-white lg:col-span-7">
+            <div className="min-w-0 rounded-lg border border-slate-200 bg-white lg:col-span-7">
               <div className="border-b border-slate-200 px-4 py-3 text-xs font-bold text-slate-900">
                 Immutable Payment &amp; Email Audit Trail
               </div>
@@ -1228,7 +1236,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-5 lg:col-span-5">
+            <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 lg:col-span-5">
               <h3 className="text-sm font-bold text-slate-900">
                 Supabase Free &amp; College SMTP Integration Status
               </h3>
@@ -1262,9 +1270,14 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                 <button
                   type="button"
                   onClick={() => {
-                    navigator.clipboard.writeText(schemaSql);
-                    setCopiedSql(true);
-                    setTimeout(() => setCopiedSql(false), 2000);
+                    if (!schemaSql) return;
+                    navigator.clipboard
+                      .writeText(schemaSql)
+                      .then(() => {
+                        setCopiedSql(true);
+                        setTimeout(() => setCopiedSql(false), 2000);
+                      })
+                      .catch(() => setActionMsg('Copy failed. Select the SQL below and copy it manually.'));
                   }}
                   className="inline-flex items-center gap-1 text-xs font-medium text-[#233D8B] hover:underline"
                 >

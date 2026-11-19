@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  assignFirstFreeTournamentSlot,
   assignTournamentSlot,
   buildUpiIntentUri,
   calculateRegistrationFee,
@@ -111,6 +112,16 @@ test('assignTournamentSlot assigns Group A (1-12), Group B (1-12), and Waitlist'
   assert.deepEqual(assignTournamentSlot(23, 24), { groupName: 'Group B', slotNumber: 'B12' });
   assert.deepEqual(assignTournamentSlot(24, 24), { groupName: 'Waitlist', slotNumber: 'WL-1' });
   assert.equal(formatTeamCode('KW26', 7), 'KW26-007');
+});
+
+test('assignFirstFreeTournamentSlot reuses vacated seats and never duplicates an occupied one', () => {
+  assert.deepEqual(assignFirstFreeTournamentSlot([], 24), { groupName: 'Group A', slotNumber: 'A1' });
+  // A1 was vacated by a rejected team; A2 is still held, so the next approval gets A1, not A2.
+  assert.deepEqual(assignFirstFreeTournamentSlot(['A2'], 24), { groupName: 'Group A', slotNumber: 'A1' });
+  assert.deepEqual(assignFirstFreeTournamentSlot(['A1', null, 'a2'], 24), { groupName: 'Group A', slotNumber: 'A3' });
+  const full = Array.from({ length: 4 }, (_, i) => assignTournamentSlot(i, 4).slotNumber);
+  assert.deepEqual(assignFirstFreeTournamentSlot(full, 4), { groupName: 'Waitlist', slotNumber: 'WL-1' });
+  assert.deepEqual(assignFirstFreeTournamentSlot([...full, 'WL-1'], 4), { groupName: 'Waitlist', slotNumber: 'WL-2' });
 });
 
 test('validateSquadSubmission catches duplicate character IDs and Free Fire skill rule', () => {

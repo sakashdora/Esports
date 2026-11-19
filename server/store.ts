@@ -6,7 +6,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { DEFAULT_EVENTS, EVENT_DATE_LABEL, type CampusEvent } from '../src/lib/defaultEvents.js';
 import { sanitizePublicTeam, type PublicRegisteredTeam } from '../src/lib/liveBoard.js';
 import {
-  assignTournamentSlot,
+  assignFirstFreeTournamentSlot,
   calculateRegistrationFee,
   formatTeamCode,
   isValidEmail,
@@ -793,8 +793,13 @@ export async function trackRegistration(
     if (!reg) return null;
     const event = store.events.find((e) => e.id === reg.eventId) || DEFAULT_EVENTS[0];
     const members = store.members.filter((m) => m.registrationId === reg.id);
-    const proofs = store.proofs.filter((p) => p.registrationId === reg.id);
-    const auditLogs = store.auditLogs.filter((a) => a.registrationId === reg.id);
+    // Newest first, matching the Supabase path: callers treat proofs[0] as the latest proof.
+    const proofs = store.proofs
+      .filter((p) => p.registrationId === reg.id)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const auditLogs = store.auditLogs
+      .filter((a) => a.registrationId === reg.id)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return { registration: reg, event, members, proofs, auditLogs };
   }
 
@@ -864,15 +869,28 @@ export async function resubmitPaymentProof(input: {
   const fileSha256 = crypto.createHash('sha256').update(input.fileBuffer).digest('hex');
   const now = new Date().toISOString();
 
+  const ownRegistrationId = bundle.registration.id;
   const sb = getSupabaseServiceClient();
   if (!sb) {
     const store = readLocalStore();
     const activeProofs = store.proofs.filter((p) => p.reviewStatus !== 'rejected');
-    if (activeProofs.some((p) => p.utrNumber.toUpperCase() === normalizedUtr)) {
+    // A team may resubmit a clearer screenshot of the same payment, so its own flagged
+    // proof does not count as "another submission" for the UTR check.
+    if (
+      activeProofs.some(
+        (p) => p.registrationId !== ownRegistrationId && p.utrNumber.toUpperCase() === normalizedUtr
+      )
+    ) {
       throw new ClientInputError(`UTR "${normalizedUtr}" is already used by another submission.`);
     }
     if (activeProofs.some((p) => p.fileSha256 === fileSha256)) {
       throw new ClientInputError('This exact screenshot file has already been uploaded.');
+    }
+    // The flagged proof is superseded by this upload and was never accepted.
+    for (const p of store.proofs) {
+      if (p.registrationId === ownRegistrationId && p.reviewStatus === 'reupload_required') {
+        p.reviewStatus = 'rejected';
+      }
     }
 
     const ext = extFromMime(mime);
@@ -913,12 +931,48 @@ export async function resubmitPaymentProof(input: {
     return (await trackRegistration(reg.teamCode, reg.iglPhone))!;
   }
 
+  const { data: dupUtr, error: dupUtrErr } = await sb
+    .from('payment_proofs')
+    .select('id')
+    .eq('utr_number', normalizedUtr)
+    .neq('review_status', 'rejected')
+    .neq('registration_id', ownRegistrationId)
+    .limit(1);
+  if (dupUtrErr) throw new ClientInputError('Unable to complete the database request. Please try again.');
+  if (dupUtr && dupUtr.length > 0) {
+    throw new ClientInputError(`UTR "${normalizedUtr}" is already used by another submission.`);
+  }
+  const { data: dupHash, error: dupHashErr } = await sb
+    .from('payment_proofs')
+    .select('id')
+    .eq('file_sha256', fileSha256)
+    .neq('review_status', 'rejected')
+    .limit(1);
+  if (dupHashErr) throw new ClientInputError('Unable to complete the database request. Please try again.');
+  if (dupHash && dupHash.length > 0) {
+    throw new ClientInputError('This exact screenshot file has already been uploaded.');
+  }
+
   const ext = extFromMime(mime);
   const storagePath = `${bundle.event.slug}/${bundle.registration.teamCode}-reup-${Date.now()}.${ext}`;
   const { error: uploadErr } = await sb.storage
     .from('payment-proofs')
     .upload(storagePath, input.fileBuffer, { contentType: mime });
   if (uploadErr) throw new ClientInputError('Unable to save the image. Please try again.');
+
+  // Supersede the flagged proof so the partial unique UTR index allows the same payment
+  // reference to be resubmitted with a clearer screenshot. Restored if the insert fails.
+  const { data: supersededRows, error: supersedeErr } = await sb
+    .from('payment_proofs')
+    .update({ review_status: 'rejected' })
+    .eq('registration_id', ownRegistrationId)
+    .eq('review_status', 'reupload_required')
+    .select('id');
+  if (supersedeErr) {
+    await sb.storage.from('payment-proofs').remove([storagePath]);
+    throw new ClientInputError('Unable to save payment proof. Please try again.');
+  }
+  const supersededIds = (supersededRows || []).map((row) => String(row.id));
 
   const { error: proofErr } = await sb.from('payment_proofs').insert({
     registration_id: bundle.registration.id,
@@ -930,6 +984,12 @@ export async function resubmitPaymentProof(input: {
     review_status: 'pending',
   });
   if (proofErr) {
+    if (supersededIds.length > 0) {
+      await sb
+        .from('payment_proofs')
+        .update({ review_status: 'reupload_required' })
+        .in('id', supersededIds);
+    }
     await sb.storage.from('payment-proofs').remove([storagePath]);
     throw new ClientInputError('Unable to save payment proof. Please try again.');
   }
@@ -1093,13 +1153,13 @@ export async function decideRegistrationPayment(input: {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
 
     if (input.decision === 'approve') {
-      const existingVerifiedCount = store.registrations.filter(
-        (r) => r.eventId === reg.eventId && r.status === 'verified' && r.id !== reg.id
-      ).length;
+      const takenSlots = store.registrations
+        .filter((r) => r.eventId === reg.eventId && r.status === 'verified' && r.id !== reg.id)
+        .map((r) => r.slotNumber);
       const slot =
         reg.slotNumber && reg.groupName
           ? { slotNumber: reg.slotNumber, groupName: reg.groupName }
-          : assignTournamentSlot(existingVerifiedCount, event.maxTeams);
+          : assignFirstFreeTournamentSlot(takenSlots, event.maxTeams);
 
       reg.status = 'verified';
       reg.slotNumber = slot.slotNumber;
@@ -1171,17 +1231,21 @@ export async function decideRegistrationPayment(input: {
     .maybeSingle();
 
   if (input.decision === 'approve') {
-    const { count: verifiedCount } = await sb
+    const { data: verifiedRows, error: verifiedErr } = await sb
       .from('registrations')
-      .select('id', { count: 'exact', head: true })
+      .select('slot_number')
       .eq('event_id', reg.eventId)
       .eq('status', 'verified')
       .neq('id', reg.id);
+    if (verifiedErr) throw new ClientInputError('Unable to complete the database request. Please try again.');
 
     const slot =
       reg.slotNumber && reg.groupName
         ? { slotNumber: reg.slotNumber, groupName: reg.groupName }
-        : assignTournamentSlot(verifiedCount || 0, event.maxTeams);
+        : assignFirstFreeTournamentSlot(
+            (verifiedRows || []).map((row) => (row.slot_number ? String(row.slot_number) : null)),
+            event.maxTeams
+          );
 
     await sb
       .from('registrations')
@@ -1256,23 +1320,68 @@ export async function decideRegistrationPayment(input: {
   return (await trackRegistration(reg.teamCode, reg.iglPhone))!;
 }
 
+type EventConfigPatch = Partial<{
+  title: string;
+  subtitle: string;
+  maxTeams: number;
+  baseFee: number;
+  lunchFee: number;
+  upiVpa: string;
+  upiPayeeName: string;
+  eventDateLabel: string;
+  registrationDeadline: string;
+  venueLabel: string;
+  isOpen: boolean;
+  qrImageUrl: string;
+}>;
+
+const EVENT_TEXT_FIELDS = [
+  'title',
+  'subtitle',
+  'upiVpa',
+  'upiPayeeName',
+  'eventDateLabel',
+  'registrationDeadline',
+  'venueLabel',
+  'qrImageUrl',
+] as const;
+
+/** Keeps only editable event settings and rejects malformed values (both storage modes). */
+function sanitizeEventPatch(raw: unknown): EventConfigPatch {
+  const input = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const patch: EventConfigPatch = {};
+  for (const key of EVENT_TEXT_FIELDS) {
+    const value = input[key];
+    if (value === undefined) continue;
+    if (typeof value !== 'string' || value.length > 500) {
+      throw new ClientInputError('Invalid event settings.');
+    }
+    patch[key] = value;
+  }
+  if (patch.title !== undefined && !patch.title.trim()) {
+    throw new ClientInputError('Event title is required.');
+  }
+  if (input.isOpen !== undefined) {
+    if (typeof input.isOpen !== 'boolean') throw new ClientInputError('Invalid event settings.');
+    patch.isOpen = input.isOpen;
+  }
+  for (const key of ['maxTeams', 'baseFee', 'lunchFee'] as const) {
+    if (input[key] === undefined) continue;
+    const value = Number(input[key]);
+    const isCapacity = key === 'maxTeams';
+    if (!Number.isFinite(value) || value < (isCapacity ? 2 : 0) || (isCapacity && !Number.isInteger(value))) {
+      throw new ClientInputError('Enter valid fees and a whole-number team capacity of at least 2.');
+    }
+    patch[key] = value;
+  }
+  return patch;
+}
+
 export async function updateEventConfig(
   eventId: string,
-  patch: Partial<{
-    title: string;
-    subtitle: string;
-    maxTeams: number;
-    baseFee: number;
-    lunchFee: number;
-    upiVpa: string;
-    upiPayeeName: string;
-    eventDateLabel: string;
-    registrationDeadline: string;
-    venueLabel: string;
-    isOpen: boolean;
-    qrImageUrl: string;
-  }>
+  rawPatch: EventConfigPatch
 ): Promise<CampusEvent> {
+  const patch = sanitizeEventPatch(rawPatch);
   const sb = getSupabaseServiceClient();
   if (!sb) {
     const store = readLocalStore();

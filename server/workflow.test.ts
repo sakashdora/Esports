@@ -88,6 +88,14 @@ test('local registration, review, reupload, privacy and admin authorization', as
       const closed = await fetch(base+'/api/admin/events/'+createdEvent.id,{method:'PATCH',headers:adminHeaders,body:JSON.stringify({isOpen:false})});
       assert.equal(closed.status,200);
       assert.equal((await closed.json()).event.isOpen,false);
+      const badPatch = await fetch(base+'/api/admin/events/'+createdEvent.id,{method:'PATCH',headers:adminHeaders,body:JSON.stringify({maxTeams:-5})});
+      assert.equal(badPatch.status,400);
+      const fieldPatch = await fetch(base+'/api/admin/events/'+createdEvent.id,{method:'PATCH',headers:adminHeaders,body:JSON.stringify({slug:'overwritten',id:'overwritten',venueLabel:'Hall 2'})});
+      assert.equal(fieldPatch.status,200);
+      const patchedEvent = (await fieldPatch.json()).event;
+      assert.equal(patchedEvent.slug,createdEvent.slug);
+      assert.equal(patchedEvent.id,createdEvent.id);
+      assert.equal(patchedEvent.venueLabel,'Hall 2');
       const malformed=await fetch(base+'/api/registrations/track',{method:'POST',headers:{'Content-Type':'application/json'},body:'{private-test-body'});
       assert.equal(malformed.status,400);
       assert.deepEqual(await malformed.json(),{error:'Invalid request body.'});
@@ -97,6 +105,26 @@ test('local registration, review, reupload, privacy and admin authorization', as
       const publicText=await publicBoard.text();
       assert.equal(publicText.includes(input.iglEmail),false);
       assert.equal(publicText.includes(input.iglPhone),false);
+      // Latest proof is reported first after a re-upload.
+      const tracked = await trackRegistration(bundle.registration.teamCode,input.iglPhone);
+      assert.equal(tracked.proofs[0].utrNumber,'123456789013');
+      // A flagged team may resubmit a clearer screenshot of the same payment (same UTR).
+      const squad = (tag) => members.map((m,i)=>({...m,characterId:tag+i,inGameName:'P'+tag+i}));
+      const png = (hex) => Buffer.from('89504e470d0a1a0a0000000000'+hex,'hex');
+      const second = await createRegistrationWithProof({...input,teamName:'Second Squad',iglPhone:'9876500001',members:squad('20000'),utrNumber:'223456789012',fileBuffer:png('02')});
+      await decideRegistrationPayment({registrationId:second.registration.id,decision:'reupload_required',reason:'Blurry',actorEmail:'admin@example.test',actorId:null});
+      const resent = await resubmitPaymentProof({teamCode:second.registration.teamCode,iglPhone:'9876500001',utrNumber:'223456789012',upiApp:'UPI',fileBuffer:png('03')});
+      assert.equal(resent.registration.status,'pending');
+      assert.equal(resent.proofs[0].reviewStatus,'pending');
+      // Another team still cannot reuse that UTR.
+      await assert.rejects(createRegistrationWithProof({...input,teamName:'Copy Squad',iglPhone:'9876500002',members:squad('30000'),utrNumber:'223456789012',fileBuffer:png('04')}));
+      // A seat vacated by a rejected team is reused; occupied seats are never duplicated.
+      const secondApproved = await decideRegistrationPayment({registrationId:second.registration.id,decision:'approve',actorEmail:'admin@example.test',actorId:null});
+      assert.equal(secondApproved.registration.slotNumber,'A2');
+      await decideRegistrationPayment({registrationId:bundle.registration.id,decision:'reject',reason:'Test rejection',actorEmail:'admin@example.test',actorId:null});
+      const third = await createRegistrationWithProof({...input,teamName:'Third Squad',iglPhone:'9876500003',members:squad('40000'),utrNumber:'423456789012',fileBuffer:png('05')});
+      const thirdApproved = await decideRegistrationPayment({registrationId:third.registration.id,decision:'approve',actorEmail:'admin@example.test',actorId:null});
+      assert.equal(thirdApproved.registration.slotNumber,'A1');
     } finally { server.close(); }
   `], { cwd: fixture, encoding: 'utf8', env: { ...process.env, SUPABASE_URL: '', SUPABASE_ANON_KEY: '', SUPABASE_SERVICE_ROLE_KEY: '', VERCEL: '' } });
   assert.equal(result.status, 0, result.stderr + result.stdout);

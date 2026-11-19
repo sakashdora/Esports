@@ -175,6 +175,8 @@ export function RegisterView({
     });
 
     const step1Errors: Record<string, string> = {};
+    // The server rejects closed events at final submission; say so before the roster is filled in.
+    if (!event.isOpen) step1Errors.event = 'Registrations for this event are currently closed.';
     for (const key of ['teamName', 'collegeName', 'iglPhone', 'iglEmail']) {
       if (check.errors[key]) step1Errors[key] = check.errors[key];
     }
@@ -255,9 +257,9 @@ export function RegisterView({
         method: 'POST',
         body: formData,
       });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error || 'Submission failed.');
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json) {
+        throw new Error(json?.error || 'Registration service is unavailable right now. Please try again shortly.');
       }
 
       setReceipt({
@@ -361,6 +363,9 @@ export function RegisterView({
                     </option>
                   ))}
                 </select>
+                {fieldErrors.event && (
+                  <p className="mt-1 text-xs text-red-400">{fieldErrors.event}</p>
+                )}
               </div>
 
               <div>

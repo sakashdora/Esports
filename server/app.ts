@@ -51,6 +51,10 @@ function rateLimit(maxRequests: number, windowMs: number) {
     const now = Date.now();
     const cur = rateLimitMap.get(key);
     if (!cur || now > cur.resetAt) {
+      // Drop expired windows so the map cannot grow without bound on a long-running server.
+      if (rateLimitMap.size > 5000) {
+        for (const [entryKey, entry] of rateLimitMap) if (now > entry.resetAt) rateLimitMap.delete(entryKey);
+      }
       rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
       return next();
     }

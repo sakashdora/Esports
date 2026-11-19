@@ -75,8 +75,8 @@ export function TrackStatusView({ prefillCode }: TrackStatusViewProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ teamCode, iglPhone }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'No registration found.');
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json) throw new Error(json?.error || 'Status lookup is unavailable right now. Please try again shortly.');
       setData(json);
     } catch (err) {
       setData(null);
@@ -111,12 +111,13 @@ export function TrackStatusView({ prefillCode }: TrackStatusViewProps) {
         method: 'POST',
         body: fd,
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Re-upload failed.');
-      setReuploadMsg('New payment proof uploaded. Status reset to Pending Verification.');
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json) throw new Error(json?.error || 'Re-upload failed. Please try again shortly.');
       setNewUtr('');
       setNewFile(null);
+      // Refresh first: the lookup clears old messages, so set the success note afterwards.
       await handleLookup();
+      setReuploadMsg('New payment proof uploaded. Status reset to Pending Verification.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Re-upload failed.');
     } finally {

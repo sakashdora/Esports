@@ -157,6 +157,23 @@ export function assignTournamentSlot(verifiedIndexZeroBased: number, maxTeams = 
 }
 
 /**
+ * Assigns the first group slot (A1..A12, B1..B12, then WL-n) not already held by another
+ * verified team. Unlike a count-based index, this never reuses an occupied seat after an
+ * earlier verified team is rejected or flagged.
+ */
+export function assignFirstFreeTournamentSlot(
+  takenSlotNumbers: Iterable<string | null | undefined>,
+  maxTeams = 24
+): { groupName: string; slotNumber: string } {
+  const taken = new Set<string>();
+  for (const slot of takenSlotNumbers) if (slot) taken.add(slot.toUpperCase());
+  for (let index = 0; ; index += 1) {
+    const slot = assignTournamentSlot(index, maxTeams);
+    if (!taken.has(slot.slotNumber.toUpperCase())) return slot;
+  }
+}
+
+/**
  * Generates a unique readable team registration code (e.g., KW26-001 or FF26-004).
  */
 export function formatTeamCode(prefix: string, sequenceNumber: number): string {

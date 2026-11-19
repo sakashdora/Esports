@@ -154,7 +154,7 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
       {/* Mobile Drawer */}
       {mobileOpen && (
         <div
-          className={`border-t px-4 py-3 lg:hidden ${
+          className={`border-t px-4 py-3 xl:hidden ${
             isDarkShell
               ? 'border-white/10 bg-[#1A1716] text-neutral-100'
               : 'border-slate-200 bg-slate-50 text-slate-900'
