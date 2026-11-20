@@ -94,9 +94,12 @@ export default function App() {
       ? events.find((e) => e.slug === route.slug) || events[0]
       : events[0];
 
+  // Keep the homepage and navigation out of the DOM until the intro finishes.
+  // Event data still loads above, while the intro owns the first screen.
+  if (showIntro) return <CinematicIntro onComplete={completeIntro} />;
+
   return (
     <div className="min-h-screen">
-      {showIntro && <CinematicIntro onComplete={completeIntro} />}
       <Navbar route={route} onNavigate={navigate} defaultEventSlug={defaultSlug} />
 
       <Suspense fallback={<PageLoading />}>

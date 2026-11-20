@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { BGMI_POSTER_IMAGE, FREEFIRE_POSTER_IMAGE } from '../lib/eventArtwork';
 
 const INTRO_KEY = 'srusti_intro_seen_v2';
@@ -10,7 +10,8 @@ export function shouldShowIntro(): boolean {
 
 export function CinematicIntro({ onComplete }: { onComplete: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
+  // Open the dialog before the browser paints the first React frame.
+  useLayoutEffect(() => {
     const dialog = dialogRef.current;
     dialog?.showModal();
     const finish = () => {
