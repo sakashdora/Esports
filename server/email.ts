@@ -32,7 +32,21 @@ function createTransporter() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    // Emails are sent inside the registration/decision request. Without limits, a slow or
+    // unreachable mail server held the request for minutes after the data was already saved.
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 12000,
   });
+}
+
+/** Public site address for links in emails (APP_URL, else the Vercel production domain). */
+function resolveAppUrl(): string {
+  const configured = process.env.APP_URL?.trim();
+  if (configured && /^https?:\/\//i.test(configured)) return configured.replace(/\/$/, '');
+  const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+  if (vercelHost) return `https://${vercelHost.replace(/\/$/, '')}`;
+  return 'http://localhost:3000';
 }
 
 export async function sendTeamConfirmationEmail(params: {
@@ -61,7 +75,7 @@ export async function sendTeamConfirmationEmail(params: {
     };
   }
 
-  const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+  const appUrl = resolveAppUrl();
   const trackUrl = `${appUrl}/track?code=${encodeURIComponent(params.teamCode)}`;
 
   const safeTeam = escapeHtml(params.teamName);

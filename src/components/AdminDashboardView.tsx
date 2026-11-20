@@ -35,8 +35,9 @@ import type { CampusEvent } from '../lib/defaultEvents';
 import { adminRequest } from '../lib/adminRequest';
 import { readAdminLoginResponse } from '../lib/adminLogin';
 import { filterAdminRegistrations } from '../lib/adminFilters';
-import { escapeCsvCell } from '../lib/tournamentRules';
+import { buildUpiIntentUri, calculateRegistrationFee, escapeCsvCell } from '../lib/tournamentRules';
 import { compressScreenshot } from '../lib/imageCompression';
+import { PaymentQrPanel } from './PaymentQrPanel';
 
 interface AdminBundle {
   registration: {
@@ -110,6 +111,9 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   const overviewSequence = useRef(0);
   const [creatingEvent, setCreatingEvent] = useState(false);
   const [uploadingQrFor, setUploadingQrFor] = useState<string | null>(null);
+  const [qrNotice, setQrNotice] = useState<Record<string, { tone: 'ok' | 'error'; text: string }>>({});
+  const [brokenQrPreview, setBrokenQrPreview] = useState<Record<string, string>>({});
+  const [qrPreviewFor, setQrPreviewFor] = useState<string | null>(null);
   const [systemMode, setSystemMode] = useState<'supabase' | 'local' | null>(null);
   const [smtpConfigured, setSmtpConfigured] = useState(false);
 
@@ -194,8 +198,11 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
       setAuditLogs(json.auditLogs || []);
       setSystemMode(json.mode === 'supabase' ? 'supabase' : 'local');
       setSmtpConfigured(Boolean(json.smtpConfigured));
-    } catch {
-      if (activeToken.current === requestToken && sequence === overviewSequence.current) setActionMsg('Failed to refresh dashboard data. Your previous data is still shown; try Refresh.');
+    } catch (error) {
+      if (activeToken.current === requestToken && sequence === overviewSequence.current) {
+        const reason = error instanceof Error ? ` (${error.message})` : '';
+        setActionMsg(`Failed to refresh dashboard data${reason}. Your previous data is still shown; try Refresh.`);
+      }
     } finally {
       setLoading(false);
     }
@@ -350,15 +357,25 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
           : `Email not sent: ${json.error || 'SMTP not configured.'}`
       );
       await fetchOverview();
-    } catch {
-      setActionMsg('Failed to trigger email resend.');
+    } catch (error) {
+      setActionMsg(error instanceof Error ? `Email resend failed: ${error.message}` : 'Failed to trigger email resend.');
     }
+  }
+
+  function setQrNoticeFor(eventId: string, notice: { tone: 'ok' | 'error'; text: string } | null) {
+    setQrNotice((prev) => {
+      const next = { ...prev };
+      if (notice) next[eventId] = notice;
+      else delete next[eventId];
+      return next;
+    });
   }
 
   async function handleQrUpload(eventId: string, file: File | undefined) {
     if (!file || uploadingQrFor) return;
     setUploadingQrFor(eventId);
     setActionMsg('');
+    setQrNoticeFor(eventId, null);
     try {
       // Phone photos of a printed QR are often far above the 3 MB server limit;
       // downscale large images in the browser first (small QR files are sent unchanged).
@@ -370,16 +387,21 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
         headers: { Authorization: `Bearer ${token}` },
         body: fd,
       });
-      const json = await res.json();
-      if (!res.ok) {
-        setActionMsg(json.error || 'QR upload failed.');
-        return;
+      const json = await res.json().catch(() => null);
+      if (!json || typeof json.qrImageUrl !== 'string' || !json.qrImageUrl) {
+        throw new Error('The server did not confirm the QR was saved. Please try again.');
       }
-      setActionMsg('Official UPI QR image updated. Check the preview before opening registrations.');
+      const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      // Shown inside the event card (the top banner is off-screen on this tab).
+      setQrNoticeFor(eventId, { tone: 'ok', text: `QR uploaded and saved at ${time}. Participant view is shown below.` });
+      setActionMsg('Official UPI QR image updated.');
+      setQrPreviewFor(eventId);
       await fetchOverview();
       onEventsUpdated();
     } catch (error) {
-      setActionMsg(error instanceof Error ? error.message : 'Request failed. Please try again.');
+      const message = error instanceof Error ? error.message : 'QR upload failed. Please try again.';
+      setQrNoticeFor(eventId, { tone: 'error', text: `Upload failed: ${message}` });
+      setActionMsg(message);
     } finally {
       setUploadingQrFor(null);
     }
@@ -388,6 +410,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   async function handleQrRemove(eventId: string) {
     if (!window.confirm('Remove the uploaded QR image? Students will see the UPI ID QR (if set) instead.')) return;
     await handleEventFieldUpdate(eventId, { qrImageUrl: '' });
+    setQrNoticeFor(eventId, { tone: 'ok', text: 'QR image removed.' });
   }
 
   async function handleEventFieldUpdate(eventId: string, patch: Record<string, unknown>) {
@@ -698,50 +721,63 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
           </div>
         )}
 
-        <section aria-label="Registration filters" className="mt-5 rounded-lg bg-white">              <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-4">
-                <div className="relative min-w-[200px] flex-1">
-                  <Search className="pointer-events-none absolute top-2.5 left-3 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="search"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    aria-label="Search registrations" placeholder="Search team, college, email, phone or UTR"
-                    className="w-full rounded border border-slate-300 py-1.5 pr-3 pl-8 text-xs focus:border-[#233D8B] focus:outline-none"
-                  />
-                </div>
-                <select aria-label="Filter by lunch" value={lunchFilter} onChange={e => setLunchFilter(e.target.value)} className="rounded border border-slate-300 p-2 text-xs"><option value="all">All lunch preferences</option><option value="yes">Lunch opted in</option><option value="no">No lunch</option></select>
-                <label className="text-xs">From (IST) <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="rounded border border-slate-300 p-2" /></label>
-                <label className="text-xs">To (IST) <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="rounded border border-slate-300 p-2" /></label>
-                <select aria-label="Sort registrations" value={sortOrder} onChange={e => setSortOrder(e.target.value)} className="rounded border border-slate-300 p-2 text-xs"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="team">Team name A–Z</option></select>
-                <button onClick={() => { setSearchQuery(''); setEventFilter('all'); setStatusFilter('all'); setLunchFilter('all'); setDateFrom(''); setDateTo(''); setSortOrder('newest'); }} className="p-2 text-xs underline">Clear filters</button>
-                <span className="text-xs" role="status">{filteredBundles.length} of {bundles.length} teams</span>
-                <select
-                  aria-label="Filter by event"
-                  value={eventFilter}
-                  onChange={(e) => setEventFilter(e.target.value)}
-                  className="rounded border border-slate-300 px-2.5 py-1.5 text-xs"
-                >
-                  <option value="all">All Events</option>
-                  {events.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.title}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Filter by status"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="rounded border border-slate-300 px-2.5 py-1.5 text-xs"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="pending">Pending</option>
-                  <option value="verified">Verified</option>
-                  <option value="reupload_required">Re-upload Needed</option>
-                  <option value="waitlisted">Waitlisted</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-              </div></section>
+        <section aria-label="Registration filters" className="no-print mt-5 rounded-lg border border-slate-200 bg-white p-4">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="relative sm:col-span-2">
+              <Search className="pointer-events-none absolute top-2.5 left-3 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="Search registrations"
+                placeholder="Search team, college, email, phone or UTR"
+                className="w-full rounded border border-slate-300 py-2 pr-3 pl-8 text-xs focus:border-[#233D8B] focus:outline-none"
+              />
+            </div>
+            <select aria-label="Filter by event" value={eventFilter} onChange={(e) => setEventFilter(e.target.value)} className="rounded border border-slate-300 p-2 text-xs">
+              <option value="all">All Events</option>
+              {events.map((e) => (
+                <option key={e.id} value={e.id}>{e.title}</option>
+              ))}
+            </select>
+            <select aria-label="Filter by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded border border-slate-300 p-2 text-xs">
+              <option value="all">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="verified">Verified</option>
+              <option value="reupload_required">Re-upload Needed</option>
+              <option value="waitlisted">Waitlisted</option>
+              <option value="rejected">Rejected</option>
+            </select>
+            <select aria-label="Filter by lunch" value={lunchFilter} onChange={(e) => setLunchFilter(e.target.value)} className="rounded border border-slate-300 p-2 text-xs">
+              <option value="all">All lunch preferences</option>
+              <option value="yes">Lunch opted in</option>
+              <option value="no">No lunch</option>
+            </select>
+            <label className="flex items-center gap-2 text-xs text-slate-600">
+              From
+              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="min-w-0 flex-1 rounded border border-slate-300 p-1.5" />
+            </label>
+            <label className="flex items-center gap-2 text-xs text-slate-600">
+              To
+              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="min-w-0 flex-1 rounded border border-slate-300 p-1.5" />
+            </label>
+            <select aria-label="Sort registrations" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="rounded border border-slate-300 p-2 text-xs">
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="team">Team name A–Z</option>
+            </select>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+            <span role="status">Showing {filteredBundles.length} of {bundles.length} teams · dates in IST</span>
+            <button
+              type="button"
+              onClick={() => { setSearchQuery(''); setEventFilter('all'); setStatusFilter('all'); setLunchFilter('all'); setDateFrom(''); setDateTo(''); setSortOrder('newest'); }}
+              className="font-medium text-[#233D8B] hover:underline"
+            >
+              Clear filters
+            </button>
+          </div>
+        </section>
         {/* Navigation Tabs */}
         <div className="no-print mt-6 flex flex-wrap items-center gap-1 border-b border-slate-200">
           {(
@@ -832,12 +868,16 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                                     ? 'bg-emerald-50 text-emerald-700'
                                     : b.registration.status === 'pending'
                                     ? 'bg-amber-50 text-amber-700'
+                                    : b.registration.status === 'reupload_required'
+                                    ? 'bg-orange-50 text-orange-700'
+                                    : b.registration.status === 'waitlisted'
+                                    ? 'bg-sky-50 text-sky-700'
                                     : 'bg-red-50 text-red-700'
                                 }`}
                               >
                                 {b.registration.status === 'verified' && b.registration.slotNumber
                                   ? `VERIFIED (${b.registration.slotNumber})`
-                                  : b.registration.status.replace('_', ' ')}
+                                  : b.registration.status.replace(/_/g, ' ')}
                               </span>
                             </td>
                           </tr>
@@ -902,6 +942,29 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                         {selectedBundle.registration.nonVegCount}NV
                       </div>
                     </div>
+                  </div>
+
+                  {/* Squad roster for cross-checking before a decision */}
+                  <div className="mt-3 rounded border border-slate-200 p-3 text-[11px]">
+                    <div className="flex flex-wrap justify-between gap-1 text-slate-500">
+                      <span>{selectedBundle.event.title} · {selectedBundle.registration.collegeName}</span>
+                      <span>
+                        Status: <strong className="text-slate-800">{selectedBundle.registration.status.replace(/_/g, ' ')}</strong>
+                        {selectedBundle.registration.slotNumber ? ` · ${selectedBundle.registration.groupName} ${selectedBundle.registration.slotNumber}` : ''}
+                      </span>
+                    </div>
+                    <ul className="mt-2 space-y-0.5">
+                      {selectedBundle.members.map((m) => (
+                        <li key={m.id} className="flex flex-wrap gap-x-2">
+                          <span className="w-8 font-mono font-semibold text-slate-500">{m.slotRole}</span>
+                          <span className="text-slate-900">{m.fullName}</span>
+                          <span className="text-slate-500">{m.inGameName} · {m.characterId}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {selectedBundle.registration.rejectionReason && (
+                      <p className="mt-2 text-orange-700">Last note: {selectedBundle.registration.rejectionReason}</p>
+                    )}
                   </div>
 
                   {/* Screenshot Viewer */}
@@ -1132,6 +1195,8 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                             src={evt.qrImageUrl}
                             alt={`Uploaded UPI QR for ${evt.title}`}
                             referrerPolicy="no-referrer"
+                            onLoad={() => setBrokenQrPreview((prev) => ({ ...prev, [evt.id]: '' }))}
+                            onError={() => setBrokenQrPreview((prev) => ({ ...prev, [evt.id]: evt.qrImageUrl }))}
                             className="h-20 w-20 object-contain"
                           />
                         </a>
@@ -1172,6 +1237,59 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                         className="sr-only"
                       />
                     </label>
+                  </div>
+
+                  {evt.qrImageUrl && brokenQrPreview[evt.id] === evt.qrImageUrl && (
+                    <p role="alert" className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+                      The QR is saved, but its image cannot be loaded, so participants cannot see it.
+                      Check that the storage bucket for event assets is public, then upload again.
+                    </p>
+                  )}
+                  {qrNotice[evt.id] && (
+                    <p
+                      role="status"
+                      className={`mt-3 rounded border px-3 py-2 text-[11px] ${
+                        qrNotice[evt.id].tone === 'ok'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                          : 'border-red-200 bg-red-50 text-red-700'
+                      }`}
+                    >
+                      {qrNotice[evt.id].text}
+                    </p>
+                  )}
+
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      aria-expanded={qrPreviewFor === evt.id}
+                      onClick={() => setQrPreviewFor((prev) => (prev === evt.id ? null : evt.id))}
+                      className="text-xs font-semibold text-[#233D8B] hover:underline"
+                    >
+                      {qrPreviewFor === evt.id ? 'Hide participant view' : 'Preview participant view'}
+                    </button>
+                    {qrPreviewFor === evt.id && (
+                      <div className="mt-2 rounded-lg bg-[#110D0C] p-3">
+                        <p className="text-[11px] text-neutral-400">
+                          As shown on the registration payment step (base fee, no lunch).
+                        </p>
+                        <PaymentQrPanel
+                          event={evt}
+                          feeSummary={calculateRegistrationFee([], evt.baseFee, evt.lunchFee)}
+                          upiIntentUri={
+                            evt.upiVpa
+                              ? buildUpiIntentUri({
+                                  vpa: evt.upiVpa,
+                                  payeeName: evt.upiPayeeName || 'Srusti Academy of Management and Technology',
+                                  amount: evt.baseFee,
+                                  teamCode: evt.rulesJson?.codePrefix || 'SAMT26',
+                                  eventTitle: evt.title,
+                                })
+                              : ''
+                          }
+                          className="mt-2"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

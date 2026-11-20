@@ -42,18 +42,21 @@ export function LiveDashboardView({ initialEvents, onNavigate }: LiveDashboardVi
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'ledger' | 'matrix'>('ledger');
 
-  const fetchBoardSnapshot = useCallback(async (isManual = false) => {
+  const fetchBoardSnapshot = useCallback(async (isManual = false): Promise<boolean> => {
     if (isManual) setRefreshing(true);
     try {
-      const res = await fetch('/api/live-registrations', { cache: 'no-store' });
+      const res = await fetch('/api/live-registrations');
       if (!res.ok) throw new Error('Unable to load live registrations.');
       const data = await res.json();
       if (Array.isArray(data.events)) setEvents(data.events);
       if (Array.isArray(data.teams)) setTeams(data.teams);
       setLastSyncedAt(data.generatedAt || new Date().toISOString());
       setError('');
+      // The server reports whether it can push live updates (not on serverless hosting).
+      return data.realtime !== false;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to sync live registration board.');
+      return false;
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -61,10 +64,19 @@ export function LiveDashboardView({ initialEvents, onNavigate }: LiveDashboardVi
   }, []);
 
   useEffect(() => {
-    void fetchBoardSnapshot(false);
-
     let es: EventSource | null = null;
-    if (typeof window !== 'undefined' && typeof EventSource !== 'undefined') {
+    let cancelled = false;
+
+    const fallbackPoll = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void fetchBoardSnapshot(false);
+    }, 15000);
+
+    void fetchBoardSnapshot(false).then((realtime) => {
+      if (cancelled) return;
+      if (!realtime || typeof EventSource === 'undefined') {
+        setStreamState('polling');
+        return;
+      }
       es = new EventSource('/api/live-registrations/stream');
       es.onopen = () => {
         setStreamState('live');
@@ -85,15 +97,10 @@ export function LiveDashboardView({ initialEvents, onNavigate }: LiveDashboardVi
       es.onerror = () => {
         setStreamState('polling');
       };
-    } else {
-      setStreamState('polling');
-    }
-
-    const fallbackPoll = window.setInterval(() => {
-      void fetchBoardSnapshot(false);
-    }, 15000);
+    });
 
     return () => {
+      cancelled = true;
       window.clearInterval(fallbackPoll);
       if (es) es.close();
     };

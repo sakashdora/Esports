@@ -270,6 +270,27 @@ function mapSupabaseRegistration(row: Record<string, unknown>): StoredRegistrati
   };
 }
 
+// The database keeps character IDs unique per event, including rejected squads. A rejected
+// squad's IDs are stored with this marker so its players can register again in a new squad.
+const RELEASED_ID_MARKER = '~released~';
+
+function releasedCharacterId(characterId: string, registrationId: string): string {
+  return `${characterId}${RELEASED_ID_MARKER}${registrationId.slice(0, 8)}`;
+}
+
+function originalCharacterId(stored: string): string {
+  return stored.split(RELEASED_ID_MARKER)[0];
+}
+
+const ROLE_ORDER = ['IGL', 'P2', 'P3', 'P4', 'SUB'];
+function sortByRole<T extends { slotRole: string }>(members: T[]): T[] {
+  return members.slice().sort((a, b) => ROLE_ORDER.indexOf(a.slotRole) - ROLE_ORDER.indexOf(b.slotRole));
+}
+
+function isUniqueViolation(error: { code?: string } | null | undefined): boolean {
+  return error?.code === '23505';
+}
+
 function mapSupabaseMember(row: Record<string, unknown>): StoredTeamMember {
   return {
     id: String(row.id),
@@ -278,7 +299,7 @@ function mapSupabaseMember(row: Record<string, unknown>): StoredTeamMember {
     slotRole: row.slot_role as PlayerInput['slotRole'],
     fullName: String(row.full_name),
     inGameName: String(row.in_game_name),
-    characterId: String(row.character_id),
+    characterId: originalCharacterId(String(row.character_id)),
     academicLevel: String(row.academic_level || 'UG'),
     collegeOverride: row.college_override ? String(row.college_override) : undefined,
     wantsLunch: Boolean(row.wants_lunch),
@@ -314,11 +335,26 @@ function mapSupabaseAudit(row: Record<string, unknown>): StoredAuditLog {
   };
 }
 
+// Seeding only needs to happen once per server instance; repeating it on every public
+// request added a full database round trip to each page load.
+let seedPromise: Promise<void> | null = null;
+
 export async function ensureSeedEventsInSupabase(): Promise<void> {
+  if (!seedPromise) {
+    seedPromise = seedEventsInSupabase().catch((err) => {
+      seedPromise = null;
+      console.error('Supabase seed check warning:', err instanceof Error ? err.message : err);
+    });
+  }
+  return seedPromise;
+}
+
+async function seedEventsInSupabase(): Promise<void> {
   const sb = getSupabaseServiceClient();
   if (!sb) return;
   const { data: existing, error } = await sb.from('events').select('slug');
   if (error) {
+    seedPromise = null;
     console.error('Supabase seed check warning:', error.message);
     return;
   }
@@ -369,16 +405,11 @@ export async function listPublicEvents(): Promise<CampusEvent[]> {
   }
 
   await ensureSeedEventsInSupabase();
-  const { data: eventsData, error } = await sb
-    .from('events')
-    .select('*')
-    .order('created_at', { ascending: true });
+  const [{ data: eventsData, error }, { data: regStats }] = await Promise.all([
+    sb.from('events').select('*').order('created_at', { ascending: true }),
+    sb.from('registrations').select('event_id, status').neq('status', 'rejected'),
+  ]);
   if (error) throw new ClientInputError('Unable to complete the database request. Please try again.');
-
-  const { data: regStats } = await sb
-    .from('registrations')
-    .select('event_id, status')
-    .neq('status', 'rejected');
 
   const countMap = new Map<string, { verified: number; pending: number; total: number }>();
   for (const row of regStats || []) {
@@ -592,79 +623,125 @@ export async function createRegistrationWithProof(input: {
     };
   }
 
-  // Supabase Free production path
-  const { count: activeCount } = await sb
-    .from('registrations')
-    .select('id', { count: 'exact', head: true })
-    .eq('event_id', event.id)
-    .neq('status', 'rejected');
+  // Supabase Free production path. Independent pre-checks run in parallel so a submission
+  // costs one round trip instead of five before anything is written.
+  const characterIds = activeMembers.map((m) => m.characterId.trim());
+  const [activeCountRes, dupUtrRes, dupHashRes, eventTotalRes, activeTeamsRes, dupMembersRes] =
+    await Promise.all([
+      sb
+        .from('registrations')
+        .select('id', { count: 'exact', head: true })
+        .eq('event_id', event.id)
+        .neq('status', 'rejected'),
+      sb
+        .from('payment_proofs')
+        .select('id')
+        .eq('utr_number', normalizedUtr)
+        .neq('review_status', 'rejected')
+        .limit(1),
+      sb
+        .from('payment_proofs')
+        .select('id')
+        .eq('file_sha256', fileSha256)
+        .neq('review_status', 'rejected')
+        .limit(1),
+      sb
+        .from('registrations')
+        .select('id', { count: 'exact', head: true })
+        .eq('event_id', event.id),
+      sb
+        .from('registrations')
+        .select('id')
+        .eq('event_id', event.id)
+        .neq('status', 'rejected')
+        .ilike('team_name', cleanTeamName.replace(/[\\%_]/g, (c) => `\\${c}`))
+        .limit(1),
+      sb
+        .from('team_members')
+        .select('character_id')
+        .eq('event_id', event.id)
+        .in('character_id', characterIds),
+    ]);
 
-  const isWaitlisted = (activeCount || 0) >= event.maxTeams;
+  const firstError = [activeCountRes, dupUtrRes, dupHashRes, eventTotalRes, activeTeamsRes, dupMembersRes]
+    .map((r) => r.error)
+    .find(Boolean);
+  if (firstError) {
+    console.error('Registration pre-check failed:', firstError.message);
+    throw new ClientInputError('Registration service is busy. Please try again in a moment.');
+  }
 
-  const { data: dupUtr } = await sb
-    .from('payment_proofs')
-    .select('id')
-    .eq('utr_number', normalizedUtr)
-    .neq('review_status', 'rejected')
-    .limit(1);
-  if (dupUtr && dupUtr.length > 0) {
+  const isWaitlisted = (activeCountRes.count || 0) >= event.maxTeams;
+  if (dupUtrRes.data && dupUtrRes.data.length > 0) {
     throw new ClientInputError(`UTR / Reference "${normalizedUtr}" has already been submitted.`);
   }
-
-  const { data: dupHash } = await sb
-    .from('payment_proofs')
-    .select('id')
-    .eq('file_sha256', fileSha256)
-    .neq('review_status', 'rejected')
-    .limit(1);
-  if (dupHash && dupHash.length > 0) {
+  if (dupHashRes.data && dupHashRes.data.length > 0) {
     throw new ClientInputError('This exact payment screenshot file has already been submitted.');
   }
-
-  const { count: eventTotalCount } = await sb
-    .from('registrations')
-    .select('id', { count: 'exact', head: true })
-    .eq('event_id', event.id);
+  if (activeTeamsRes.data && activeTeamsRes.data.length > 0) {
+    throw new ClientInputError(`Team name "${cleanTeamName}" is already registered for ${event.title}.`);
+  }
+  const takenId = (dupMembersRes.data || [])[0];
+  if (takenId) {
+    throw new ClientInputError(
+      `Character ID "${takenId.character_id}" is already registered in another squad for ${event.title}.`
+    );
+  }
 
   const prefix = event.rulesJson.codePrefix || 'SAMT26';
-  const teamCode = formatTeamCode(prefix, (eventTotalCount || 0) + 1);
   const ext = extFromMime(mime);
-  const storagePath = `${event.slug}/${teamCode}-${Date.now()}.${ext}`;
+  const storagePath = `${event.slug}/${crypto.randomUUID()}.${ext}`;
 
   const { error: uploadErr } = await sb.storage
     .from('payment-proofs')
     .upload(storagePath, input.fileBuffer, { contentType: mime, upsert: false });
   if (uploadErr) {
+    console.error('Payment proof upload failed:', uploadErr.message);
     throw new ClientInputError('Unable to save payment screenshot. Please try again.');
   }
 
-  const { data: regRow, error: regErr } = await sb
-    .from('registrations')
-    .insert({
-      team_code: teamCode,
-      event_id: event.id,
-      team_name: cleanTeamName,
-      college_name: cleanCollege,
-      igl_phone: cleanPhone,
-      igl_email: cleanEmail,
-      has_substitute: input.hasSubstitute,
-      lunch_count: fees.lunchCount,
-      veg_count: fees.vegCount,
-      non_veg_count: fees.nonVegCount,
-      base_fee: fees.baseFee,
-      lunch_total: fees.lunchTotal,
-      total_fee: fees.totalFee,
-      status: isWaitlisted ? 'waitlisted' : 'pending',
-      eligibility_confirmed: input.eligibilityConfirmed,
-      fair_play_confirmed: input.fairPlayConfirmed,
-      active_skill_confirmed: input.activeSkillConfirmed,
-    })
-    .select()
-    .single();
+  // Team codes follow the event's registration count; two squads submitting at the same
+  // moment get the same number, so retry with the next code instead of failing.
+  let regRow: Record<string, unknown> | null = null;
+  let regErr: { code?: string; message: string } | null = null;
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    const teamCode = formatTeamCode(prefix, (eventTotalRes.count || 0) + attempt);
+    const result = await sb
+      .from('registrations')
+      .insert({
+        team_code: teamCode,
+        event_id: event.id,
+        team_name: cleanTeamName,
+        college_name: cleanCollege,
+        igl_phone: cleanPhone,
+        igl_email: cleanEmail,
+        has_substitute: input.hasSubstitute,
+        lunch_count: fees.lunchCount,
+        veg_count: fees.vegCount,
+        non_veg_count: fees.nonVegCount,
+        base_fee: fees.baseFee,
+        lunch_total: fees.lunchTotal,
+        total_fee: fees.totalFee,
+        status: isWaitlisted ? 'waitlisted' : 'pending',
+        eligibility_confirmed: input.eligibilityConfirmed,
+        fair_play_confirmed: input.fairPlayConfirmed,
+        active_skill_confirmed: input.activeSkillConfirmed,
+      })
+      .select()
+      .single();
+    regRow = (result.data as Record<string, unknown> | null) ?? null;
+    regErr = result.error;
+    const codeClash = isUniqueViolation(regErr) && /team_code/i.test(regErr?.message || '');
+    if (!codeClash) break;
+  }
 
   if (regErr || !regRow) {
     await sb.storage.from('payment-proofs').remove([storagePath]);
-    throw new ClientInputError('Registration insert failed (team name may already exist).');
+    if (isUniqueViolation(regErr) && /team_name/i.test(regErr?.message || '')) {
+      throw new ClientInputError(`Team name "${cleanTeamName}" is already registered for ${event.title}.`);
+    }
+    console.error('Registration insert failed:', regErr?.message);
+    throw new ClientInputError('Registration could not be saved. Please try again.');
   }
 
   const regId = String(regRow.id);
@@ -689,7 +766,11 @@ export async function createRegistrationWithProof(input: {
   if (memErr) {
     await sb.from('registrations').delete().eq('id', regId);
     await sb.storage.from('payment-proofs').remove([storagePath]);
-    throw new ClientInputError('Unable to save roster. Check that players are not already registered.');
+    if (isUniqueViolation(memErr)) {
+      throw new ClientInputError('One of these Character IDs is already registered in another squad for this event.');
+    }
+    console.error('Roster insert failed:', memErr.message);
+    throw new ClientInputError('Unable to save the roster. Please try again.');
   }
 
   const { data: proofRow, error: proofErr } = await sb
@@ -709,7 +790,11 @@ export async function createRegistrationWithProof(input: {
   if (proofErr || !proofRow) {
     await sb.from('registrations').delete().eq('id', regId);
     await sb.storage.from('payment-proofs').remove([storagePath]);
-    throw new ClientInputError('Payment proof insert failed.');
+    if (isUniqueViolation(proofErr)) {
+      throw new ClientInputError('This UTR or payment screenshot has already been submitted.');
+    }
+    console.error('Payment proof insert failed:', proofErr?.message);
+    throw new ClientInputError('Unable to save the payment proof. Please try again.');
   }
 
   const { data: auditRow } = await sb
@@ -803,38 +888,152 @@ export async function trackRegistration(
     return { registration: reg, event, members, proofs, auditLogs };
   }
 
-  const { data: regRow } = await sb
+  const { data: regRow, error: regErr } = await sb
     .from('registrations')
     .select('*')
     .eq('team_code', cleanCode)
     .eq('igl_phone', cleanPhone)
     .maybeSingle();
-
+  if (regErr) throw new Error(`Registration lookup failed: ${regErr.message}`);
   if (!regRow) return null;
-  const reg = mapSupabaseRegistration(regRow as Record<string, unknown>);
-  const { data: evtRow } = await sb.from('events').select('*').eq('id', reg.eventId).single();
-  const { data: memRows } = await sb
-    .from('team_members')
-    .select('*')
-    .eq('registration_id', reg.id);
-  const { data: proofRows } = await sb
-    .from('payment_proofs')
-    .select('*')
-    .eq('registration_id', reg.id)
-    .order('created_at', { ascending: false });
-  const { data: auditRows } = await sb
-    .from('payment_audit_logs')
-    .select('*')
-    .eq('registration_id', reg.id)
-    .order('created_at', { ascending: false });
+  return loadSupabaseBundle(sb, regRow as Record<string, unknown>);
+}
+
+async function loadSupabaseBundle(
+  sb: SupabaseClient,
+  regRow: Record<string, unknown>
+): Promise<RegistrationBundle> {
+  const reg = mapSupabaseRegistration(regRow);
+  const [{ data: evtRow }, { data: memRows }, { data: proofRows }, { data: auditRows }] =
+    await Promise.all([
+      sb.from('events').select('*').eq('id', reg.eventId).maybeSingle(),
+      sb.from('team_members').select('*').eq('registration_id', reg.id),
+      sb
+        .from('payment_proofs')
+        .select('*')
+        .eq('registration_id', reg.id)
+        .order('created_at', { ascending: false }),
+      sb
+        .from('payment_audit_logs')
+        .select('*')
+        .eq('registration_id', reg.id)
+        .order('created_at', { ascending: false }),
+    ]);
 
   return {
     registration: reg,
-    event: mapSupabaseEvent((evtRow || {}) as Record<string, unknown>),
-    members: (memRows || []).map((m) => mapSupabaseMember(m as Record<string, unknown>)),
+    event: evtRow ? mapSupabaseEvent(evtRow as Record<string, unknown>) : DEFAULT_EVENTS[0],
+    members: sortByRole((memRows || []).map((m) => mapSupabaseMember(m as Record<string, unknown>))),
     proofs: (proofRows || []).map((p) => mapSupabaseProof(p as Record<string, unknown>)),
     auditLogs: (auditRows || []).map((a) => mapSupabaseAudit(a as Record<string, unknown>)),
   };
+}
+
+/** Loads one registration for admin actions without reading the whole dashboard. */
+export async function getRegistrationBundleById(registrationId: string): Promise<RegistrationBundle | null> {
+  const sb = getSupabaseServiceClient();
+  if (!sb) {
+    const store = readLocalStore();
+    const reg = store.registrations.find((r) => r.id === registrationId);
+    return reg ? trackRegistration(reg.teamCode, reg.iglPhone) : null;
+  }
+  if (!/^[0-9a-f-]{36}$/i.test(registrationId)) return null;
+  const { data: regRow, error } = await sb
+    .from('registrations')
+    .select('*')
+    .eq('id', registrationId)
+    .maybeSingle();
+  if (error) throw new Error(`Registration lookup failed: ${error.message}`);
+  return regRow ? loadSupabaseBundle(sb, regRow as Record<string, unknown>) : null;
+}
+
+/**
+ * Before a rejected squad becomes active again (re-upload or admin decision), make sure no
+ * other active squad has taken its team name or players in the meantime, and restore the
+ * released character IDs.
+ */
+async function reactivateRejectedSquad(bundle: RegistrationBundle): Promise<void> {
+  const reg = bundle.registration;
+  if (reg.status !== 'rejected') return;
+  const ids = bundle.members.map((m) => m.characterId.trim().toLowerCase());
+  const sb = getSupabaseServiceClient();
+
+  if (!sb) {
+    const store = readLocalStore();
+    const activeOthers = store.registrations.filter(
+      (r) => r.eventId === reg.eventId && r.id !== reg.id && r.status !== 'rejected'
+    );
+    if (activeOthers.some((r) => r.teamName.toLowerCase() === reg.teamName.toLowerCase())) {
+      throw new ClientInputError(`Team name "${reg.teamName}" has since been registered by another squad.`);
+    }
+    const activeIds = new Set(
+      store.members
+        .filter((m) => activeOthers.some((r) => r.id === m.registrationId))
+        .map((m) => m.characterId.trim().toLowerCase())
+    );
+    if (ids.some((id) => activeIds.has(id))) {
+      throw new ClientInputError('A player from this squad has since been registered in another squad.');
+    }
+    return;
+  }
+
+  const { data: nameRows, error: nameErr } = await sb
+    .from('registrations')
+    .select('id')
+    .eq('event_id', reg.eventId)
+    .neq('id', reg.id)
+    .neq('status', 'rejected')
+    .ilike('team_name', reg.teamName.replace(/[\\%_]/g, (c) => `\\${c}`))
+    .limit(1);
+  if (nameErr) throw new ClientInputError('Unable to complete the database request. Please try again.');
+  if (nameRows && nameRows.length > 0) {
+    throw new ClientInputError(`Team name "${reg.teamName}" has since been registered by another squad.`);
+  }
+
+  for (const member of bundle.members) {
+    const { error } = await sb
+      .from('team_members')
+      .update({ character_id: member.characterId })
+      .eq('id', member.id);
+    if (error) {
+      // Roll back the members already restored so the squad stays consistently released.
+      for (const restored of bundle.members) {
+        if (restored.id === member.id) break;
+        await sb
+          .from('team_members')
+          .update({ character_id: releasedCharacterId(restored.characterId, reg.id) })
+          .eq('id', restored.id);
+      }
+      if (isUniqueViolation(error)) {
+        throw new ClientInputError(
+          `Character ID "${member.characterId}" has since been registered in another squad.`
+        );
+      }
+      throw new ClientInputError('Unable to complete the database request. Please try again.');
+    }
+  }
+}
+
+/** Frees a rejected squad's character IDs so those players may register in a new squad. */
+async function releaseRejectedSquadIds(sb: SupabaseClient, registrationId: string): Promise<void> {
+  const { data: rows, error } = await sb
+    .from('team_members')
+    .select('id, character_id')
+    .eq('registration_id', registrationId);
+  if (error) {
+    console.error('Could not release character IDs:', error.message);
+    return;
+  }
+  await Promise.all(
+    (rows || [])
+      .filter((row) => !String(row.character_id).includes(RELEASED_ID_MARKER))
+      .map((row) =>
+        sb
+          .from('team_members')
+          .update({ character_id: releasedCharacterId(String(row.character_id), registrationId) })
+          .eq('id', row.id)
+      )
+  );
 }
 
 export async function resubmitPaymentProof(input: {
@@ -886,6 +1085,7 @@ export async function resubmitPaymentProof(input: {
     if (activeProofs.some((p) => p.fileSha256 === fileSha256)) {
       throw new ClientInputError('This exact screenshot file has already been uploaded.');
     }
+    await reactivateRejectedSquad(bundle);
     // The flagged proof is superseded by this upload and was never accepted.
     for (const p of store.proofs) {
       if (p.registrationId === ownRegistrationId && p.reviewStatus === 'reupload_required') {
@@ -953,8 +1153,39 @@ export async function resubmitPaymentProof(input: {
     throw new ClientInputError('This exact screenshot file has already been uploaded.');
   }
 
+  const wasRejected = bundle.registration.status === 'rejected';
+  await reactivateRejectedSquad(bundle);
+  try {
+    return await storeSupabaseReupload(sb, bundle, {
+      normalizedUtr,
+      upiApp: input.upiApp,
+      fileBuffer: input.fileBuffer,
+      fileSha256,
+      mime,
+      now,
+    });
+  } catch (err) {
+    if (wasRejected) await releaseRejectedSquadIds(sb, ownRegistrationId);
+    throw err;
+  }
+}
+
+async function storeSupabaseReupload(
+  sb: SupabaseClient,
+  bundle: RegistrationBundle,
+  input: {
+    normalizedUtr: string;
+    upiApp: string;
+    fileBuffer: Buffer;
+    fileSha256: string;
+    mime: 'image/jpeg' | 'image/png' | 'image/webp';
+    now: string;
+  }
+): Promise<RegistrationBundle> {
+  const { normalizedUtr, fileSha256, mime, now } = input;
+  const ownRegistrationId = bundle.registration.id;
   const ext = extFromMime(mime);
-  const storagePath = `${bundle.event.slug}/${bundle.registration.teamCode}-reup-${Date.now()}.${ext}`;
+  const storagePath = `${bundle.event.slug}/${crypto.randomUUID()}.${ext}`;
   const { error: uploadErr } = await sb.storage
     .from('payment-proofs')
     .upload(storagePath, input.fileBuffer, { contentType: mime });
@@ -994,10 +1225,14 @@ export async function resubmitPaymentProof(input: {
     throw new ClientInputError('Unable to save payment proof. Please try again.');
   }
 
-  await sb
+  const { error: statusErr } = await sb
     .from('registrations')
     .update({ status: 'pending', rejection_reason: null, updated_at: now })
     .eq('id', bundle.registration.id);
+  if (statusErr) {
+    console.error('Re-upload status update failed:', statusErr.message);
+    throw new ClientInputError('Your proof was saved but the status could not be updated. Please contact the coordinators.');
+  }
 
   await sb.from('payment_audit_logs').insert({
     registration_id: bundle.registration.id,
@@ -1049,19 +1284,18 @@ export async function listAdminDashboardData(): Promise<{
     };
   }
 
-  const { data: regRows } = await sb
-    .from('registrations')
-    .select('*')
-    .order('created_at', { ascending: false });
-  const { data: memRows } = await sb.from('team_members').select('*');
-  const { data: proofRows } = await sb
-    .from('payment_proofs')
-    .select('*')
-    .order('created_at', { ascending: false });
-  const { data: auditRows } = await sb
-    .from('payment_audit_logs')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const [regRes, memRes, proofRes, auditRes] = await Promise.all([
+    sb.from('registrations').select('*').order('created_at', { ascending: false }),
+    sb.from('team_members').select('*'),
+    sb.from('payment_proofs').select('*').order('created_at', { ascending: false }),
+    sb.from('payment_audit_logs').select('*').order('created_at', { ascending: false }).limit(2000),
+  ]);
+  const loadErr = [regRes, memRes, proofRes, auditRes].map((r) => r.error).find(Boolean);
+  if (loadErr) throw new Error(`Admin dashboard load failed: ${loadErr.message}`);
+  const regRows = regRes.data;
+  const memRows = memRes.data;
+  const proofRows = proofRes.data;
+  const auditRows = auditRes.data;
 
   const membersByReg = new Map<string, StoredTeamMember[]>();
   for (const row of memRows || []) {
@@ -1094,17 +1328,13 @@ export async function listAdminDashboardData(): Promise<{
     const reg = mapSupabaseRegistration(row as Record<string, unknown>);
     const proofs = proofsByReg.get(reg.id) || [];
     const latest = proofs[0];
-    let latestProofUrl: string | null = null;
-    if (latest) {
-      const { data: signed } = await sb.storage
-        .from('payment-proofs')
-        .createSignedUrl(latest.screenshotPath, 300);
-      latestProofUrl = signed?.signedUrl || null;
-    }
+    // Served through the authorized admin route: signed storage URLs expired after five
+    // minutes and broke proofs for admins who kept the dashboard open.
+    const latestProofUrl = latest ? `/api/admin/proof-image/${latest.id}` : null;
     bundles.push({
       registration: reg,
       event: eventMap.get(reg.eventId) || DEFAULT_EVENTS[0],
-      members: membersByReg.get(reg.id) || [],
+      members: sortByRole(membersByReg.get(reg.id) || []),
       proofs,
       auditLogs: auditsByReg.get(reg.id) || [],
       latestProofUrl,
@@ -1112,6 +1342,24 @@ export async function listAdminDashboardData(): Promise<{
   }
 
   return { events, bundles, auditLogs: allAudits };
+}
+
+export async function getProofFile(proofId: string): Promise<{ buffer: Buffer; mime: string } | null> {
+  const sb = getSupabaseServiceClient();
+  if (!sb) return getLocalProofFile(proofId);
+  if (!/^[0-9a-f-]{36}$/i.test(proofId)) return null;
+  const { data: row } = await sb
+    .from('payment_proofs')
+    .select('screenshot_path')
+    .eq('id', proofId)
+    .maybeSingle();
+  if (!row?.screenshot_path) return null;
+  const { data: blob, error } = await sb.storage
+    .from('payment-proofs')
+    .download(String(row.screenshot_path));
+  if (error || !blob) return null;
+  const buffer = Buffer.from(await blob.arrayBuffer());
+  return { buffer, mime: detectImageMimeFromMagicBytes(buffer) || 'image/jpeg' };
 }
 
 export async function getLocalProofFile(proofId: string): Promise<{ buffer: Buffer; mime: string } | null> {
@@ -1141,6 +1389,10 @@ export async function decideRegistrationPayment(input: {
   actorId?: string | null;
 }): Promise<RegistrationBundle> {
   const now = new Date().toISOString();
+  const current = await getRegistrationBundleById(input.registrationId);
+  if (!current) throw new ClientInputError('Registration not found.');
+  // A rejected squad released its team name and players; check nobody else took them.
+  if (input.decision !== 'reject') await reactivateRejectedSquad(current);
   const sb = getSupabaseServiceClient();
 
   if (!sb) {
@@ -1157,7 +1409,7 @@ export async function decideRegistrationPayment(input: {
         .filter((r) => r.eventId === reg.eventId && r.status === 'verified' && r.id !== reg.id)
         .map((r) => r.slotNumber);
       const slot =
-        reg.slotNumber && reg.groupName
+        reg.status === 'verified' && reg.slotNumber && reg.groupName
           ? { slotNumber: reg.slotNumber, groupName: reg.groupName }
           : assignFirstFreeTournamentSlot(takenSlots, event.maxTeams);
 
@@ -1212,23 +1464,21 @@ export async function decideRegistrationPayment(input: {
     return (await trackRegistration(reg.teamCode, reg.iglPhone))!;
   }
 
-  const { data: regRow } = await sb
-    .from('registrations')
-    .select('*')
-    .eq('id', input.registrationId)
-    .single();
-  if (!regRow) throw new ClientInputError('Registration not found.');
-  const reg = mapSupabaseRegistration(regRow as Record<string, unknown>);
-  const { data: evtRow } = await sb.from('events').select('*').eq('id', reg.eventId).single();
-  const event = mapSupabaseEvent((evtRow || {}) as Record<string, unknown>);
-
-  const { data: latestProofRow } = await sb
-    .from('payment_proofs')
-    .select('*')
-    .eq('registration_id', reg.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const reg = current.registration;
+  const event = current.event;
+  const latestProof = current.proofs[0];
+  const failIf = (error: { code?: string; message: string } | null, what: string) => {
+    if (!error) return;
+    if (isUniqueViolation(error)) {
+      throw new ClientInputError(
+        /utr|sha256/i.test(error.message)
+          ? 'This UTR or screenshot is already used by another active squad.'
+          : `Team name "${reg.teamName}" is already used by another active squad.`
+      );
+    }
+    console.error(`Decision ${what} failed:`, error.message);
+    throw new ClientInputError('Unable to save the decision. Please try again.');
+  };
 
   if (input.decision === 'approve') {
     const { data: verifiedRows, error: verifiedErr } = await sb
@@ -1237,17 +1487,17 @@ export async function decideRegistrationPayment(input: {
       .eq('event_id', reg.eventId)
       .eq('status', 'verified')
       .neq('id', reg.id);
-    if (verifiedErr) throw new ClientInputError('Unable to complete the database request. Please try again.');
+    failIf(verifiedErr, 'slot lookup');
 
     const slot =
-      reg.slotNumber && reg.groupName
+      reg.status === 'verified' && reg.slotNumber && reg.groupName
         ? { slotNumber: reg.slotNumber, groupName: reg.groupName }
         : assignFirstFreeTournamentSlot(
             (verifiedRows || []).map((row) => (row.slot_number ? String(row.slot_number) : null)),
             event.maxTeams
           );
 
-    await sb
+    const { error: regErr } = await sb
       .from('registrations')
       .update({
         status: 'verified',
@@ -1257,9 +1507,10 @@ export async function decideRegistrationPayment(input: {
         updated_at: now,
       })
       .eq('id', reg.id);
+    failIf(regErr, 'registration update');
 
-    if (latestProofRow) {
-      await sb
+    if (latestProof) {
+      const { error } = await sb
         .from('payment_proofs')
         .update({
           review_status: 'approved',
@@ -1267,7 +1518,8 @@ export async function decideRegistrationPayment(input: {
           verified_by: input.actorId || null,
           verified_at: now,
         })
-        .eq('id', latestProofRow.id);
+        .eq('id', latestProof.id);
+      failIf(error, 'proof update');
     }
 
     await sb.from('payment_audit_logs').insert({
@@ -1275,17 +1527,17 @@ export async function decideRegistrationPayment(input: {
       actor_id: input.actorId || null,
       actor_label: input.actorEmail,
       action: 'APPROVE',
-      notes: `Verified UTR ${latestProofRow?.utr_number || 'N/A'}. Assigned ${slot.groupName} · ${slot.slotNumber}.`,
+      notes: `Verified UTR ${latestProof?.utrNumber || 'N/A'}. Assigned ${slot.groupName} · ${slot.slotNumber}.`,
     });
   } else {
     const reasonText =
-      input.reason?.trim() ||
+      input.reason?.trim().slice(0, 500) ||
       (input.decision === 'reupload_required'
         ? 'Screenshot unclear or UTR could not be matched. Please re-upload.'
         : 'Payment verification failed.');
     const nextStatus = input.decision === 'reupload_required' ? 'reupload_required' : 'rejected';
 
-    await sb
+    const { error: regErr } = await sb
       .from('registrations')
       .update({
         status: nextStatus,
@@ -1295,9 +1547,10 @@ export async function decideRegistrationPayment(input: {
         updated_at: now,
       })
       .eq('id', reg.id);
+    failIf(regErr, 'registration update');
 
-    if (latestProofRow) {
-      await sb
+    if (latestProof) {
+      const { error } = await sb
         .from('payment_proofs')
         .update({
           review_status: nextStatus,
@@ -1305,8 +1558,12 @@ export async function decideRegistrationPayment(input: {
           verified_by: input.actorId || null,
           verified_at: now,
         })
-        .eq('id', latestProofRow.id);
+        .eq('id', latestProof.id);
+      failIf(error, 'proof update');
     }
+
+    // Rejected squads free their players so they can register again in a new squad.
+    if (nextStatus === 'rejected') await releaseRejectedSquadIds(sb, reg.id);
 
     await sb.from('payment_audit_logs').insert({
       registration_id: reg.id,
@@ -1317,7 +1574,7 @@ export async function decideRegistrationPayment(input: {
     });
   }
 
-  return (await trackRegistration(reg.teamCode, reg.iglPhone))!;
+  return (await getRegistrationBundleById(reg.id))!;
 }
 
 type EventConfigPatch = Partial<{
@@ -1413,7 +1670,10 @@ export async function updateEventConfig(
     .eq('id', eventId)
     .select()
     .single();
-  if (error || !data) throw new ClientInputError('Failed to update event.');
+  if (error || !data) {
+    console.error('Supabase event update failed:', error?.message || 'no row returned (check the event id)');
+    throw new ClientInputError('Failed to update event.');
+  }
   return mapSupabaseEvent(data as Record<string, unknown>);
 }
 
@@ -1546,7 +1806,10 @@ export async function createExtensibleEvent(input: {
     })
     .select()
     .single();
-  if (error || !data) throw new ClientInputError('Failed to create event.');
+  if (error || !data) {
+    console.error('Supabase event insert failed:', error?.message);
+    throw new ClientInputError('Failed to create event.');
+  }
   return mapSupabaseEvent(data as Record<string, unknown>);
 }
 
@@ -1570,9 +1833,20 @@ export async function saveOfficialQrImage(eventId: string, fileBuffer: Buffer): 
   const { error } = await sb.storage
     .from('event-assets')
     .upload(storagePath, fileBuffer, { contentType: mime, upsert: true });
-  if (error) throw new ClientInputError('Unable to complete the database request. Please try again.');
+  if (error) {
+    // Server-side only: the storage reason (missing bucket, MIME/size policy, network) is
+    // otherwise invisible and the admin just sees a generic failure.
+    console.error('QR upload to Supabase Storage bucket "event-assets" failed:', error.message);
+    throw new ClientInputError('Could not save the QR image to storage. Please try again; if it keeps failing, check the Supabase "event-assets" bucket.');
+  }
   const { data } = sb.storage.from('event-assets').getPublicUrl(storagePath);
-  await updateEventConfig(eventId, { qrImageUrl: data.publicUrl });
+  try {
+    await updateEventConfig(eventId, { qrImageUrl: data.publicUrl });
+  } catch (err) {
+    console.error('QR image stored but the event row was not updated:', err instanceof Error ? err.message : err);
+    await sb.storage.from('event-assets').remove([storagePath]);
+    throw new ClientInputError('The QR image was uploaded but the event could not be updated. Please try again.');
+  }
   return data.publicUrl;
 }
 
@@ -1625,11 +1899,11 @@ export async function listPublicLiveBoard(): Promise<{
   teams: PublicRegisteredTeam[];
   generatedAt: string;
 }> {
-  const events = await listPublicEvents();
-  const eventMap = new Map(events.map((e) => [e.id, e]));
   const sb = getSupabaseServiceClient();
 
   if (!sb) {
+    const events = await listPublicEvents();
+    const eventMap = new Map(events.map((e) => [e.id, e]));
     const store = readLocalStore();
     const teams = store.registrations
       .filter((r) => r.status !== 'rejected')
@@ -1652,19 +1926,20 @@ export async function listPublicLiveBoard(): Promise<{
     };
   }
 
-  const { data: regRows, error: regErr } = await sb
-    .from('registrations')
-    .select(
-      'id, team_code, event_id, team_name, college_name, has_substitute, status, group_name, slot_number, created_at, updated_at'
-    )
-    .neq('status', 'rejected')
-    .order('created_at', { ascending: false });
+  const [events, { data: regRows, error: regErr }, { data: memRows, error: memErr }] = await Promise.all([
+    listPublicEvents(),
+    sb
+      .from('registrations')
+      .select(
+        'id, team_code, event_id, team_name, college_name, has_substitute, status, group_name, slot_number, created_at, updated_at'
+      )
+      .neq('status', 'rejected')
+      .order('created_at', { ascending: false }),
+    sb.from('team_members').select('registration_id, slot_role, in_game_name'),
+  ]);
   if (regErr) throw new ClientInputError('Unable to load registration data.');
-
-  const { data: memRows, error: memErr } = await sb
-    .from('team_members')
-    .select('registration_id, slot_role, in_game_name');
   if (memErr) throw new ClientInputError('Unable to load roster data.');
+  const eventMap = new Map(events.map((e) => [e.id, e]));
 
   const membersByReg = new Map<
     string,

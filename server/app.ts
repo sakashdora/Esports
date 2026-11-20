@@ -13,7 +13,8 @@ import {
   createRegistrationWithProof,
   decideRegistrationPayment,
   getEventBySlug,
-  getLocalProofFile,
+  getProofFile,
+  getRegistrationBundleById,
   getLocalQrFile,
   getSupabaseAnonClient,
   getSupabaseServiceClient,
@@ -33,6 +34,16 @@ import type { PlayerInput } from '../src/lib/tournamentRules.js';
 
 const liveBoardEmitter = new EventEmitter();
 liveBoardEmitter.setMaxListeners(100);
+
+// Serverless instances (Vercel) cannot hold long-lived streams or share in-process events,
+// so the live board polls there instead of streaming.
+const supportsStreaming = !process.env.VERCEL;
+
+// Public read endpoints may be briefly cached by the CDN; this absorbs traffic spikes
+// without making counts noticeably stale.
+function setPublicCache(res: Response) {
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=5, stale-while-revalidate=30');
+}
 
 function emitLiveBoardUpdate() {
   liveBoardEmitter.emit('update', { timestamp: new Date().toISOString() });
@@ -108,6 +119,7 @@ export function createApiApp(): Express {
   app.get('/api/events', async (_req, res) => {
     try {
       const events = await listPublicEvents();
+      setPublicCache(res);
       res.json({ events });
     } catch (err) {
       const message = 'Failed to load events';
@@ -119,8 +131,8 @@ export function createApiApp(): Express {
   app.get('/api/live-registrations', async (_req, res) => {
     try {
       const board = await listPublicLiveBoard();
-      res.setHeader('Cache-Control', 'no-store');
-      res.json(board);
+      setPublicCache(res);
+      res.json({ ...board, realtime: supportsStreaming });
     } catch (err) {
       const message = 'Failed to load live registered teams.';
       res.status(500).json({ error: message });
@@ -132,6 +144,19 @@ export function createApiApp(): Express {
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders?.();
+
+    if (!supportsStreaming) {
+      // Tell the browser to reconnect slowly; the page polls the JSON endpoint instead.
+      res.write('retry: 60000\n\n');
+      try {
+        const board = await listPublicLiveBoard();
+        res.write(`event: board\ndata: ${JSON.stringify(board)}\n\n`);
+      } catch {
+        // The page falls back to polling.
+      }
+      res.end();
+      return;
+    }
 
     const sendSnapshot = async () => {
       try {
@@ -167,6 +192,7 @@ export function createApiApp(): Express {
     try {
       const event = await getEventBySlug(req.params.slug);
       if (!event) return res.status(404).json({ error: 'Event not found.' });
+      setPublicCache(res);
       return res.json({ event });
     } catch (err) {
       const message = 'Failed to load event';
@@ -430,7 +456,7 @@ export function createApiApp(): Express {
 
   // 8. Protected Admin Proof Image Viewer (Local Mode)
   app.get('/api/admin/proof-image/:proofId', requireAdmin, async (req, res) => {
-    const file = await getLocalProofFile(req.params.proofId);
+    const file = await getProofFile(req.params.proofId).catch(() => null);
     if (!file) return res.status(404).send('Screenshot not found');
     res.setHeader('Content-Type', file.mime);
     res.setHeader('Cache-Control', 'no-store');
@@ -507,8 +533,7 @@ export function createApiApp(): Express {
     requireAdmin,
     async (req: AdminRequest, res) => {
       try {
-        const data = await listAdminDashboardData();
-        const bundle = data.bundles.find((b) => b.registration.id === req.params.id);
+        const bundle = await getRegistrationBundleById(req.params.id);
         if (!bundle) return res.status(404).json({ error: 'Registration not found.' });
 
         const latestProof = bundle.proofs[0];
@@ -594,6 +619,11 @@ export function createApiApp(): Express {
     const sqlPath = path.resolve(process.cwd(), 'supabase', 'schema.sql');
     if (!fs.existsSync(sqlPath)) return res.status(404).send('Schema not found');
     return res.type('text/plain').send(fs.readFileSync(sqlPath, 'utf-8'));
+  });
+
+  // Unknown API routes must answer with JSON, not the SPA's index.html.
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: 'API route not found.' });
   });
 
   // Error handler for Multer upload size errors

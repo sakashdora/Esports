@@ -1,6 +1,6 @@
-import { ArrowLeft, ArrowRight, CheckCircle2, QrCode, Upload } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { PaymentQrPanel } from './PaymentQrPanel';
 import type { CampusEvent } from '../lib/defaultEvents';
 import { compressScreenshot } from '../lib/imageCompression';
 import {
@@ -142,12 +142,6 @@ export function RegisterView({
       eventTitle: event.title,
     });
   }, [event, feeSummary.totalFee, teamName]);
-
-  // A static QR that fails to load (moved/deleted file, private bucket) falls back to the
-  // VPA-generated QR when a VPA is configured, instead of a broken image.
-  const [failedQrUrl, setFailedQrUrl] = useState('');
-  const qrLoadFailed = Boolean(event?.qrImageUrl) && failedQrUrl === event?.qrImageUrl;
-  const showStaticQr = Boolean(event?.qrImageUrl) && !qrLoadFailed;
 
   function updateMember(role: SlotRole, patch: Partial<PlayerInput>) {
     setMembers((prev) =>
@@ -298,41 +292,51 @@ export function RegisterView({
             Back to Events
           </button>
 
-          <div className="flex items-center gap-2 text-xs text-neutral-400">
-            <span className={step === 1 ? 'font-semibold text-[#E5C736]' : ''}>1. Squad Info</span>
-            <span aria-hidden="true">/</span>
-            <span className={step === 2 ? 'font-semibold text-[#E5C736]' : ''}>
-              2. Roster &amp; Meals
-            </span>
-            <span aria-hidden="true">/</span>
-            <span className={step === 3 ? 'font-semibold text-[#E5C736]' : ''}>
-              3. UPI QR &amp; Proof
-            </span>
-            <span aria-hidden="true">/</span>
-            <span className={step === 4 ? 'font-semibold text-[#16A34A]' : ''}>4. Receipt</span>
-          </div>
+          <ol aria-label="Registration steps" className="grid w-full grid-cols-4 gap-1 text-[11px] text-neutral-400 sm:flex sm:w-auto sm:items-center sm:gap-3 sm:text-xs">
+            {(['Squad Info', 'Roster & Meals', 'UPI QR & Proof', 'Receipt'] as const).map((label, index) => {
+              const n = (index + 1) as 1 | 2 | 3 | 4;
+              const active = step === n;
+              return (
+                <li
+                  key={label}
+                  aria-current={active ? 'step' : undefined}
+                  className={`border-t-2 pt-1.5 sm:border-t-0 sm:pt-0 ${
+                    active
+                      ? `font-semibold ${n === 4 ? 'border-[#16A34A] text-[#16A34A]' : 'border-[#E5C736] text-[#E5C736]'}`
+                      : step > n
+                        ? 'border-white/40 text-neutral-300'
+                        : 'border-white/10'
+                  }`}
+                >
+                  {n}. {label}
+                </li>
+              );
+            })}
+          </ol>
         </div>
 
         {/* Live Fee Banner */}
         {step < 4 && (
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-white/10 bg-[#1A1716] px-5 py-4">
-            <div>
+          <div className="mt-6 flex flex-col gap-4 rounded-xl border border-white/10 bg-[#1A1716] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <div className="text-xs text-neutral-400">Registering For</div>
               <div className="font-display text-xl font-bold text-white uppercase">
                 {event.title.replace(/2k26/gi, '2026')} ({event.gameTitle})
               </div>
             </div>
-            <div className="flex items-center gap-6 text-right">
+            <div className="flex items-end justify-between gap-6 border-t border-white/10 pt-3 sm:border-t-0 sm:pt-0 sm:text-right">
               <div>
                 <div className="text-xs text-neutral-400">Meal Add-On</div>
-                <div className="font-mono text-sm font-medium text-neutral-200 tabular-nums">
-                  Rs. {feeSummary.lunchTotal} per team ({feeSummary.vegCount}V /{' '}
-                  {feeSummary.nonVegCount}NV)
+                <div className="font-mono text-sm font-medium whitespace-nowrap text-neutral-200 tabular-nums">
+                  Rs. {feeSummary.lunchTotal}
+                  <span className="ml-1 text-xs text-neutral-400">
+                    ({feeSummary.vegCount}V / {feeSummary.nonVegCount}NV)
+                  </span>
                 </div>
               </div>
-              <div>
+              <div className="text-right">
                 <div className="text-xs text-neutral-400">Total Payable</div>
-                <div className="font-mono text-2xl font-bold text-[#E5C736] tabular-nums">
+                <div className="font-mono text-2xl font-bold whitespace-nowrap text-[#E5C736] tabular-nums">
                   Rs. {feeSummary.totalFee}
                 </div>
               </div>
@@ -711,116 +715,12 @@ export function RegisterView({
             className="mt-6 grid gap-6 lg:grid-cols-12"
           >
             {/* Left: Official College QR Display */}
-            <div className="rounded-xl border border-white/10 bg-[#1A1716] p-6 lg:col-span-5">
-              <h2 className="font-display text-2xl font-bold text-white uppercase">
-                Scan Official College QR
-              </h2>
-              <p className="mt-1 text-xs text-neutral-400">
-                Pay exact amount{' '}
-                <strong className="font-mono text-[#E5C736] tabular-nums">
-                  Rs. {feeSummary.totalFee}
-                </strong>{' '}
-                using any UPI app (GPay, PhonePe, Paytm, BHIM).
-              </p>
-
-              <div className="mt-5 flex flex-col items-center justify-center rounded-lg border border-white/10 bg-white p-5 text-slate-900">
-                {showStaticQr ? (
-                  <>
-                    <a
-                      href={event.qrImageUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Open the QR at full size"
-                      className="block w-full"
-                    >
-                      <img
-                        src={event.qrImageUrl}
-                        alt={`Official UPI QR for ${event.title.replace(/2k26/gi, '2026')}`}
-                        referrerPolicy="no-referrer"
-                        onError={() => setFailedQrUrl(event.qrImageUrl)}
-                        className="mx-auto h-auto max-h-[26rem] w-full max-w-[18rem] object-contain"
-                      />
-                    </a>
-                    {event.upiVpa && (
-                      <span className="mt-2 font-mono text-xs break-all text-slate-600">
-                        VPA: {event.upiVpa}
-                      </span>
-                    )}
-                    <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] font-semibold text-slate-700">
-                      <a href={event.qrImageUrl} target="_blank" rel="noreferrer" className="underline hover:text-slate-900">
-                        View full size
-                      </a>
-                      <a href={event.qrImageUrl} download={`${event.slug}-upi-qr`} className="underline hover:text-slate-900">
-                        Save QR image
-                      </a>
-                    </div>
-                    <p className="mt-2 max-w-xs text-center text-[11px] text-slate-500">
-                      Paying from this phone? Save the QR, then choose “Scan from gallery” in your UPI app.
-                    </p>
-                  </>
-                ) : upiIntentUri ? (
-                  <>
-                    <QRCodeSVG value={upiIntentUri} size={200} />
-                    <span className="mt-2 font-mono text-xs text-slate-600">
-                      VPA: {event.upiVpa}
-                    </span>
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center py-8 text-center">
-                    <QrCode className="h-16 w-16 text-slate-400" />
-                    {qrLoadFailed ? (
-                      <>
-                        <p className="mt-3 text-xs font-semibold text-slate-800">
-                          Official College QR Could Not Be Loaded
-                        </p>
-                        <p className="mt-1 max-w-xs text-[11px] text-slate-500">
-                          Refresh the page to try again, or contact the tournament coordinators
-                          for the official payment details before paying.
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="mt-3 text-xs font-semibold text-slate-800">
-                          Official College QR Pending Upload
-                        </p>
-                        <p className="mt-1 max-w-xs text-[11px] text-slate-500">
-                          Tournament administrators can upload the official static UPI QR or set the
-                          college UPI VPA inside Admin → Events &amp; QR Setup.
-                        </p>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {upiIntentUri && (
-                <a
-                  href={upiIntentUri}
-                  className="mt-4 inline-flex w-full items-center justify-center rounded-md border border-[#E5C736]/40 bg-[#E5C736]/10 px-4 py-2.5 text-xs font-semibold text-[#E5C736] hover:bg-[#E5C736]/20"
-                >
-                  Open in UPI App (Rs. {feeSummary.totalFee})
-                </a>
-              )}
-
-              <div className="mt-5 space-y-1.5 border-t border-white/10 pt-4 text-xs text-neutral-300">
-                <div className="flex justify-between">
-                  <span className="text-neutral-400">Base Team Fee</span>
-                  <span className="font-mono tabular-nums">Rs. {feeSummary.baseFee}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-neutral-400">
-                    Team lunch · {feeSummary.lunchCount} meals
-                  </span>
-                  <span className="font-mono tabular-nums">Rs. {feeSummary.lunchTotal}</span>
-                </div>
-                <div className="flex justify-between border-t border-white/10 pt-2 font-semibold text-white">
-                  <span>Total Exact Payment</span>
-                  <span className="font-mono text-[#E5C736] tabular-nums">
-                    Rs. {feeSummary.totalFee}
-                  </span>
-                </div>
-              </div>
-            </div>
+            <PaymentQrPanel
+              event={event}
+              feeSummary={feeSummary}
+              upiIntentUri={upiIntentUri}
+              className="lg:col-span-5"
+            />
 
             {/* Right: Proof Submission */}
             <div className="rounded-xl border border-white/10 bg-[#1A1716] p-6 lg:col-span-7">

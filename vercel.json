@@ -1,6 +1,12 @@
 {
   "buildCommand": "vite build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 30,
+      "includeFiles": "{supabase/schema.sql,public/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.png}"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
