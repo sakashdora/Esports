@@ -56,9 +56,9 @@ export default function App() {
   const [events, setEvents] = useState<CampusEvent[]>(DEFAULT_EVENTS);
   const [loadingEvents, setLoadingEvents] = useState(true);
 
-  async function refreshEvents() {
+  const refreshEvents = useCallback(async () => {
     try {
-      const res = await fetch('/api/events');
+      const res = await fetch('/api/events', { cache: 'no-cache' });
       if (res.ok) {
         const json = await res.json();
         if (Array.isArray(json.events) && json.events.length > 0) {
@@ -70,7 +70,7 @@ export default function App() {
     } finally {
       setLoadingEvents(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     refreshEvents();

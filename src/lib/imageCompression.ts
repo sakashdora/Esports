@@ -7,8 +7,14 @@ export async function compressScreenshot(file: File): Promise<File> {
   if (!file.type.startsWith('image/')) {
     throw new Error('Please upload a valid image file (JPEG, PNG, or WebP).');
   }
-  if (file.size <= 350 * 1024) {
+  // Small JPEG/PNG/WebP files go up unchanged. Anything else (e.g. iPhone HEIC) is always
+  // re-encoded to JPEG, because the server only accepts those three formats.
+  const serverReadable = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type);
+  if (serverReadable && file.size <= 350 * 1024) {
     return file;
+  }
+  if (file.size > 25 * 1024 * 1024) {
+    throw new Error('That image is too large. Please choose a screenshot under 25 MB.');
   }
 
   const bitmapUrl = URL.createObjectURL(file);
@@ -16,7 +22,7 @@ export async function compressScreenshot(file: File): Promise<File> {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image();
       el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error('Failed to decode selected image.'));
+      el.onerror = () => reject(new Error('This image format could not be read. Please upload a JPEG or PNG screenshot.'));
       el.src = bitmapUrl;
     });
 

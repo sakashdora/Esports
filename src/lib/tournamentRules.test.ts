@@ -12,6 +12,7 @@ import {
   isStrict12DigitUtr,
   isValidEmail,
   isValidIndianPhone,
+  isValidUpiVpa,
   normalizePhone,
   OFFICIAL_REGISTRATION_DEADLINE_ISO,
   resolveDeadlineTimestamp,
@@ -161,7 +162,11 @@ test('buildUpiIntentUri & escapeHtml work securely', () => {
   });
   assert.ok(uri.startsWith('upi://pay?'));
   assert.ok(uri.includes('am=499.00'));
-  assert.ok(uri.includes('tr=KW26-001'));
+  assert.ok(uri.includes('pn=Srusti%20Academy'));
+  assert.ok(!uri.includes('+'));
+  assert.ok(!uri.includes('tr='));
+  assert.ok(isValidUpiVpa('samt@sbi'));
+  assert.ok(!isValidUpiVpa('samt sbi'));
 
   assert.equal(escapeHtml('<script>alert(1)</script>'), '&lt;script&gt;alert(1)&lt;/script&gt;');
 });

@@ -119,15 +119,28 @@ export function buildUpiIntentUri(params: {
   teamCode: string;
   eventTitle: string;
 }): string {
-  const search = new URLSearchParams({
-    pa: params.vpa.trim(),
-    pn: params.payeeName.trim(),
-    am: params.amount.toFixed(2),
-    cu: 'INR',
-    tn: `${params.teamCode} ${params.eventTitle}`.slice(0, 50),
-    tr: params.teamCode,
-  });
-  return `upi://pay?${search.toString()}`;
+  // UPI apps expect %20 (not "+") for spaces and only plain text in the note. A `tr`
+  // reference is merchant-only: Google Pay and PhonePe decline P2P payments to a college
+  // UPI ID when it is present, so it is deliberately left out.
+  const clean = (value: string, max: number) =>
+    value.replace(/[^A-Za-z0-9 .\-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+  const fields: Array<[string, string]> = [
+    ['pa', params.vpa.trim()],
+    ['pn', clean(params.payeeName, 50) || 'Payee'],
+    ['am', params.amount.toFixed(2)],
+    ['cu', 'INR'],
+    ['tn', clean(`${params.teamCode} ${params.eventTitle}`, 50)],
+  ];
+  return `upi://pay?${fields
+    .filter(([, value]) => value)
+    // Some bank UPI apps do not decode %40, so the "@" in the UPI ID stays literal.
+    .map(([key, value]) => `${key}=${encodeURIComponent(value).replace(/%40/g, '@')}`)
+    .join('&')}`;
+}
+
+/** A basic UPI ID check (name@handle) so a mistyped VPA is caught when it is saved. */
+export function isValidUpiVpa(raw: string): boolean {
+  return /^[A-Za-z0-9._-]{2,256}@[A-Za-z][A-Za-z0-9.-]{1,64}$/.test(raw.trim());
 }
 
 /**
@@ -209,9 +222,13 @@ export function validateSquadSubmission(input: {
 
   if (!input.teamName.trim() || input.teamName.trim().length < 2) {
     errors.teamName = 'Team Name must be at least 2 characters.';
+  } else if (input.teamName.trim().length > 40) {
+    errors.teamName = 'Team Name must be 40 characters or fewer.';
   }
   if (!input.collegeName.trim() || input.collegeName.trim().length < 3) {
     errors.collegeName = 'College / Institution name is required.';
+  } else if (input.collegeName.trim().length > 120) {
+    errors.collegeName = 'College / Institution name must be 120 characters or fewer.';
   }
   if (!isValidIndianPhone(input.iglPhone)) {
     errors.iglPhone = 'Enter a valid 10-digit Indian mobile / WhatsApp number.';
@@ -240,13 +257,19 @@ export function validateSquadSubmission(input: {
     const prefix = `member_${member.slotRole}`;
     if (!member.fullName.trim()) {
       errors[`${prefix}_fullName`] = 'Full real name is required.';
+    } else if (member.fullName.trim().length > 60) {
+      errors[`${prefix}_fullName`] = 'Name must be 60 characters or fewer.';
     }
     if (!member.inGameName.trim()) {
       errors[`${prefix}_inGameName`] = 'In-Game Name (IGN) is required.';
+    } else if (member.inGameName.trim().length > 30) {
+      errors[`${prefix}_inGameName`] = 'In-Game Name must be 30 characters or fewer.';
     }
     const cleanId = member.characterId.trim().toLowerCase();
     if (!cleanId) {
       errors[`${prefix}_characterId`] = 'Character ID is required.';
+    } else if (!/^[a-z0-9_-]{2,24}$/.test(cleanId)) {
+      errors[`${prefix}_characterId`] = 'Character ID may contain only letters and numbers (up to 24).';
     } else if (seenCharacterIds.has(cleanId)) {
       errors[`${prefix}_characterId`] = 'Duplicate Character ID within the same squad.';
     } else {

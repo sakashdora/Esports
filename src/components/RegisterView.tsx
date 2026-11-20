@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, CheckCircle2, Upload } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PaymentQrPanel } from './PaymentQrPanel';
 import type { CampusEvent } from '../lib/defaultEvents';
 import { compressScreenshot } from '../lib/imageCompression';
@@ -69,6 +69,12 @@ const DEFAULT_ROSTER: PlayerInput[] = [
     dietType: 'NONE',
   },
 ];
+
+/** "Kurukshetra — Free Fire" already names its game; avoid "Free Fire — Free Fire". */
+function eventLabel(item: CampusEvent): string {
+  const title = item.title.replace(/2k26/gi, '2026');
+  return title.toLowerCase().includes(item.gameTitle.toLowerCase()) ? title : `${title} — ${item.gameTitle}`;
+}
 
 const ROLE_LABELS: Record<SlotRole, string> = {
   IGL: 'Player 1 (IGL / Team Leader)',
@@ -142,6 +148,18 @@ export function RegisterView({
       eventTitle: event.title,
     });
   }, [event, feeSummary.totalFee, teamName]);
+
+  const paymentReady = Boolean(event?.qrImageUrl || event?.upiVpa);
+
+  // While waiting on the payment step for details to be published, re-check quietly so the
+  // QR appears without a page refresh (which would wipe the filled-in form).
+  useEffect(() => {
+    if (step !== 3 || paymentReady) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') onRefreshEvents();
+    }, 20000);
+    return () => window.clearInterval(timer);
+  }, [step, paymentReady, onRefreshEvents]);
 
   function updateMember(role: SlotRole, patch: Partial<PlayerInput>) {
     setMembers((prev) =>
@@ -321,7 +339,7 @@ export function RegisterView({
             <div className="min-w-0">
               <div className="text-xs text-neutral-400">Registering For</div>
               <div className="font-display text-xl font-bold text-white uppercase">
-                {event.title.replace(/2k26/gi, '2026')} ({event.gameTitle})
+                {eventLabel(event)}
               </div>
             </div>
             <div className="flex items-end justify-between gap-6 border-t border-white/10 pt-3 sm:border-t-0 sm:pt-0 sm:text-right">
@@ -368,7 +386,7 @@ export function RegisterView({
                 >
                   {events.map((item) => (
                     <option key={item.id} value={item.slug}>
-                      {item.title.replace(/2k26/gi, '2026')} — {item.gameTitle} ({item.registeredCount || 0}/{item.maxTeams}{' '}
+                      {eventLabel(item)} ({item.registeredCount || 0}/{item.maxTeams}{' '}
                       Teams)
                     </option>
                   ))}
@@ -822,6 +840,16 @@ export function RegisterView({
                   </label>
                 </div>
 
+                {!paymentReady && (
+                  <div
+                    role="status"
+                    className="rounded-md border border-amber-500/40 bg-amber-950/40 px-4 py-3 text-xs text-amber-100"
+                  >
+                    Payment details for this event are not published yet, so registrations can't be
+                    submitted right now. Your details stay on this page; check back shortly.
+                  </div>
+                )}
+
                 {submitError && (
                   <div
                     role="alert"
@@ -841,7 +869,7 @@ export function RegisterView({
                   </button>
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || !paymentReady}
                     className="inline-flex items-center gap-2 rounded-md bg-[#D41B14] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#B41510] disabled:opacity-50"
                   >
                     {submitting ? 'Submitting Proof...' : 'Submit Registration'}
@@ -860,6 +888,10 @@ export function RegisterView({
               Registration Submitted
             </h1>
             <p className="mt-2 text-xs text-neutral-300">{receipt.emailNote}</p>
+            <p className="mt-2 text-xs text-amber-200">
+              Save your Team Registration ID below. You need it with the IGL phone number to track
+              your status or re-upload proof.
+            </p>
 
             <div className="mt-6 rounded-lg border border-white/10 bg-[#110D0C] p-5 text-left text-xs">
               <div className="flex justify-between border-b border-white/10 pb-2.5">

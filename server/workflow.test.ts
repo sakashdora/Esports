@@ -11,10 +11,14 @@ test('local registration, review, reupload, privacy and admin authorization', as
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'efest-workflow-'));
   const result = spawnSync(process.execPath, ['--import', pathToFileURL(path.resolve('node_modules/tsx/dist/loader.mjs')).href, '--input-type=module', '-e', `
     import assert from 'node:assert/strict';
-    const { createRegistrationWithProof, trackRegistration, decideRegistrationPayment, resubmitPaymentProof, listPublicLiveBoard, issueLocalAdminToken, verifyAdminToken } = await import(${JSON.stringify(new URL('./store.ts', import.meta.url).href)});
+    const { createRegistrationWithProof, trackRegistration, decideRegistrationPayment, resubmitPaymentProof, listPublicLiveBoard, updateEventConfig, listPublicEvents, issueLocalAdminToken, verifyAdminToken } = await import(${JSON.stringify(new URL('./store.ts', import.meta.url).href)});
     const { createApiApp } = await import(${JSON.stringify(new URL('./app.ts', import.meta.url).href)});
     const members = ['IGL','P2','P3','P4','SUB'].map((slotRole, index) => ({ slotRole, fullName: 'Private Student '+index, inGameName: 'Player'+index, characterId: '10000'+index, academicLevel: 'UG', wantsLunch: true, dietType: 'VEG' }));
     const input = { eventSlug:'kalinga-warriors-bgmi', teamName:'Test Squad', collegeName:'Test College', iglPhone:'9876543210', iglEmail:'captain@example.test', hasSubstitute:true, members, eligibilityConfirmed:true, fairPlayConfirmed:true, utrNumber:'123456789012', upiApp:'UPI', fileBuffer:Buffer.from('89504e470d0a1a0a000000000000','hex') };
+    await assert.rejects(createRegistrationWithProof(input), /Payment details/);
+    const bgmi = (await listPublicEvents()).find((e) => e.slug === 'kalinga-warriors-bgmi');
+    await assert.rejects(updateEventConfig(bgmi.id, { upiVpa: 'not a vpa' }), /valid UPI ID/);
+    await updateEventConfig(bgmi.id, { upiVpa: 'college@sbi' });
     const bundle = await createRegistrationWithProof(input);
     assert.equal(bundle.registration.totalFee,399);
     assert.equal(bundle.registration.lunchCount,5);

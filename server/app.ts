@@ -276,7 +276,7 @@ export function createApiApp(): Express {
           emailDispatched: emailRes.sent,
           emailNote: emailRes.sent
             ? `Confirmation email sent to ${bundle.registration.iglEmail}`
-            : 'Registration saved; email delivery pending SMTP setup.',
+            : 'Registration saved. The confirmation email could not be sent right now, so keep your Team Registration ID safe.',
         });
       } catch (err) {
         const message = clientErrorMessage(err, 'Registration submission failed.');
@@ -519,7 +519,7 @@ export function createApiApp(): Express {
         ok: true,
         registration: bundle.registration,
         emailSent: emailRes.sent,
-        emailNote: emailRes.sent ? 'Confirmation email sent to IGL.' : emailRes.error,
+        emailNote: emailRes.sent ? 'Confirmation email sent to IGL.' : `Email not sent: ${emailRes.error || 'unknown error'}`,
       });
     } catch (err) {
       const message = clientErrorMessage(err, 'Decision update failed.');

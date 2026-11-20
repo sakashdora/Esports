@@ -22,6 +22,51 @@ export function PaymentQrPanel({ event, feeSummary, upiIntentUri, className = ''
   const [failedQrUrl, setFailedQrUrl] = useState('');
   const qrLoadFailed = Boolean(event.qrImageUrl) && failedQrUrl === event.qrImageUrl;
   const showStaticQr = Boolean(event.qrImageUrl) && !qrLoadFailed;
+  const [copied, setCopied] = useState(false);
+
+  // Browsers ignore the download attribute for images on another domain (Supabase storage),
+  // so fetch the image and save it from a local object URL instead.
+  async function saveQrImage() {
+    try {
+      const response = await fetch(event.qrImageUrl);
+      if (!response.ok) throw new Error('QR unavailable');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const ext = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg';
+      link.href = url;
+      link.download = `${event.slug}-upi-qr.${ext}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      window.open(event.qrImageUrl, '_blank', 'noopener');
+    }
+  }
+
+  async function copyVpa() {
+    try {
+      await navigator.clipboard.writeText(event.upiVpa);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  const vpaLine = event.upiVpa ? (
+    <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+      <span className="font-mono text-xs break-all text-slate-600">UPI ID: {event.upiVpa}</span>
+      <button
+        type="button"
+        onClick={copyVpa}
+        className="rounded border border-slate-300 px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+      >
+        {copied ? 'Copied' : 'Copy'}
+      </button>
+    </div>
+  ) : null;
 
   return (
     <div className={`rounded-xl border border-white/10 bg-[#1A1716] p-6 ${className}`}>
@@ -35,6 +80,16 @@ export function PaymentQrPanel({ event, feeSummary, upiIntentUri, className = ''
         </strong>{' '}
         using any UPI app (GPay, PhonePe, Paytm, BHIM).
       </p>
+
+      {/* On a phone the QR on its own screen can't be scanned, so the app link comes first. */}
+      {upiIntentUri && (
+        <a
+          href={upiIntentUri}
+          className="mt-4 inline-flex w-full items-center justify-center rounded-md bg-[#E5C736] px-4 py-3 text-sm font-bold text-[#110D0C] hover:bg-[#d4b72f] sm:hidden"
+        >
+          Pay Rs. {feeSummary.totalFee} in UPI App
+        </a>
+      )}
 
       <div className="mt-5 flex flex-col items-center justify-center rounded-lg border border-white/10 bg-white p-5 text-slate-900">
         {showStaticQr ? (
@@ -54,18 +109,14 @@ export function PaymentQrPanel({ event, feeSummary, upiIntentUri, className = ''
                 className="mx-auto h-auto max-h-[26rem] w-full max-w-[18rem] object-contain"
               />
             </a>
-            {event.upiVpa && (
-              <span className="mt-2 font-mono text-xs break-all text-slate-600">
-                VPA: {event.upiVpa}
-              </span>
-            )}
+            {vpaLine}
             <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] font-semibold text-slate-700">
               <a href={event.qrImageUrl} target="_blank" rel="noreferrer" className="underline hover:text-slate-900">
                 View full size
               </a>
-              <a href={event.qrImageUrl} download={`${event.slug}-upi-qr`} className="underline hover:text-slate-900">
+              <button type="button" onClick={saveQrImage} className="font-semibold underline hover:text-slate-900">
                 Save QR image
-              </a>
+              </button>
             </div>
             <p className="mt-2 max-w-xs text-center text-[11px] text-slate-500">
               Paying from this phone? Save the QR, then choose “Scan from gallery” in your UPI app.
@@ -74,9 +125,7 @@ export function PaymentQrPanel({ event, feeSummary, upiIntentUri, className = ''
         ) : upiIntentUri ? (
           <>
             <QRCodeSVG value={upiIntentUri} size={200} />
-            <span className="mt-2 font-mono text-xs text-slate-600">
-              VPA: {event.upiVpa}
-            </span>
+            {vpaLine}
           </>
         ) : (
           <div className="flex flex-col items-center py-8 text-center">
@@ -94,11 +143,11 @@ export function PaymentQrPanel({ event, feeSummary, upiIntentUri, className = ''
             ) : (
               <>
                 <p className="mt-3 text-xs font-semibold text-slate-800">
-                  Official College QR Pending Upload
+                  Payment Details Coming Soon
                 </p>
                 <p className="mt-1 max-w-xs text-[11px] text-slate-500">
-                  Tournament administrators can upload the official static UPI QR or set the
-                  college UPI VPA inside Admin → Events &amp; QR Setup.
+                  The official college payment QR has not been published yet. Please do not pay
+                  anyone else; check back shortly or contact the tournament coordinators.
                 </p>
               </>
             )}
@@ -109,11 +158,21 @@ export function PaymentQrPanel({ event, feeSummary, upiIntentUri, className = ''
       {upiIntentUri && (
         <a
           href={upiIntentUri}
-          className="mt-4 inline-flex w-full items-center justify-center rounded-md border border-[#E5C736]/40 bg-[#E5C736]/10 px-4 py-2.5 text-xs font-semibold text-[#E5C736] hover:bg-[#E5C736]/20"
+          className="mt-4 hidden w-full items-center justify-center rounded-md border border-[#E5C736]/40 bg-[#E5C736]/10 px-4 py-2.5 text-xs font-semibold text-[#E5C736] hover:bg-[#E5C736]/20 sm:inline-flex"
         >
           Open in UPI App (Rs. {feeSummary.totalFee})
         </a>
       )}
+      {upiIntentUri && (
+        <p className="mt-1.5 text-center text-[11px] text-neutral-500">
+          Opens your UPI app with the amount filled in. If it declines, save the QR and use
+          “Scan from gallery” instead.
+        </p>
+      )}
+      <p className="mt-3 text-[11px] leading-relaxed text-neutral-400">
+        After paying, note the 12-digit UTR / UPI Reference from the payment receipt and take a
+        screenshot showing the amount and UTR.
+      </p>
 
       <div className="mt-5 space-y-1.5 border-t border-white/10 pt-4 text-xs text-neutral-300">
         <div className="flex justify-between">

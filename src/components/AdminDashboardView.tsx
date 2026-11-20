@@ -428,11 +428,15 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
       });
       if (res.ok) {
         setActionMsg('Event configuration saved.');
+        setQrNoticeFor(eventId, { tone: 'ok', text: 'Saved. Participants see the change within a few seconds.' });
         await fetchOverview();
         onEventsUpdated();
       }
     } catch (error) {
-      setActionMsg(error instanceof Error ? error.message : 'Request failed. Please try again.');
+      const message = error instanceof Error ? error.message : 'Request failed. Please try again.';
+      setActionMsg(message);
+      // Shown on the event card too: the top banner is off-screen on this tab.
+      setQrNoticeFor(eventId, { tone: 'error', text: `Not saved: ${message}` });
     }
   }
 
@@ -1132,15 +1136,58 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                   <div className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
                     <div>
                       <label className="block text-[11px] text-slate-500">
-                        Official UPI VPA (Optional Dynamic QR)
+                        Official UPI ID (VPA) · enables “Open in UPI App”
                       </label>
                       <input
                         type="text"
                         defaultValue={evt.upiVpa}
                         onBlur={(e) =>
-                          handleEventFieldUpdate(evt.id, { upiVpa: e.target.value })
+                          handleEventFieldUpdate(evt.id, { upiVpa: e.target.value.trim() })
                         }
-                        placeholder="samt@sbi"
+                        placeholder="collegename@sbi"
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="mt-1 w-full rounded border border-slate-300 px-2.5 py-1.5 font-mono text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500">UPI Payee Name (as on bank account)</label>
+                      <input
+                        type="text"
+                        defaultValue={evt.upiPayeeName}
+                        onBlur={(e) =>
+                          handleEventFieldUpdate(evt.id, { upiPayeeName: e.target.value.trim() })
+                        }
+                        className="mt-1 w-full rounded border border-slate-300 px-2.5 py-1.5 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500">Entry Fee per Team (Rs.)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        defaultValue={evt.baseFee}
+                        onBlur={(e) => {
+                          const value = Number(e.target.value);
+                          if (e.target.value !== '' && Number.isFinite(value) && value >= 0) {
+                            void handleEventFieldUpdate(evt.id, { baseFee: value });
+                          }
+                        }}
+                        className="mt-1 w-full rounded border border-slate-300 px-2.5 py-1.5 font-mono text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500">Lunch Add-on per Team (Rs.)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        defaultValue={evt.lunchFee}
+                        onBlur={(e) => {
+                          const value = Number(e.target.value);
+                          if (e.target.value !== '' && Number.isFinite(value) && value >= 0) {
+                            void handleEventFieldUpdate(evt.id, { lunchFee: value });
+                          }
+                        }}
                         className="mt-1 w-full rounded border border-slate-300 px-2.5 py-1.5 font-mono text-xs"
                       />
                     </div>

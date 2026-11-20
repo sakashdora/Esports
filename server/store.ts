@@ -11,6 +11,7 @@ import {
   formatTeamCode,
   isValidEmail,
   isValidIndianPhone,
+  isValidUpiVpa,
   isValidUtr,
   normalizePhone,
   normalizeUtr,
@@ -103,7 +104,12 @@ interface LocalStoreData {
   eventSequences: Record<string, number>;
 }
 
-const DATA_DIR = process.env.VERCEL ? path.join('/tmp', '.data') : path.resolve(process.cwd(), '.data');
+// EFEST_DATA_DIR lets tests and local previews use a throwaway store.
+const DATA_DIR = process.env.EFEST_DATA_DIR
+  ? path.resolve(process.env.EFEST_DATA_DIR)
+  : process.env.VERCEL
+    ? path.join('/tmp', '.data')
+    : path.resolve(process.cwd(), '.data');
 const STORE_FILE = path.join(DATA_DIR, 'store.json');
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 const QR_DIR = path.join(DATA_DIR, 'qr');
@@ -452,6 +458,11 @@ export async function createRegistrationWithProof(input: {
   }
   if (!event.isOpen) {
     throw new ClientInputError('Registrations for this event are currently closed.');
+  }
+  if (!event.qrImageUrl && !event.upiVpa) {
+    throw new ClientInputError(
+      'Payment details for this event are not published yet. Please try again later or contact the coordinators.'
+    );
   }
 
   const squadValidation = validateSquadSubmission({
@@ -1617,6 +1628,18 @@ function sanitizeEventPatch(raw: unknown): EventConfigPatch {
   }
   if (patch.title !== undefined && !patch.title.trim()) {
     throw new ClientInputError('Event title is required.');
+  }
+  if (patch.upiVpa !== undefined) {
+    patch.upiVpa = patch.upiVpa.trim();
+    if (patch.upiVpa && !isValidUpiVpa(patch.upiVpa)) {
+      throw new ClientInputError('Enter a valid UPI ID, for example collegename@sbi.');
+    }
+  }
+  if (patch.qrImageUrl !== undefined) {
+    patch.qrImageUrl = patch.qrImageUrl.trim();
+    if (patch.qrImageUrl && !/^(https:\/\/|\/api\/public\/qr\/)/.test(patch.qrImageUrl)) {
+      throw new ClientInputError('QR image must be uploaded through the QR upload button.');
+    }
   }
   if (input.isOpen !== undefined) {
     if (typeof input.isOpen !== 'boolean') throw new ClientInputError('Invalid event settings.');
