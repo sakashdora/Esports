@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { BGMI_POSTER_IMAGE, FREEFIRE_POSTER_IMAGE } from '../lib/eventArtwork';
 
 const INTRO_KEY = 'srusti_intro_seen_v2';
-const INTRO_DURATION = 1200;
+const INTRO_DURATION = 5000;
 export function shouldShowIntro(): boolean {
   if (window.location.pathname !== '/' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
   try { return sessionStorage.getItem(INTRO_KEY) !== 'yes'; } catch { return true; }
