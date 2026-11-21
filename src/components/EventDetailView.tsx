@@ -23,7 +23,7 @@ export function EventDetailView({ event, allEvents, onNavigate }: EventDetailVie
           <button
             type="button"
             onClick={() => onNavigate({ page: 'home' })}
-            className="inline-flex items-center gap-2 text-xs font-medium text-neutral-400 hover:text-white"
+            className="inline-flex min-h-10 items-center gap-2 text-xs font-medium text-neutral-400 hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to All Events
@@ -38,7 +38,7 @@ export function EventDetailView({ event, allEvents, onNavigate }: EventDetailVie
                   setImgFailed(false);
                   onNavigate({ page: 'event', slug: item.slug });
                 }}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
+                className={`min-h-10 rounded-md px-4 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
                   item.slug === event.slug
                     ? 'bg-[#D41B14] text-white'
                     : 'text-neutral-300 hover:text-white'

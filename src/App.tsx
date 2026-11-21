@@ -1,5 +1,6 @@
 import { lazy, startTransition, Suspense, useCallback, useEffect, useState } from 'react';
 import { CinematicIntro, PageLoading, shouldShowIntro } from './components/CinematicIntro';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { HomeView } from './components/HomeView';
 import { Navbar, type AppRoute } from './components/Navbar';
 import { DEFAULT_EVENTS, type CampusEvent } from './lib/defaultEvents';
@@ -81,6 +82,34 @@ export default function App() {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
+  // Each page gets its own browser-tab title (it was the same on every page), and the admin
+  // page asks search engines not to list it.
+  useEffect(() => {
+    const suffix = 'Srusti Campus Esports 2026 | SAMT';
+    const event = 'slug' in route ? events.find((e) => e.slug === route.slug) : undefined;
+    const name = event ? event.title.replace(/2k26/gi, '2026') : '';
+    const titles: Record<AppRoute['page'], string> = {
+      home: 'Srusti Campus Event & Esports Championship 2026 | SAMT',
+      live: `Live Registered Teams | ${suffix}`,
+      event: `${name ? name + ' Rulebook' : 'Tournament Rulebook'} | ${suffix}`,
+      register: `Register Your Squad${name ? ' for ' + name : ''} | ${suffix}`,
+      track: `Track Your Registration | ${suffix}`,
+      admin: `Admin Sign In | ${suffix}`,
+    };
+    document.title = titles[route.page];
+    let robots = document.head.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    if (route.page === 'admin') {
+      if (!robots) {
+        robots = document.createElement('meta');
+        robots.name = 'robots';
+        document.head.appendChild(robots);
+      }
+      robots.content = 'noindex, nofollow';
+    } else if (robots) {
+      robots.remove();
+    }
+  }, [route, events]);
+
   // Once the first screen is up, quietly fetch the other pages so opening one is instant
   // instead of waiting on a download. The admin page is left out on purpose.
   useEffect(() => {
@@ -136,6 +165,8 @@ export default function App() {
     <div className="min-h-screen">
       <Navbar route={route} onNavigate={navigate} defaultEventSlug={defaultSlug} />
 
+      {/* Keyed by page so moving to another page clears a previous error. */}
+      <ErrorBoundary key={route.page}>
       <Suspense fallback={<PageLoading />}>
       {route.page === 'home' && (
         <HomeView events={events} loading={loadingEvents} onNavigate={navigate} />
@@ -162,6 +193,7 @@ export default function App() {
 
       {route.page === 'admin' && <AdminDashboardView onEventsUpdated={refreshEvents} />}
       </Suspense>
+      </ErrorBoundary>
       {route.page === 'home' && showAnnouncement && (
         <WelcomeAnnouncement onDismiss={closeAnnouncement} onRegister={registerFromAnnouncement} />
       )}

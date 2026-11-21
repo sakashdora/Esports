@@ -3,12 +3,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { PaymentQrPanel } from './PaymentQrPanel';
 import type { CampusEvent } from '../lib/defaultEvents';
 import { compressScreenshot } from '../lib/imageCompression';
+import { DigitHint } from './DigitHint';
+import { cleanPhoneInput, cleanUtrInput, digitBorderClass, phoneStatus, utrStatus } from '../lib/numericInput';
 import { clearDraft, loadDraft, rememberTeamCode, saveDraft } from '../lib/registrationDraft';
 import {
   buildUpiIntentUri,
   calculateRegistrationFee,
   isStrict12DigitUtr,
-  isValidUtr,
   validateSquadSubmission,
   type DietType,
   type PlayerInput,
@@ -158,6 +159,8 @@ export function RegisterView({
   }, [event, feeSummary.totalFee, teamName]);
 
   const paymentReady = Boolean(event?.qrImageUrl || event?.upiVpa);
+  const phoneState = phoneStatus(iglPhone);
+  const utrState = utrStatus(utrNumber);
 
   // Save progress shortly after every change. Screenshots are files and cannot be kept.
   useEffect(() => {
@@ -276,8 +279,8 @@ export function RegisterView({
     e.preventDefault();
     setSubmitError('');
 
-    if (!isValidUtr(utrNumber)) {
-      setSubmitError('Please enter a valid 12-digit UPI UTR / Transaction Reference Number.');
+    if (!isStrict12DigitUtr(utrNumber)) {
+      setSubmitError('Enter the 12-digit UPI UTR / Reference number from your payment receipt (digits only).');
       return;
     }
     if (!screenshotFile) {
@@ -343,7 +346,7 @@ export function RegisterView({
           <button
             type="button"
             onClick={() => onNavigate({ page: 'home' })}
-            className="inline-flex items-center gap-2 text-xs font-medium text-neutral-400 hover:text-white"
+            className="inline-flex min-h-10 items-center gap-2 text-xs font-medium text-neutral-400 hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Events
@@ -493,12 +496,17 @@ export function RegisterView({
                 <input
                   id="reg-phone"
                   type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel-national"
                   value={iglPhone}
-                  onChange={(e) => setIglPhone(e.target.value)}
+                  onChange={(e) => setIglPhone(cleanPhoneInput(e.target.value))}
+                  aria-describedby="reg-phone-hint"
+                  aria-invalid={phoneState.tone === 'error'}
                   placeholder="9876543210"
-                  className="mt-1.5 w-full rounded-md border border-white/15 bg-[#110D0C] px-3.5 py-2.5 font-mono text-sm text-white placeholder:text-neutral-500 focus:border-[#D41B14] focus:outline-none"
+                  className={`mt-1.5 w-full rounded-md border bg-[#110D0C] px-3.5 py-2.5 font-mono text-sm text-white placeholder:text-neutral-500 focus:outline-none ${digitBorderClass(phoneState.tone)}`}
                 />
-                {fieldErrors.iglPhone && (
+                <DigitHint id="reg-phone-hint" status={phoneState} />
+                {fieldErrors.iglPhone && phoneState.tone === 'idle' && (
                   <p className="mt-1 text-xs text-red-400">{fieldErrors.iglPhone}</p>
                 )}
               </div>
@@ -817,18 +825,16 @@ export function RegisterView({
                     <input
                       id="utr-input"
                       type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
                       value={utrNumber}
-                      onChange={(e) => setUtrNumber(e.target.value)}
+                      onChange={(e) => setUtrNumber(cleanUtrInput(e.target.value))}
+                      aria-describedby="utr-hint"
+                      aria-invalid={utrState.tone === 'error'}
                       placeholder="e.g. 432198765432"
-                      className="mt-1.5 w-full rounded-md border border-white/15 bg-[#110D0C] px-3.5 py-2.5 font-mono text-sm text-white placeholder:text-neutral-500 focus:border-[#D41B14] focus:outline-none"
+                      className={`mt-1.5 w-full rounded-md border bg-[#110D0C] px-3.5 py-2.5 font-mono text-sm text-white placeholder:text-neutral-500 focus:outline-none ${digitBorderClass(utrState.tone)}`}
                     />
-                    <p className="mt-1 text-[11px] text-neutral-400">
-                      {utrNumber.trim()
-                        ? isStrict12DigitUtr(utrNumber)
-                          ? 'Valid 12-digit NPCI UTR format detected.'
-                          : 'Must be your exact UPI Reference / UTR ID.'
-                        : 'Found in GPay/PhonePe/Paytm transaction details.'}
-                    </p>
+                    <DigitHint id="utr-hint" status={utrState} />
                   </div>
 
                   <div>

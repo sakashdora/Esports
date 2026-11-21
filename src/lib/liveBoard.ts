@@ -84,7 +84,8 @@ export interface RawBundleForPublicBoard {
 export function sanitizePublicTeam(bundle: RawBundleForPublicBoard): PublicRegisteredTeam {
   const { registration, event, members } = bundle;
   return {
-    id: registration.id,
+    // The public team code, not the internal database ID, is the only identifier shown here.
+    id: registration.teamCode,
     teamCode: registration.teamCode,
     eventId: registration.eventId,
     eventTitle: event.title,

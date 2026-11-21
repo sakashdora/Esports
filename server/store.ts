@@ -2005,8 +2005,8 @@ export async function verifyAdminToken(authHeader: string | undefined): Promise<
   const sb = getSupabaseServiceClient();
 
   if (!sb) {
-    // Local preview token HMAC validation
-    const secret = process.env.ADMIN_DEMO_PASSCODE;
+    // Local preview token HMAC validation (development only; never accepted on Vercel).
+    const secret = process.env.VERCEL ? '' : process.env.ADMIN_DEMO_PASSCODE;
     if (!secret) return { ok: false, email: '', userId: null };
     const [payloadB64, sig] = token.split('.');
     if (!payloadB64 || !sig) return { ok: false, email: '', userId: null };

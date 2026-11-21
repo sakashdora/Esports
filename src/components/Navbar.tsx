@@ -15,6 +15,22 @@ interface NavbarProps {
   defaultEventSlug: string;
 }
 
+const navbarPartners = [
+  {
+    name: 'SAMT & SAGS',
+    role: 'Hosted by',
+    logos: [
+      '/assets/aistudio/Prospectus_2026_-_27_-_1_bb4cb47c.png',
+      '/assets/aistudio/SAGSH_22e6af6f.png',
+    ],
+  },
+  {
+    name: 'Srusti Prasar',
+    role: 'Media partner',
+    logos: ['/assets/aistudio/SRUSTI_PRASAAR_-_BRAND_DESIGN_GUIDE_a91fc8eb.png'],
+  },
+];
+
 export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -55,49 +71,58 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
           : 'border-slate-200 bg-white text-slate-900'
       }`}
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
-        {/* Zone 1: Highlighted SRUSTI e-SPORTS Brand Lockup */}
-        <button
-          type="button"
-          onClick={() => onNavigate({ page: 'home' })}
-          className="group relative flex shrink-0 items-center gap-2.5 overflow-hidden rounded-md px-2 py-1 text-left whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D41B14]"
-        >
-          {isDarkShell && (
-            <span
-              aria-hidden="true"
-              className="logo-ember-aura pointer-events-none absolute -inset-1 rounded-lg bg-[radial-gradient(ellipse_at_center,rgba(212,27,20,0.28),rgba(255,107,26,0.12)_55%,transparent_75%)] opacity-80 transition-opacity duration-300 group-hover:opacity-100"
-            />
-          )}
-          <img
-            src="/assets/aistudio/Prospectus_2026_-_27_-_1_bb4cb47c.png"
-            alt="SAMT Crest"
-            referrerPolicy="no-referrer"
-            className="relative h-12 w-12 shrink-0 object-contain drop-shadow-[0_2px_8px_rgba(212,27,20,0.35)] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105"
-          />
-          <span className="relative flex items-center gap-1.5 whitespace-nowrap">
-            <span
-              className={`font-display text-[1.65rem] leading-none font-extrabold tracking-wider uppercase ${
-                isDarkShell ? 'text-white' : 'text-slate-900'
-              }`}
-            >
-              SRUSTI
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-1 px-3 py-2.5 sm:gap-3 sm:px-6">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-4">
+          <button
+            type="button"
+            onClick={() => onNavigate({ page: 'home' })}
+            className="group relative flex min-h-10 shrink-0 items-center overflow-hidden rounded-md px-1 py-1 text-left whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D41B14] sm:px-2"
+          >
+            {isDarkShell && (
+              <span
+                aria-hidden="true"
+                className="logo-ember-aura pointer-events-none absolute -inset-1 rounded-lg bg-[radial-gradient(ellipse_at_center,rgba(212,27,20,0.28),rgba(255,107,26,0.12)_55%,transparent_75%)] opacity-80 transition-opacity duration-300 group-hover:opacity-100"
+              />
+            )}
+            <span className="relative flex items-center gap-1.5 whitespace-nowrap">
+              <span
+                className={`font-display text-xl leading-none font-extrabold tracking-wider uppercase min-[375px]:text-2xl sm:text-[1.65rem] ${
+                  isDarkShell ? 'text-white' : 'text-slate-900'
+                }`}
+              >
+                SRUSTI
+              </span>
+              <img
+                src="/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.webp"
+                alt="SRUSTI e-SPORTS"
+                referrerPolicy="no-referrer"
+                className={`hidden h-6 w-auto sm:block shrink-0 object-contain transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.04] ${
+                  isDarkShell ? 'drop-shadow-[0_0_10px_rgba(212,27,20,0.65)]' : ''
+                }`}
+              />
             </span>
-            <img
-              src="/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.webp"
-              alt="SRUSTI e-SPORTS"
-              referrerPolicy="no-referrer"
-              className={`hidden h-6 w-auto sm:block shrink-0 object-contain transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.04] ${
-                isDarkShell ? 'drop-shadow-[0_0_10px_rgba(212,27,20,0.65)]' : ''
-              }`}
-            />
-          </span>
-          {isDarkShell && (
-            <span
-              aria-hidden="true"
-              className="logo-shimmer-beam pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-            />
-          )}
-        </button>
+            {isDarkShell && (
+              <span
+                aria-hidden="true"
+                className="logo-shimmer-beam pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+              />
+            )}
+          </button>
+
+          <div className={`flex shrink-0 items-center gap-2 border-l pl-1 sm:gap-3 sm:pl-4 ${isDarkShell ? 'border-white/15' : 'border-slate-200'}`}>
+            {navbarPartners.map(({ name, role, logos }) => (
+              <div key={name} className="flex flex-col items-center gap-0.5 whitespace-nowrap text-[10px] leading-tight">
+                <div className="flex gap-1">
+                  {logos.map((logo) => (
+                    <img key={logo} src={logo} alt="" className="h-7 w-8 object-contain sm:h-8 sm:w-9" />
+                  ))}
+                </div>
+                <span className={`text-[9px] font-semibold uppercase ${isDarkShell ? 'text-[#E5C736]' : 'text-amber-800'}`}>{role}</span>
+                <span className="font-semibold">{name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Zone 2: Single-line Navigation Links */}
         <nav aria-label="Primary" className="hidden items-center gap-4 xl:flex">
@@ -126,7 +151,7 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
           <button
             type="button"
             onClick={() => onNavigate({ page: 'register', slug: defaultEventSlug })}
-            className="group relative hidden shrink-0 overflow-hidden whitespace-nowrap rounded-md bg-gradient-to-r from-[#D41B14] to-[#B41510] px-4 py-2 text-xs font-semibold tracking-wide text-white shadow-md shadow-[#D41B14]/30 transition-all duration-200 hover:shadow-[#D41B14]/55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D41B14] sm:inline-flex"
+            className="group relative hidden shrink-0 overflow-hidden whitespace-nowrap rounded-md bg-gradient-to-r from-[#D41B14] to-[#B41510] px-4 py-2.5 text-xs font-semibold tracking-wide text-white shadow-md shadow-[#D41B14]/30 transition-all duration-200 hover:shadow-[#D41B14]/55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D41B14] sm:inline-flex"
           >
             <span className="relative z-10">Register Squad</span>
             <span

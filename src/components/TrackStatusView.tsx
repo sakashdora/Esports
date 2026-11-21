@@ -3,7 +3,9 @@ import { useState } from 'react';
 import { clearDraft, lastTeamCode, loadDraft } from '../lib/registrationDraft';
 import type { AppRoute } from './Navbar';
 import { compressScreenshot } from '../lib/imageCompression';
-import { isValidUtr } from '../lib/tournamentRules';
+import { isStrict12DigitUtr } from '../lib/tournamentRules';
+import { DigitHint } from './DigitHint';
+import { cleanPhoneInput, cleanUtrInput, digitBorderClass, phoneStatus, utrStatus } from '../lib/numericInput';
 import type { StatusSummary } from '../lib/tracking';
 
 interface TrackedData {
@@ -59,6 +61,7 @@ export function TrackStatusView({ prefillCode, onNavigate }: TrackStatusViewProp
   // A registration this browser started but never submitted can be continued from here.
   const [unfinished, setUnfinished] = useState(() => loadDraft());
   const [iglPhone, setIglPhone] = useState('');
+  const phoneState = phoneStatus(iglPhone, '10-digit mobile number used at registration (or use your Team ID).');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [data, setData] = useState<TrackedData | null>(null);
@@ -66,6 +69,7 @@ export function TrackStatusView({ prefillCode, onNavigate }: TrackStatusViewProp
 
   // Re-upload state
   const [newUtr, setNewUtr] = useState('');
+  const newUtrState = utrStatus(newUtr);
   const [newUpiApp, setNewUpiApp] = useState('Google Pay');
   const [newFile, setNewFile] = useState<File | null>(null);
   const [reuploading, setReuploading] = useState(false);
@@ -103,8 +107,8 @@ export function TrackStatusView({ prefillCode, onNavigate }: TrackStatusViewProp
   async function handleReupload(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (!isValidUtr(newUtr)) {
-      setError('Enter a valid 12-digit UTR number.');
+    if (!isStrict12DigitUtr(newUtr)) {
+      setError('Enter the 12-digit UTR number (digits only).');
       return;
     }
     if (!newFile) {
@@ -178,11 +182,16 @@ export function TrackStatusView({ prefillCode, onNavigate }: TrackStatusViewProp
                 id="track-phone"
                 disabled={loading || reuploading}
                 type="tel"
+                inputMode="numeric"
+                autoComplete="tel-national"
                 value={iglPhone}
-                onChange={(e) => { setIglPhone(e.target.value); setData(null); setMatches([]); }}
+                onChange={(e) => { setIglPhone(cleanPhoneInput(e.target.value)); setData(null); setMatches([]); }}
+                aria-describedby="track-phone-hint"
+                aria-invalid={phoneState.tone === 'error'}
                 placeholder="9876543210"
-                className="mt-1 w-full rounded-md border border-white/15 bg-[#110D0C] px-3 py-2 font-mono text-sm text-white focus:border-[#D41B14] focus:outline-none"
+                className={`mt-1 w-full rounded-md border bg-[#110D0C] px-3 py-2 font-mono text-sm text-white focus:outline-none ${digitBorderClass(phoneState.tone)}`}
               />
+              <DigitHint id="track-phone-hint" status={phoneState} />
             </div>
 
             <div className="flex items-end sm:col-span-3">
@@ -391,13 +400,20 @@ export function TrackStatusView({ prefillCode, onNavigate }: TrackStatusViewProp
                   Submit Updated Payment Proof
                 </h3>
                 <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                  <input
-                    type="text"
-                    value={newUtr}
-                    onChange={(e) => setNewUtr(e.target.value)}
-                    placeholder="New 12-digit UTR"
-                    className="rounded border border-white/15 bg-[#1A1716] px-3 py-2 font-mono text-xs text-white"
-                  />
+                  <div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      aria-label="New 12-digit UTR"
+                      aria-describedby="new-utr-hint"
+                      value={newUtr}
+                      onChange={(e) => setNewUtr(cleanUtrInput(e.target.value))}
+                      placeholder="New 12-digit UTR"
+                      className={`w-full rounded border bg-[#1A1716] px-3 py-2 font-mono text-xs text-white focus:outline-none ${digitBorderClass(newUtrState.tone)}`}
+                    />
+                    <DigitHint id="new-utr-hint" status={newUtrState} />
+                  </div>
                   <select
                     value={newUpiApp}
                     onChange={(e) => setNewUpiApp(e.target.value)}

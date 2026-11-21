@@ -293,7 +293,7 @@ export function LiveDashboardView({ initialEvents, onNavigate }: LiveDashboardVi
                         prev === evtStat.eventId ? 'all' : evtStat.eventId
                       )
                     }
-                    className={`shrink-0 whitespace-nowrap rounded px-2.5 py-1 text-[11px] font-medium transition-colors duration-100 ${
+                    className={`min-h-9 shrink-0 whitespace-nowrap rounded px-3 py-2 text-[11px] font-medium transition-colors duration-100 ${
                       isSelected
                         ? 'bg-[#D41B14] text-white'
                         : 'border border-white/20 bg-[#110D0C]/85 text-neutral-200 hover:text-white'
@@ -349,7 +349,7 @@ export function LiveDashboardView({ initialEvents, onNavigate }: LiveDashboardVi
                 <button
                   type="button"
                   onClick={() => setEventFilter('all')}
-                  className={`whitespace-nowrap rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+                  className={`min-h-10 whitespace-nowrap rounded px-4 py-2 text-xs font-medium transition-colors ${
                     eventFilter === 'all'
                       ? 'bg-[#D41B14] text-white'
                       : 'text-neutral-300 hover:text-white'
@@ -362,7 +362,7 @@ export function LiveDashboardView({ initialEvents, onNavigate }: LiveDashboardVi
                     key={evt.id}
                     type="button"
                     onClick={() => setEventFilter(evt.id)}
-                    className={`whitespace-nowrap rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+                    className={`min-h-10 whitespace-nowrap rounded px-4 py-2 text-xs font-medium transition-colors ${
                       eventFilter === evt.id
                         ? 'bg-[#D41B14] text-white'
                         : 'text-neutral-300 hover:text-white'
@@ -388,7 +388,7 @@ export function LiveDashboardView({ initialEvents, onNavigate }: LiveDashboardVi
                       key={val}
                       type="button"
                       onClick={() => setStatusFilter(val)}
-                      className={`whitespace-nowrap rounded px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                      className={`min-h-10 whitespace-nowrap rounded px-3.5 py-2 text-xs font-medium transition-colors ${
                         statusFilter === val
                           ? 'bg-white/15 text-white'
                           : 'text-neutral-400 hover:text-white'

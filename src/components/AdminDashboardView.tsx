@@ -218,16 +218,6 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   const [schemaSql, setSchemaSql] = useState('');
   const [copiedSql, setCopiedSql] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/health')
-      .then((r) => { if (!r.ok) throw new Error('Service unavailable'); return r.json(); })
-      .then((d) => {
-        setSystemMode(d.mode === 'supabase' ? 'supabase' : 'local');
-        setSmtpConfigured(Boolean(d.smtpConfigured));
-      })
-      .catch(() => { setLoginError('Unable to reach the sign-in server. Please try again later or contact the site administrator.'); });
-  }, []);
-
   async function fetchAdmin(url: string, init: RequestInit = {}) {
     const requestToken = activeToken.current;
     const response = await adminRequest(url, requestToken, init, () => {
@@ -689,9 +679,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                 Tournament Admin Console
               </h1>
               <p className="text-xs text-slate-500">
-                {systemMode === 'supabase'
-                  ? 'Sign in with your authorized administrator account.'
-                  : 'Sign in to manage registrations and tournament settings.'}
+                Sign in with your authorized administrator account.
               </p>
             </div>
           </div>
@@ -708,14 +696,14 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
                 placeholder="Administrator email"
-                required={systemMode === 'supabase'}
+                required
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-[#233D8B] focus:outline-none"
               />
             </div>
 
             <div>
               <label htmlFor="admin-pass" className="block text-xs font-medium text-slate-700">
-                {systemMode === 'local' ? 'Admin Passcode' : 'Password'}
+                Password
               </label>
               <input
                 id="admin-pass"
@@ -723,15 +711,10 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                 type="password"
                 value={loginPass}
                 onChange={(e) => setLoginPass(e.target.value)}
-                placeholder={systemMode === 'supabase' ? '••••••••' : 'Enter configured administrator password'}
+                placeholder="••••••••"
                 required
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-[#233D8B] focus:outline-none"
               />
-              {systemMode === 'local' && (
-                <p className="mt-1 text-[11px] text-slate-500">
-                  Use the administrator password configured on the server.
-                </p>
-              )}
             </div>
 
             {loginError && (
@@ -796,7 +779,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
             <button
               type="button"
               onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-md bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800"
             >
               <LogOut className="h-3.5 w-3.5" />
               Sign Out
@@ -883,11 +866,11 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
             </select>
             <label className="flex items-center gap-2 text-xs text-slate-600">
               From
-              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="min-w-0 flex-1 rounded border border-slate-300 p-1.5" />
+              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="min-h-10 min-w-0 flex-1 rounded border border-slate-300 p-2" />
             </label>
             <label className="flex items-center gap-2 text-xs text-slate-600">
               To
-              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="min-w-0 flex-1 rounded border border-slate-300 p-1.5" />
+              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="min-h-10 min-w-0 flex-1 rounded border border-slate-300 p-2" />
             </label>
             <select aria-label="Sort registrations" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="rounded border border-slate-300 p-2 text-xs">
               <option value="newest">Newest first</option>
@@ -900,7 +883,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
             <button
               type="button"
               onClick={() => { setSearchQuery(''); setEventFilter('all'); setStatusFilter('all'); setLunchFilter('all'); setDateFrom(''); setDateTo(''); setSortOrder('newest'); }}
-              className="font-medium text-[#233D8B] hover:underline"
+              className="min-h-10 px-2 font-medium text-[#233D8B] hover:underline"
             >
               Clear filters
             </button>
@@ -975,8 +958,8 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                         </th>
                         <th className="px-3 py-2.5 font-medium">Team ID</th>
                         <th className="px-3 py-2.5 font-medium">Team &amp; Event</th>
-                        <th className="px-3 py-2.5 font-medium">UTR Ref</th>
-                        <th className="px-3 py-2.5 text-right font-medium">Amount</th>
+                        <th className="hidden px-3 py-2.5 font-medium sm:table-cell">UTR Ref</th>
+                        <th className="hidden px-3 py-2.5 text-right font-medium sm:table-cell">Amount</th>
                         <th className="px-3 py-2.5 font-medium">Status</th>
                       </tr>
                     </thead>
@@ -1013,16 +996,19 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                               <div className="text-[11px] text-slate-500">
                                 {b.event.gameTitle} · {b.registration.collegeName}
                               </div>
+                              <div className="mt-0.5 font-mono text-[11px] text-slate-700 sm:hidden">
+                                Rs. {b.registration.totalFee} · {utr}
+                              </div>
                             </td>
-                            <td className="px-3 py-2.5 font-mono text-[11px] whitespace-nowrap text-slate-700">
+                            <td className="hidden px-3 py-2.5 font-mono text-[11px] whitespace-nowrap text-slate-700 sm:table-cell">
                               {utr}
                             </td>
-                            <td className="px-3 py-2.5 text-right font-mono font-semibold whitespace-nowrap tabular-nums">
+                            <td className="hidden px-3 py-2.5 text-right font-mono font-semibold whitespace-nowrap tabular-nums sm:table-cell">
                               Rs. {b.registration.totalFee}
                             </td>
-                            <td className="px-3 py-2.5 whitespace-nowrap">
+                            <td className="px-3 py-2.5 sm:whitespace-nowrap">
                               <span
-                                className={`inline-block rounded px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap uppercase ${
+                                className={`inline-block rounded px-2 py-0.5 text-[11px] font-semibold uppercase sm:whitespace-nowrap ${
                                   b.registration.status === 'verified'
                                     ? 'bg-emerald-50 text-emerald-700'
                                     : b.registration.status === 'pending'
@@ -1057,7 +1043,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                 </div>
               ) : (
                 <div>
-                  <div className="flex items-start justify-between gap-2 border-b border-slate-200 pb-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200 pb-3">
                     <div>
                       <div className="font-mono text-xs font-bold text-[#233D8B]">
                         {selectedBundle.registration.teamCode}
@@ -1070,7 +1056,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                         {selectedBundle.registration.iglEmail}
                       </div>
                     </div>
-                    <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                    <div className="flex flex-wrap gap-1.5">
                     <button
                       type="button"
                       onClick={() => handleResendEmail(selectedBundle.registration.id)}

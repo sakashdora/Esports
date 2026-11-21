@@ -126,12 +126,8 @@ export function createApiApp(): Express {
 
   // 1. Health & System Status
   app.get('/api/health', (_req, res) => {
-    res.json({
-      ok: true,
-      mode: isSupabaseConfigured() ? 'supabase' : 'local',
-      smtpConfigured: isSmtpConfigured(),
-      timestamp: new Date().toISOString(),
-    });
+    // Deliberately minimal: which database or mail service is in use is not for visitors.
+    res.json({ ok: true, timestamp: new Date().toISOString() });
   });
 
   // 2. Public Events
@@ -368,10 +364,14 @@ export function createApiApp(): Express {
       const password = String(req.body.password || '');
 
       if (!isSupabaseConfigured()) {
+        // The passcode fallback is for local development only. On Vercel it can never be
+        // legitimate (storage there is temporary), so it must not be usable even if the
+        // database settings go missing, and an old passcode in git history must not open it.
+        if (process.env.VERCEL) return res.status(503).json({ error: 'Administrator login is not configured.' });
         const expected = process.env.ADMIN_DEMO_PASSCODE;
         if (!expected) return res.status(503).json({ error: 'Administrator login is not configured.' });
         if (password !== expected) {
-          return res.status(401).json({ error: 'Invalid admin passcode.' });
+          return res.status(401).json({ error: 'Invalid credentials.' });
         }
         const adminEmail = email || 'info.esport@srustiacademy.ac.in';
         return res.json({
