@@ -58,7 +58,7 @@ export function ChampionshipStage({ events, loading, onNavigate }: { events: Cam
             <p className="game-prize"><Trophy aria-hidden="true" /> ₹{event.prizePoolTotal.toLocaleString('en-IN')} <span>prize pool</span></p>
             <p className="game-entry">₹{event.baseFee} / team · {event.maxTeams} squad slots</p><p className="game-roster">4 players + optional substitute</p>
             <div className="game-actions">
-              <button className="arena-button secondary" onClick={() => onNavigate({ page: 'event', slug: event.slug })}>View rules</button>
+              <button className="arena-button secondary" onClick={() => onNavigate({ page: 'event', slug: event.slug })}>View rulebook</button>
               <button className="arena-button primary" disabled={!event.isOpen || loading} onClick={() => onNavigate({ page: 'register', slug: event.slug })}>{!event.isOpen ? 'Closed' : loading ? 'Loading…' : 'Register squad'}<ArrowRight aria-hidden="true" /></button>
             </div>
           </div>

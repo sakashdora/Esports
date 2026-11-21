@@ -15,9 +15,6 @@
 .guide-cover nav a:hover { background: #421818; }
 .guide-cover svg { width: 16px; }
 .guide-chapter { padding-block: 12px 20px; scroll-margin-top: 84px; }
-.guide-chapter figure a { display: block; cursor: zoom-in; }
-.guide-poster { display: block; width: 100%; height: auto; }
-.guide-chapter figcaption { padding: 8px 12px; color: #f1d6aa; font-size: 13px; }
 .guide-transcript { margin-top: 8px; padding: 0 14px; border: 1px solid #705134; }
 .guide-transcript > summary { padding-block: 14px; cursor: pointer; color: var(--score-gold); font-weight: 700; }
 .guide-transcript[open] { padding-bottom: 16px; }

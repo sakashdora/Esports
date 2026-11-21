@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { CampusEvent } from '../lib/defaultEvents';
 import { getEventBannerUrl } from '../lib/eventArtwork';
 import type { AppRoute } from './Navbar';
+import { RulebookPoster } from './RulebookPoster';
 
 interface EventDetailViewProps {
   event: CampusEvent;
@@ -49,6 +50,8 @@ export function EventDetailView({ event, allEvents, onNavigate }: EventDetailVie
             ))}
           </div>
         </div>
+
+        <RulebookPoster key={event.slug} event={event} />
 
         {/* Event Banner + Title Header */}
         <section

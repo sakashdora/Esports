@@ -2,12 +2,8 @@ import { ArrowDown, ArrowRight, Trophy } from 'lucide-react';
 import type { CampusEvent } from '../lib/defaultEvents';
 import type { AppRoute } from './Navbar';
 import { EventScorecard } from './PointsGuide';
+import { RulebookPoster, rulebookPosters } from './RulebookPoster';
 import './TournamentGuide.css';
-
-const guidePosters: Partial<Record<string, string>> = {
-  'kalinga-warriors-bgmi': '/assets/brand/kalinga-guide.png',
-  'kurukshetra-free-fire': '/assets/brand/kurukshetra-guide.png',
-};
 
 interface GuideProps {
   events: CampusEvent[];
@@ -27,22 +23,11 @@ export default function TournamentGuide({ events, onNavigate }: GuideProps) {
       </header>
       <div className="stage-container">
         {events.map((event, index) => {
-          const poster = guidePosters[event.slug];
+          const poster = rulebookPosters[event.slug];
           return (
             <section className="guide-chapter" key={event.id} id={event.slug} aria-labelledby={`title-${event.slug}`}>
               <h2 className={poster ? 'sr-only' : 'guide-game-title'} id={`title-${event.slug}`}>{event.title}</h2>
-              {poster && (
-                <figure>
-                  <a href={poster} aria-label={`Open full-size ${event.gameTitle} tournament poster`}>
-                    <img className="guide-poster" src={poster} width="1122" height="1402"
-                      loading={index === 0 ? 'eager' : 'lazy'}
-                      alt={`${event.title} tournament poster showing gameplay rules, fixtures, qualification flowchart, placement points and prizes`} />
-                  </a>
-                  {event.slug === 'kurukshetra-free-fire' && (
-                    <figcaption>Free Fire scoring correction · 2nd place earns 9 points. 3rd place earns 8.</figcaption>
-                  )}
-                </figure>
-              )}
+              <RulebookPoster event={event} loading={index === 0 ? 'eager' : 'lazy'} />
               <details className="guide-transcript" open={poster ? undefined : true}>
                 <summary>Read {event.gameTitle} rules and scoring as text</summary>
                 <p className="guide-maps">Maps · {event.rulesJson.mapPool.join(' / ')}</p>
