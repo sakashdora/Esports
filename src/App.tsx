@@ -7,6 +7,7 @@ import { DEFAULT_EVENTS, type CampusEvent } from './lib/defaultEvents';
 import { dismissAnnouncement, shouldShowAnnouncement, WelcomeAnnouncement } from './components/WelcomeAnnouncement';
 
 const AdminDashboardView = lazy(() => import('./components/AdminDashboardView').then(module => ({ default: module.AdminDashboardView })));
+const TournamentGuide = lazy(() => import('./components/TournamentGuide'));
 const EventDetailView = lazy(() => import('./components/EventDetailView').then(module => ({ default: module.EventDetailView })));
 const LiveDashboardView = lazy(() => import('./components/LiveDashboardView').then(module => ({ default: module.LiveDashboardView })));
 const RegisterView = lazy(() => import('./components/RegisterView').then(module => ({ default: module.RegisterView })));
@@ -15,6 +16,7 @@ const TrackStatusView = lazy(() => import('./components/TrackStatusView').then(m
 function parseLocationRoute(): AppRoute {
   const path = window.location.pathname;
   const search = new URLSearchParams(window.location.search);
+  if (path === '/tournament-guide' || path === '/tournament-guide/') return { page: 'guide' };
 
   if (path === '/live') {
     return { page: 'live' };
@@ -36,6 +38,8 @@ function parseLocationRoute(): AppRoute {
 
 function routeToPath(route: AppRoute): string {
   switch (route.page) {
+    case 'guide':
+      return '/tournament-guide';
     case 'live':
       return '/live';
     case 'event':
@@ -90,6 +94,7 @@ export default function App() {
     const name = event ? event.title.replace(/2k26/gi, '2026') : '';
     const titles: Record<AppRoute['page'], string> = {
       home: 'Srusti Campus Event & Esports Championship 2026 | SAMT',
+      guide: `Tournament Guide | ${suffix}`,
       live: `Live Registered Teams | ${suffix}`,
       event: `${name ? name + ' Rulebook' : 'Tournament Rulebook'} | ${suffix}`,
       register: `Register Your Squad${name ? ' for ' + name : ''} | ${suffix}`,
@@ -168,6 +173,7 @@ export default function App() {
       {/* Keyed by page so moving to another page clears a previous error. */}
       <ErrorBoundary key={route.page}>
       <Suspense fallback={<PageLoading />}>
+      {route.page === 'guide' && <TournamentGuide events={events} onNavigate={navigate} />}
       {route.page === 'home' && (
         <HomeView events={events} loading={loadingEvents} onNavigate={navigate} />
       )}

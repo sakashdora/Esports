@@ -4,6 +4,7 @@ import { getEventBannerUrl } from '../lib/eventArtwork';
 import type { AppRoute } from './Navbar';
 import { EmberParticles } from './EmberParticles';
 import { HeroCountdown } from './HeroCountdown';
+import { PointsGuide } from './PointsGuide';
 
 export function ChampionshipStage({ events, loading, onNavigate }: { events: CampusEvent[]; loading: boolean; onNavigate: (route: AppRoute) => void }) {
   const primary = events[0];
@@ -63,6 +64,8 @@ export function ChampionshipStage({ events, loading, onNavigate }: { events: Cam
           </div>
         </article>)}
       </div>
+      <PointsGuide events={events} onViewTeams={() => onNavigate({ page: 'live' })} />
+      <a className="arena-button secondary mt-4" href="/tournament-guide">Explore tournament guide <ArrowRight aria-hidden="true" /></a>
     </section>
   </div>;
 }

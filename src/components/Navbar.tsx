@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 export type AppRoute =
   | { page: 'home' }
+  | { page: 'guide' }
   | { page: 'live' }
   | { page: 'event'; slug: string }
   | { page: 'register'; slug: string }

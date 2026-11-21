@@ -1,0 +1,46 @@
+.arena-scoring {
+  --score-gold: #f3c462;
+  margin-top: 24px;
+  border: 1px solid #936637;
+  border-radius: 14px 3px;
+  background: #100e0e;
+}
+
+.scoring-toggle {
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 2vw, 24px);
+  padding: 16px clamp(14px, 3vw, 36px);
+  border-radius: inherit;
+  background: linear-gradient(95deg, #350e0bf2, #100c10be 60%, #27101266),
+    url('/src/assets/images/hero_fire_esports_arena_1794848520848.jpg') center 45% / cover;
+  color: #fff4d9;
+  cursor: pointer;
+}
+.scoring-toggle::-webkit-details-marker { display: none; }
+.scoring-toggle strong { font: italic 800 clamp(23px, 3vw, 38px)/1.05 var(--font-display); text-transform: uppercase; }
+.scoring-emblem, .scoring-chevron { color: var(--score-gold); flex-shrink: 0; }
+.scoring-emblem { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid #bd8748; border-radius: 9px 2px; background: #190d09; }
+.scoring-chevron { margin-left: auto; }
+.scoring-toggle:hover strong { color: var(--score-gold); }
+.arena-scoring[open] .scoring-chevron { transform: rotate(180deg); }
+.arena-scoring[open] .scoring-toggle { border-bottom: 1px solid #936637; border-bottom-right-radius: 0; }
+.scoring-body { padding: clamp(14px, 2.4vw, 28px); }
+.scoring-intro { max-width: 76ch; color: #e2d6c9; font-size: 14px; line-height: 1.6; }
+.scoring-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 20px; margin-block: 20px; }
+.scoring-panel { overflow: hidden; border: 1px solid #8d683f; border-radius: 12px 3px; background: #131113; }
+.scoring-art { width: 100%; aspect-ratio: 4 / 1; object-fit: cover; }
+.scoring-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; padding: 12px 14px; border-top: 2px solid #cd3826; }
+.scoring-heading h3 { font: italic 800 26px/1 var(--font-display); text-transform: uppercase; }
+.scoring-heading span { display: inline-flex; align-items: center; gap: 6px; color: var(--score-gold); font-size: 12px; font-weight: 700; }
+.scoring-heading svg { width: 15px; height: 15px; }
+.scoring-table { width: 100%; font-size: 14px; text-align: left; font-variant-numeric: tabular-nums; }
+.scoring-table thead { background: #edbe64; color: #251708; }
+.scoring-table tbody tr + tr { border-top: 1px solid #ffffff14; }
+.scoring-table tbody tr:nth-child(even) { background: #ffffff06; }
+.scoring-table tbody tr:first-child { background: #352118; color: #ffe09d; }
+.scoring-table td { font-family: var(--font-mono); }
+
+@media (max-width: 700px) {
+  .scoring-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+}
