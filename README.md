@@ -1,6 +1,6 @@
 # Srusti Campus Esports
 
-React + Vite frontend with an Express API. BGMI and Free Fire squads register, submit UPI payment proof, track applications, and receive a slot after coordinator verification. The public board exposes team and gaming names, not contact or payment details.
+React + Vite frontend with an Express API. BGMI and Free Fire squads register, submit UPI payment proof, track applications, and receive a slot after administrator verification. The public board exposes team and gaming names, not contact or payment details.
 
 ## Event and fees
 
@@ -28,6 +28,14 @@ The build writes public assets to `dist/` and server code to `build/server.js`. 
 Configure a unique `ADMIN_DEMO_PASSCODE` for local administration; there is no fallback password. Replace any previously used demo password before deployment. Admin sessions use tab-scoped storage and authorization headers, including proof-image requests. Database mode also checks the Supabase admin allowlist. Payment proof storage must stay private; see `supabase/schema.sql`.
 
 Configure official UPI details, SMTP delivery, and Supabase before launch. Local JSON persistence is for development/single-process use, not concurrent or serverless production writes. Supabase registration currently uses multiple writes and needs transaction/concurrency hardening before heavy traffic. Live payment settlement, SMTP delivery and database policies require deployment-specific testing.
+
+## Status lookup and response latency (21 November 2026)
+
+- Track Status accepts a team leader mobile number **or** registration ID. Single-identifier responses contain only team/event/status/slot information. Private details, printing passes, and changing payment proof still require both matching identifiers. Mobile lookup supports multiple registrations.
+- Registration and admin decisions return after persistence without waiting for SMTP. Vercel `waitUntil` keeps delivery running after the response, within the function's 30-second limit. This is best-effort delivery, not a durable retry queue. Admins can refresh email status and use Resend Email if delivery fails or remains pending after a timeout. No schema migration or R2 bucket is needed for these changes.
+- Approval updates the affected admin row directly. The public board polls every five seconds while visible when SSE is unavailable; CDN responses expire after two seconds without serving stale content during revalidation.
+- API JSON responses expose total handler duration in `Server-Timing`. POST logs contain the route template, duration and status, not input identifiers. Email logs contain duration and delivery outcome. Compare these timings with Vercel/DB regions and upload timing before changing infrastructure.
+- Tests include stalled local SMTP, OR lookup, multiple matches, mismatched identifiers, private response filtering and protected proof changes. Run `npm test`, `npm run lint`, `npm run build`, and `npm run check:api`.
 
 ## Design direction
 

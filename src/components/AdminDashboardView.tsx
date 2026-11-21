@@ -334,7 +334,13 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
         }`
       );
       setRejectReason('');
-      await fetchOverview();
+      // Apply the persisted result immediately without a full dashboard reload.
+      overviewSequence.current += 1;
+      setBundles((current) => current.map((item) => item.registration.id === json.registration.id
+        ? { ...item, registration: json.registration, proofs: json.proofs } : item));
+      setAuditLogs((current) => [...(json.auditLogs || []),
+        ...current.filter((entry) => entry.registrationId !== json.registration.id)]
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
       onEventsUpdated();
     } catch (err) {
       setActionMsg(err instanceof Error ? err.message : 'Action failed.');
@@ -952,6 +958,12 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                   <div className="mt-3 rounded border border-slate-200 p-3 text-[11px]">
                     <div className="flex flex-wrap justify-between gap-1 text-slate-500">
                       <span>{selectedBundle.event.title} · {selectedBundle.registration.collegeName}</span>
+                      <span>
+                        Email: {selectedBundle.registration.lastEmailStatus === 'sent' ? 'Sent' :
+                          selectedBundle.registration.lastEmailStatus === 'pending_send' ? 'Delivery pending' :
+                          selectedBundle.registration.lastEmailStatus === 'failed_or_unconfigured' ? 'Not delivered — use Resend Email' : 'Not sent'}.
+                        {' '}Refresh to check the latest delivery result.
+                      </span>
                       <span>
                         Status: <strong className="text-slate-800">{selectedBundle.registration.status.replace(/_/g, ' ')}</strong>
                         {selectedBundle.registration.slotNumber ? ` · ${selectedBundle.registration.groupName} ${selectedBundle.registration.slotNumber}` : ''}

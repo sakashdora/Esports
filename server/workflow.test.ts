@@ -100,6 +100,31 @@ test('local registration, review, reupload, privacy and admin authorization', as
       assert.equal(patchedEvent.slug,createdEvent.slug);
       assert.equal(patchedEvent.id,createdEvent.id);
       assert.equal(patchedEvent.venueLabel,'Hall 2');
+      const lookup = (body) => fetch(base+'/api/registrations/track', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+      for (const body of [{teamCode:bundle.registration.teamCode}, {iglPhone:input.iglPhone}, {iglPhone:'+91 '+input.iglPhone}]) {
+        const response = await lookup(body);
+        assert.equal(response.status,200);
+        assert.equal(response.headers.get('cache-control'),'no-store');
+        assert.ok(response.headers.get('server-timing'));
+        const summary = await response.json();
+        assert.equal(summary.detailsVerified,false);
+        assert.equal(summary.matches[0].status,'verified');
+        assert.equal(summary.matches[0].teamName,input.teamName);
+        const text = JSON.stringify(summary);
+        for (const privateValue of [input.iglPhone,input.iglEmail,bundle.registration.teamCode,bundle.registration.id,'123456789013','Private Student','screenshotPath','100000']) assert.equal(text.includes(privateValue),false);
+      }
+      assert.equal((await lookup({})).status,400);
+      assert.equal((await lookup({iglPhone:'123'})).status,400);
+      assert.equal((await lookup({teamCode:'NO-MATCH'})).status,404);
+      assert.equal((await lookup({teamCode:bundle.registration.teamCode,iglPhone:'9876543211'})).status,404);
+      const privateDetails = await lookup({teamCode:bundle.registration.teamCode,iglPhone:input.iglPhone});
+      assert.equal(privateDetails.status,200);
+      assert.equal((await privateDetails.json()).members.length,5);
+      const deniedReupload = new FormData();
+      deniedReupload.set('teamCode',bundle.registration.teamCode);
+      deniedReupload.set('utrNumber','999456789012');
+      deniedReupload.set('screenshot',new Blob([input.fileBuffer],{type:'image/png'}),'proof.png');
+      assert.equal((await fetch(base+'/api/registrations/reupload',{method:'POST',body:deniedReupload})).status,400);
       const malformed=await fetch(base+'/api/registrations/track',{method:'POST',headers:{'Content-Type':'application/json'},body:'{private-test-body'});
       assert.equal(malformed.status,400);
       assert.deepEqual(await malformed.json(),{error:'Invalid request body.'});
@@ -123,6 +148,50 @@ test('local registration, review, reupload, privacy and admin authorization', as
       // Another team still cannot reuse that UTR.
       await assert.rejects(createRegistrationWithProof({...input,teamName:'Copy Squad',iglPhone:'9876500002',members:squad('30000'),utrNumber:'223456789012',fileBuffer:png('04')}));
       // A seat vacated by a rejected team is reused; occupied seats are never duplicated.
+      const multi = await createRegistrationWithProof({...input,teamName:'Same Leader Another Squad',members:squad('50000'),utrNumber:'523456789012',fileBuffer:png('06')});
+      const multiLookup = await (await lookup({iglPhone:input.iglPhone})).json();
+      assert.equal(multiLookup.matches.length,2);
+      assert.equal(JSON.stringify(multiLookup).includes(multi.registration.teamCode),false);
+      // A stalled SMTP greeting must not hold either persisted operation open.
+      const net = await import('node:net');
+      const sockets = new Set();
+      const smtp = net.createServer(socket => { sockets.add(socket); socket.on('error',()=>{}); socket.on('close',()=>sockets.delete(socket)); });
+      smtp.listen(0,'127.0.0.1');
+      await new Promise(resolve=>smtp.once('listening',resolve));
+      process.env.SMTP_HOST='127.0.0.1';
+      process.env.SMTP_PORT=String(smtp.address().port);
+      process.env.SMTP_SECURE='false';
+      process.env.SMTP_USER='test'; process.env.SMTP_PASS='test';
+      const tasks = [];
+      globalThis[Symbol.for('@vercel/request-context')] = {get:()=>({waitUntil:(promise)=>tasks.push(promise)})};
+      try {
+        const started=performance.now();
+        const decisionResponse = await fetch(base+'/api/admin/registrations/'+multi.registration.id+'/decision',{method:'POST',headers:adminHeaders,body:JSON.stringify({decision:'reupload_required',reason:'Test correction'})});
+        assert.equal(decisionResponse.status,200);
+        const decisionResult = await decisionResponse.json();
+        assert.equal(decisionResult.registration.status,'reupload_required');
+        assert.equal(decisionResult.emailDelivery,'background');
+        assert.equal(decisionResult.proofs[0].reviewStatus,'reupload_required');
+        assert.ok(performance.now()-started<3000,'decision waited for SMTP');
+        const form=new FormData();
+        form.set('payload',JSON.stringify({...input,teamName:'HTTP Submission',members:squad('60000'),utrNumber:'623456789012'}));
+        form.set('screenshot',new Blob([png('07')],{type:'image/png'}),'proof.png');
+        const submitStarted=performance.now();
+        const submitted=await fetch(base+'/api/registrations',{method:'POST',body:form});
+        assert.equal(submitted.status,201);
+        const receipt=await submitted.json();
+        assert.equal(receipt.emailDelivery,'background');
+        assert.equal(receipt.registration.status,'pending');
+        assert.ok(performance.now()-submitStarted<3000,'registration waited for SMTP');
+        assert.equal(tasks.length,2);
+      } finally {
+        smtp.close();
+        for(const socket of sockets) socket.destroy();
+        await Promise.all(tasks);
+        delete globalThis[Symbol.for('@vercel/request-context')];
+        process.env.SMTP_HOST=''; process.env.SMTP_USER=''; process.env.SMTP_PASS='';
+      }
+      assert.equal((await trackRegistration(multi.registration.teamCode,input.iglPhone)).registration.lastEmailStatus,'failed_or_unconfigured');
       const secondApproved = await decideRegistrationPayment({registrationId:second.registration.id,decision:'approve',actorEmail:'admin@example.test',actorId:null});
       assert.equal(secondApproved.registration.slotNumber,'A2');
       await decideRegistrationPayment({registrationId:bundle.registration.id,decision:'reject',reason:'Test rejection',actorEmail:'admin@example.test',actorId:null});
@@ -130,7 +199,7 @@ test('local registration, review, reupload, privacy and admin authorization', as
       const thirdApproved = await decideRegistrationPayment({registrationId:third.registration.id,decision:'approve',actorEmail:'admin@example.test',actorId:null});
       assert.equal(thirdApproved.registration.slotNumber,'A1');
     } finally { server.close(); }
-  `], { cwd: fixture, encoding: 'utf8', env: { ...process.env, SUPABASE_URL: '', SUPABASE_ANON_KEY: '', SUPABASE_SERVICE_ROLE_KEY: '', VERCEL: '' } });
+  `], { cwd: fixture, encoding: 'utf8', env: { ...process.env, SUPABASE_URL: '', SUPABASE_ANON_KEY: '', SUPABASE_SERVICE_ROLE_KEY: '', VERCEL: '', SMTP_HOST: '', SMTP_USER: '', SMTP_PASS: '' } });
   assert.equal(result.status, 0, result.stderr + result.stdout);
   // Only the generated, verified test directory may be removed.
   assert.equal(path.dirname(fixture), os.tmpdir());

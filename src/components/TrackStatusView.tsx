@@ -2,6 +2,7 @@ import { Printer, Search, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { compressScreenshot } from '../lib/imageCompression';
 import { isValidUtr } from '../lib/tournamentRules';
+import type { StatusSummary } from '../lib/tracking';
 
 interface TrackedData {
   registration: {
@@ -56,6 +57,7 @@ export function TrackStatusView({ prefillCode }: TrackStatusViewProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [data, setData] = useState<TrackedData | null>(null);
+  const [matches, setMatches] = useState<StatusSummary[]>([]);
 
   // Re-upload state
   const [newUtr, setNewUtr] = useState('');
@@ -68,6 +70,12 @@ export function TrackStatusView({ prefillCode }: TrackStatusViewProps) {
     if (e) e.preventDefault();
     setError('');
     setReuploadMsg('');
+    setData(null);
+    setMatches([]);
+    if (!teamCode.trim() && !iglPhone.trim()) {
+      setError('Enter your team leader mobile number OR Team Registration ID. Only one is required.');
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/registrations/track', {
@@ -77,7 +85,8 @@ export function TrackStatusView({ prefillCode }: TrackStatusViewProps) {
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json) throw new Error(json?.error || 'Status lookup is unavailable right now. Please try again shortly.');
-      setData(json);
+      if (json.matches) setMatches(json.matches);
+      else setData(json);
     } catch (err) {
       setData(null);
       setError(err instanceof Error ? err.message : 'Unable to fetch registration.');
@@ -133,8 +142,8 @@ export function TrackStatusView({ prefillCode }: TrackStatusViewProps) {
             Track Team Status &amp; Official Pass
           </h1>
           <p className="mt-1 text-xs text-neutral-400">
-            Enter your Unique Team Registration ID and 10-digit IGL Phone Number to check live
-            payment verification status or print your confirmed pass.
+            Enter your team leader mobile number OR Team Registration ID to check status.
+            Only one is required.
           </p>
 
           <form
@@ -147,9 +156,10 @@ export function TrackStatusView({ prefillCode }: TrackStatusViewProps) {
               </label>
               <input
                 id="track-code"
+                disabled={loading || reuploading}
                 type="text"
                 value={teamCode}
-                onChange={(e) => setTeamCode(e.target.value)}
+                onChange={(e) => { setTeamCode(e.target.value); setData(null); setMatches([]); }}
                 placeholder="e.g. KW26-001"
                 className="mt-1 w-full rounded-md border border-white/15 bg-[#110D0C] px-3 py-2 font-mono text-sm text-white uppercase focus:border-[#D41B14] focus:outline-none"
               />
@@ -157,13 +167,14 @@ export function TrackStatusView({ prefillCode }: TrackStatusViewProps) {
 
             <div className="sm:col-span-4">
               <label htmlFor="track-phone" className="block text-[11px] text-neutral-400">
-                IGL 10-Digit Phone
+                OR Team Leader Mobile Number
               </label>
               <input
                 id="track-phone"
+                disabled={loading || reuploading}
                 type="tel"
                 value={iglPhone}
-                onChange={(e) => setIglPhone(e.target.value)}
+                onChange={(e) => { setIglPhone(e.target.value); setData(null); setMatches([]); }}
                 placeholder="9876543210"
                 className="mt-1 w-full rounded-md border border-white/15 bg-[#110D0C] px-3 py-2 font-mono text-sm text-white focus:border-[#D41B14] focus:outline-none"
               />
@@ -180,6 +191,10 @@ export function TrackStatusView({ prefillCode }: TrackStatusViewProps) {
               </button>
             </div>
           </form>
+          <p className="mt-3 text-xs leading-relaxed text-neutral-400">
+            Either field works for status. For your private payment details, official pass, or proof
+            correction, enter both fields to verify your team.
+          </p>
 
           {error && (
             <div
@@ -196,6 +211,24 @@ export function TrackStatusView({ prefillCode }: TrackStatusViewProps) {
             </div>
           )}
         </div>
+
+        {matches.length > 0 && (
+          <section aria-live="polite" className="mt-8 space-y-4">
+            <h2 className="font-display text-xl text-white">Registration Status</h2>
+            {matches.map((match, index) => (
+              <article key={index} className="rounded-xl border border-white/15 bg-[#1A1716] p-5">
+                <p className="text-xs text-[#E5C736]">{match.eventTitle.replace(/2k26/gi, '2026')}</p>
+                <h3 className="mt-2 break-words text-xl font-semibold">{match.teamName}</h3>
+                <p className="mt-3 font-semibold text-white">
+                  {({ pending: 'Pending payment verification', verified: 'Verified', rejected: 'Rejected',
+                    reupload_required: 'Action required: re-upload payment proof', waitlisted: 'Waitlisted' } as Record<string, string>)[match.status] || 'Awaiting update'}
+                </p>
+                {match.slotNumber && <p className="mt-2 text-sm text-neutral-300">{match.groupName} · Slot {match.slotNumber}</p>}
+                <p className="mt-2 text-sm text-neutral-400">{match.venueLabel} · {match.eventDateLabel}</p>
+              </article>
+            ))}
+          </section>
+        )}
 
         {/* Lookup Result Card / Printable Pass */}
         {data && (

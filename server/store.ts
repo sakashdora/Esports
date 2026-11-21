@@ -734,6 +734,7 @@ export async function createRegistrationWithProof(input: {
         lunch_total: fees.lunchTotal,
         total_fee: fees.totalFee,
         status: isWaitlisted ? 'waitlisted' : 'pending',
+        last_email_status: 'pending_send',
         eligibility_confirmed: input.eligibilityConfirmed,
         fair_play_confirmed: input.fairPlayConfirmed,
         active_skill_confirmed: input.activeSkillConfirmed,
@@ -831,7 +832,8 @@ export async function createRegistrationWithProof(input: {
 export async function recordEmailAudit(
   registrationId: string,
   sent: boolean,
-  notes: string
+  notes: string,
+  expectedStatus?: RegistrationStatus,
 ): Promise<void> {
   const now = new Date().toISOString();
   const statusStr = sent ? 'sent' : 'failed_or_unconfigured';
@@ -840,7 +842,7 @@ export async function recordEmailAudit(
   if (!sb) {
     const store = readLocalStore();
     const reg = store.registrations.find((r) => r.id === registrationId);
-    if (reg) {
+    if (reg && (!expectedStatus || reg.status === expectedStatus)) {
       reg.lastEmailStatus = statusStr;
       reg.lastEmailAt = now;
       reg.updatedAt = now;
@@ -857,16 +859,55 @@ export async function recordEmailAudit(
     return;
   }
 
-  await sb
+  let update = sb
     .from('registrations')
     .update({ last_email_status: statusStr, last_email_at: now, updated_at: now })
     .eq('id', registrationId);
+  if (expectedStatus) update = update.eq('status', expectedStatus);
+  const { error: statusError } = await update;
+  if (statusError) throw new Error('Email status update failed.');
 
-  await sb.from('payment_audit_logs').insert({
+  const { error: auditError } = await sb.from('payment_audit_logs').insert({
     registration_id: registrationId,
     actor_label: 'EMAIL_SERVICE',
     action,
     notes,
+  });
+  if (auditError) throw new Error('Email audit update failed.');
+}
+
+/** One identifier reveals status only, never the other identifier or payment/player data. */
+export async function lookupRegistrationStatus(teamCodeRaw: string, phoneRaw: string) {
+  const code = teamCodeRaw.trim().toUpperCase();
+  const phone = normalizePhone(phoneRaw);
+  if ((!code && !phone) || (code && !/^[A-Z0-9-]{3,40}$/.test(code)) ||
+      (phoneRaw.trim() && !isValidIndianPhone(phone))) {
+    throw new ClientInputError('Enter a valid Team Registration ID or 10-digit team leader mobile number.');
+  }
+  const sb = getSupabaseServiceClient();
+  if (!sb) {
+    const store = readLocalStore();
+    return store.registrations.filter((r) => (!code || r.teamCode.toUpperCase() === code) &&
+      (!phone || r.iglPhone === phone)).map((r) => {
+      const event = store.events.find((e) => e.id === r.eventId);
+      return { teamName: r.teamName, status: r.status, slotNumber: r.slotNumber,
+        groupName: r.groupName, eventTitle: event?.title || '',
+        venueLabel: event?.venueLabel || '', eventDateLabel: event?.eventDateLabel || '' };
+    });
+  }
+  let query = sb.from('registrations')
+    .select('team_name,status,slot_number,group_name,events(title,venue_label,event_date_label)')
+    .order('created_at', { ascending: false });
+  if (code) query = query.eq('team_code', code);
+  if (phone) query = query.eq('igl_phone', phone);
+  const { data, error } = await query;
+  if (error) throw new Error('Status lookup unavailable.');
+  return (data || []).map((row) => {
+    const event = (Array.isArray(row.events) ? row.events[0] : row.events) as
+      { title: string; venue_label: string; event_date_label: string } | null;
+    return { teamName: row.team_name, status: row.status, slotNumber: row.slot_number,
+      groupName: row.group_name, eventTitle: event?.title || '',
+      venueLabel: event?.venue_label || '', eventDateLabel: event?.event_date_label || '' };
   });
 }
 
@@ -1471,6 +1512,8 @@ export async function decideRegistrationPayment(input: {
       });
     }
 
+    reg.lastEmailStatus = 'pending_send';
+    reg.lastEmailAt = null;
     writeLocalStore(store);
     return (await trackRegistration(reg.teamCode, reg.iglPhone))!;
   }
@@ -1512,6 +1555,8 @@ export async function decideRegistrationPayment(input: {
       .from('registrations')
       .update({
         status: 'verified',
+        last_email_status: 'pending_send',
+        last_email_at: null,
         slot_number: slot.slotNumber,
         group_name: slot.groupName,
         rejection_reason: null,
@@ -1552,6 +1597,8 @@ export async function decideRegistrationPayment(input: {
       .from('registrations')
       .update({
         status: nextStatus,
+        last_email_status: 'pending_send',
+        last_email_at: null,
         rejection_reason: reasonText,
         slot_number: null,
         group_name: null,

@@ -1,4 +1,5 @@
-import { clientErrorMessage } from './errors.js';
+import { scheduleConfirmation } from './notifications.js';
+import { ClientInputError, clientErrorMessage } from './errors.js';
 import { filterAdminRegistrations, type AdminFilters } from '../src/lib/adminFilters.js';
 import { exportAdminPdf, exportAdminWorkbook } from './adminExports.js';
 import 'dotenv/config';
@@ -27,6 +28,7 @@ import {
   resubmitPaymentProof,
   saveOfficialQrImage,
   trackRegistration,
+  lookupRegistrationStatus,
   updateEventConfig,
   verifyAdminToken,
 } from './store.js';
@@ -42,7 +44,7 @@ const supportsStreaming = !process.env.VERCEL;
 // Public read endpoints may be briefly cached by the CDN; this absorbs traffic spikes
 // without making counts noticeably stale.
 function setPublicCache(res: Response) {
-  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=5, stale-while-revalidate=30');
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=2, must-revalidate');
 }
 
 function emitLiveBoardUpdate() {
@@ -101,6 +103,19 @@ export function createApiApp(): Express {
     res.setHeader('Content-Security-Policy', "frame-ancestors 'none'; object-src 'none'; base-uri 'self'");
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
+  app.use((req, res, next) => {
+    const started = performance.now();
+    const originalJson = res.json.bind(res);
+    res.json = ((body: unknown) => {
+      const duration = Math.round(performance.now() - started);
+      res.setHeader('Server-Timing', 'api;dur=' + duration);
+      if (req.method === 'POST') console.info(JSON.stringify({
+        operation: req.route?.path || 'request', durationMs: duration, status: res.statusCode,
+      }));
+      return originalJson(body);
+    }) as typeof res.json;
     next();
   });
   app.use(express.json({ limit: '2mb' }));
@@ -241,31 +256,7 @@ export function createApiApp(): Express {
           fileBuffer: req.file.buffer,
         });
 
-        // Non-blocking official college email dispatch to Team Leader (IGL)
-        const latestProof = bundle.proofs[0];
-        const emailRes = await sendTeamConfirmationEmail({
-          toEmail: bundle.registration.iglEmail,
-          teamCode: bundle.registration.teamCode,
-          teamName: bundle.registration.teamName,
-          eventTitle: bundle.event.title,
-          gameTitle: bundle.event.gameTitle,
-          status: 'pending',
-          totalFee: bundle.registration.totalFee,
-          lunchCount: bundle.registration.lunchCount,
-          vegCount: bundle.registration.vegCount,
-          nonVegCount: bundle.registration.nonVegCount,
-          utrNumber: latestProof?.utrNumber || '',
-          venueLabel: bundle.event.venueLabel,
-          eventDateLabel: bundle.event.eventDateLabel,
-        });
-
-        await recordEmailAudit(
-          bundle.registration.id,
-          emailRes.sent,
-          emailRes.sent
-            ? `Sent pending receipt to ${bundle.registration.iglEmail}`
-            : emailRes.error || 'Email not sent'
-        );
+        scheduleConfirmation(bundle);
 
         emitLiveBoardUpdate();
 
@@ -273,10 +264,9 @@ export function createApiApp(): Express {
           registration: bundle.registration,
           event: bundle.event,
           members: bundle.members,
-          emailDispatched: emailRes.sent,
-          emailNote: emailRes.sent
-            ? `Confirmation email sent to ${bundle.registration.iglEmail}`
-            : 'Registration saved. The confirmation email could not be sent right now, so keep your Team Registration ID safe.',
+          emailDispatched: false,
+          emailDelivery: 'background',
+          emailNote: 'Registration saved. Email delivery is in progress; keep your Team Registration ID safe.',
         });
       } catch (err) {
         const message = clientErrorMessage(err, 'Registration submission failed.');
@@ -285,15 +275,15 @@ export function createApiApp(): Express {
     }
   );
 
-  // 4. Student Public Status Lookup (Team Code + IGL Phone)
+  // 4. Status with either identifier; private details require both.
   app.post('/api/registrations/track', rateLimit(30, 60_000), async (req, res) => {
     try {
       const teamCode = String(req.body.teamCode || '').trim();
       const iglPhone = String(req.body.iglPhone || '').trim();
       if (!teamCode || !iglPhone) {
-        return res
-          .status(400)
-          .json({ error: 'Both Team Registration ID and IGL Phone Number are required.' });
+        const matches = await lookupRegistrationStatus(teamCode, iglPhone);
+        if (!matches.length) return res.status(404).json({ error: 'No matching registration found. Check the identifier and try again.' });
+        return res.json({ matches, detailsVerified: false });
       }
       const bundle = await trackRegistration(teamCode, iglPhone);
       if (!bundle) {
@@ -303,6 +293,7 @@ export function createApiApp(): Express {
       }
       const latestProof = bundle.proofs[0];
       return res.json({
+        detailsVerified: true,
         registration: bundle.registration,
         event: {
           title: bundle.event.title,
@@ -335,8 +326,8 @@ export function createApiApp(): Express {
           : null,
       });
     } catch (err) {
-      const message = 'Lookup failed.';
-      return res.status(500).json({ error: message });
+      const message = clientErrorMessage(err, 'Lookup failed. Please try again.');
+      return res.status(err instanceof ClientInputError ? 400 : 500).json({ error: message });
     }
   });
 
@@ -478,48 +469,18 @@ export function createApiApp(): Express {
         actorId: req.admin!.userId,
       });
 
-      const latestProof = bundle.proofs[0];
-      const emailStatus =
-        bundle.registration.status === 'verified'
-          ? 'verified'
-          : bundle.registration.status === 'reupload_required'
-            ? 'reupload_required'
-            : 'rejected';
-
-      const emailRes = await sendTeamConfirmationEmail({
-        toEmail: bundle.registration.iglEmail,
-        teamCode: bundle.registration.teamCode,
-        teamName: bundle.registration.teamName,
-        eventTitle: bundle.event.title,
-        gameTitle: bundle.event.gameTitle,
-        status: emailStatus,
-        totalFee: bundle.registration.totalFee,
-        lunchCount: bundle.registration.lunchCount,
-        vegCount: bundle.registration.vegCount,
-        nonVegCount: bundle.registration.nonVegCount,
-        utrNumber: latestProof?.utrNumber || '',
-        slotNumber: bundle.registration.slotNumber,
-        groupName: bundle.registration.groupName,
-        rejectionReason: bundle.registration.rejectionReason,
-        venueLabel: bundle.event.venueLabel,
-        eventDateLabel: bundle.event.eventDateLabel,
-      });
-
-      await recordEmailAudit(
-        bundle.registration.id,
-        emailRes.sent,
-        emailRes.sent
-          ? `Sent ${emailStatus} confirmation to ${bundle.registration.iglEmail}`
-          : emailRes.error || 'Email not sent'
-      );
+      scheduleConfirmation(bundle);
 
       emitLiveBoardUpdate();
 
       return res.json({
         ok: true,
         registration: bundle.registration,
-        emailSent: emailRes.sent,
-        emailNote: emailRes.sent ? 'Confirmation email sent to IGL.' : `Email not sent: ${emailRes.error || 'unknown error'}`,
+        proofs: bundle.proofs,
+        auditLogs: bundle.auditLogs,
+        emailSent: false,
+        emailDelivery: 'background',
+        emailNote: 'Decision saved. Email delivery is in progress.',
       });
     } catch (err) {
       const message = clientErrorMessage(err, 'Decision update failed.');

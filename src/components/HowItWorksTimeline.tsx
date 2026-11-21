@@ -260,7 +260,7 @@ export function HowItWorksTimeline({ defaultEventSlug, onNavigate }: HowItWorksT
       checkpointLabel: 'Submission Status',
       checkpointValue: 'Pending Admin Verification',
       checkpointNote:
-        'Check verification progress anytime using your Team ID and 10-digit IGL phone number.',
+        'Check verification progress anytime using your Registration ID or team leader mobile number. Either one is enough.',
       actionLabel: 'Track Team Status',
       actionRoute: { page: 'track' },
     },

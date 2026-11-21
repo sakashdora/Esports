@@ -32,8 +32,7 @@ function createTransporter() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-    // Emails are sent inside the registration/decision request. Without limits, a slow or
-    // unreachable mail server held the request for minutes after the data was already saved.
+    // Bound SMTP waits so background delivery and explicit admin resends can finish.
     connectionTimeout: 8000,
     greetingTimeout: 8000,
     socketTimeout: 12000,

@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   Users,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CampusEvent } from '../lib/defaultEvents';
 import { getEventBannerUrl } from '../lib/eventArtwork';
 import {
@@ -34,6 +34,7 @@ export function LiveDashboardView({ initialEvents, onNavigate }: LiveDashboardVi
   const [error, setError] = useState('');
   const [streamState, setStreamState] = useState<'connecting' | 'live' | 'polling'>('connecting');
   const [lastSyncedAt, setLastSyncedAt] = useState<string>('');
+  const snapshotInFlight = useRef(false);
 
   const [eventFilter, setEventFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'verified' | 'pending' | 'waitlisted'>(
@@ -43,6 +44,8 @@ export function LiveDashboardView({ initialEvents, onNavigate }: LiveDashboardVi
   const [viewMode, setViewMode] = useState<'ledger' | 'matrix'>('ledger');
 
   const fetchBoardSnapshot = useCallback(async (isManual = false): Promise<boolean> => {
+    if (snapshotInFlight.current) return false;
+    snapshotInFlight.current = true;
     if (isManual) setRefreshing(true);
     try {
       const res = await fetch('/api/live-registrations');
@@ -58,6 +61,7 @@ export function LiveDashboardView({ initialEvents, onNavigate }: LiveDashboardVi
       setError(err instanceof Error ? err.message : 'Unable to sync live registration board.');
       return false;
     } finally {
+      snapshotInFlight.current = false;
       setLoading(false);
       setRefreshing(false);
     }
@@ -68,8 +72,8 @@ export function LiveDashboardView({ initialEvents, onNavigate }: LiveDashboardVi
     let cancelled = false;
 
     const fallbackPoll = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void fetchBoardSnapshot(false);
-    }, 15000);
+      if (document.visibilityState === 'visible' && (!es || es.readyState !== 1)) void fetchBoardSnapshot(false);
+    }, 5000);
 
     void fetchBoardSnapshot(false).then((realtime) => {
       if (cancelled) return;

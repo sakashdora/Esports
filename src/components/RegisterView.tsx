@@ -889,7 +889,7 @@ export function RegisterView({
             </h1>
             <p className="mt-2 text-xs text-neutral-300">{receipt.emailNote}</p>
             <p className="mt-2 text-xs text-amber-200">
-              Save your Team Registration ID below. You need it with the IGL phone number to track
+              Save your Team Registration ID below. Use it or your team leader mobile number to track
               your status or re-upload proof.
             </p>
 
