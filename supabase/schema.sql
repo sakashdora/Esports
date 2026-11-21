@@ -133,6 +133,16 @@ alter table public.team_members enable row level security;
 alter table public.payment_proofs enable row level security;
 alter table public.payment_audit_logs enable row level security;
 
+-- Grant schema and table permissions
+grant usage on schema public to anon, authenticated, service_role;
+grant all on all tables in schema public to anon, authenticated, service_role;
+grant all on all routines in schema public to anon, authenticated, service_role;
+grant all on all sequences in schema public to anon, authenticated, service_role;
+
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant all on routines to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+
 -- Public read only on open events (no PII exposed)
 drop policy if exists "Public can view open events" on public.events;
 create policy "Public can view open events"
@@ -186,5 +196,9 @@ insert into storage.buckets (id, name, public)
 values ('event-assets', 'event-assets', true)
 on conflict (id) do nothing;
 
--- Add your own verified administrator through the Supabase dashboard.
--- Never seed a shared administrator identity in public source code.
+-- 7. Whitelist Default Super Admin
+-- Run this in the Supabase SQL Editor with your admin user's UID (from Authentication > Users):
+-- insert into public.admin_users (user_id, email, full_name, role)
+-- values ('<YOUR_USER_UID>', 'admin@srustiacademy.edu.in', 'Tournament Director', 'super_admin')
+-- on conflict (user_id) do update set email = excluded.email, role = 'super_admin';
+
