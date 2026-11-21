@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, startTransition, Suspense, useCallback, useEffect, useState } from 'react';
 import { CinematicIntro, PageLoading, shouldShowIntro } from './components/CinematicIntro';
 import { HomeView } from './components/HomeView';
 import { Navbar, type AppRoute } from './components/Navbar';
@@ -76,17 +76,33 @@ export default function App() {
 
   useEffect(() => {
     refreshEvents();
-    const onPopState = () => setRoute(parseLocationRoute());
+    const onPopState = () => startTransition(() => setRoute(parseLocationRoute()));
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
+
+  // Once the first screen is up, quietly fetch the other pages so opening one is instant
+  // instead of waiting on a download. The admin page is left out on purpose.
+  useEffect(() => {
+    if (showIntro) return;
+    const warm = () => {
+      void import('./components/RegisterView');
+      void import('./components/TrackStatusView');
+      void import('./components/EventDetailView');
+      void import('./components/LiveDashboardView');
+    };
+    const timer = window.setTimeout(warm, 1200);
+    return () => window.clearTimeout(timer);
+  }, [showIntro]);
 
   function navigate(next: AppRoute) {
     const nextPath = routeToPath(next);
     if (window.location.pathname + window.location.search !== nextPath) {
       window.history.pushState({}, '', nextPath);
     }
-    setRoute(next);
+    // A transition keeps the current page on screen until the next one is ready, so moving
+    // between pages never flashes a loading screen.
+    startTransition(() => setRoute(next));
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }
 

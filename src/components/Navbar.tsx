@@ -83,7 +83,7 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
               SRUSTI
             </span>
             <img
-              src="/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.png"
+              src="/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.webp"
               alt="SRUSTI e-SPORTS"
               referrerPolicy="no-referrer"
               className={`hidden h-6 w-auto sm:block shrink-0 object-contain transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.04] ${

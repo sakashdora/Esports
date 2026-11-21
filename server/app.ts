@@ -454,7 +454,9 @@ export function createApiApp(): Express {
     const file = await getProofFile(req.params.proofId).catch(() => null);
     if (!file) return res.status(404).send('Screenshot not found');
     res.setHeader('Content-Type', file.mime);
-    res.setHeader('Cache-Control', 'no-store');
+    // A proof image never changes for a given proof id, so the admin's browser can keep it:
+    // re-opening a team or going back to it is instant instead of downloading it again.
+    res.setHeader('Cache-Control', 'private, max-age=3600, immutable');
     return res.send(file.buffer);
   });
 

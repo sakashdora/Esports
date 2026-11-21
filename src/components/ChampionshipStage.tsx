@@ -9,7 +9,7 @@ export function ChampionshipStage({ events, loading, onNavigate }: { events: Cam
   const primary = events[0];
   return <div className="championship-stage centered-championship">
     <section className="campus-hero" aria-labelledby="championship-title">
-      <img className="campus-arena" src="/assets/brand/srusti-student-arena.png" alt="College players competing on mobile phones in a championship arena" fetchPriority="high" />
+      <img className="campus-arena" src="/assets/brand/srusti-student-arena.webp" alt="College players competing on mobile phones in a championship arena" fetchPriority="high" />
       <div className="arena-scrim" aria-hidden="true" />
       <div className="energy-ribbon ribbon-blue" aria-hidden="true" />
       <div className="energy-ribbon ribbon-red" aria-hidden="true" />
@@ -19,7 +19,7 @@ export function ChampionshipStage({ events, loading, onNavigate }: { events: Cam
           <div className="hero-organizer"><img className="hero-college-crest" src="/assets/aistudio/Prospectus_2026_-_27_-_1_bb4cb47c.png" alt="Srusti Academy of Management and Technology crest" width="100" height="104" /><p className="stage-eyebrow">Srusti Academy of Management &amp; Technology</p></div>
           <h1 id="championship-title" className="srusti-title" aria-label="Srusti e-Sports">
             <span>SRUSTI</span>
-            <span className="esports-wordmark"><img src="/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.png" alt="" width="1400" height="500" /></span>
+            <span className="esports-wordmark"><img src="/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.webp" alt="" width="1400" height="500" /></span>
           </h1>
           <p className="championship-subtitle">Campus LAN Championship 2026</p>
 

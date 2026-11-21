@@ -49,7 +49,7 @@ function ArcadeLoadingScene({ intro = false }: { intro?: boolean }) {
         <img className="arcade-crest" src="/assets/aistudio/Prospectus_2026_-_27_-_1_bb4cb47c.png" alt="Srusti Academy crest" width="52" height="55" />
         <p className="arcade-eyebrow">THE CAMPUS. THE SQUAD. THE GLORY.</p>
         <h2 id={intro ? 'intro-title' : undefined}>READY<span>PLAYER?</span></h2>
-        <span className="intro-wordmark"><img src="/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.png" alt="Srusti e-Sports" width="1400" height="500" /></span>
+        <span className="intro-wordmark"><img src="/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.webp" alt="Srusti e-Sports" width="1400" height="500" /></span>
         <div className="arcade-loading-label">{intro ? 'ENTERING THE ARENA' : 'LOADING YOUR PAGE'}<span aria-hidden="true">…</span></div>
         <div className="arcade-loader" aria-hidden="true"><span /></div>
         <p className="arcade-caption">Campus LAN Championship<br /><time dateTime="2026-12-13">13 December 2026</time></p>
@@ -63,6 +63,11 @@ function ArcadeLoadingScene({ intro = false }: { intro?: boolean }) {
   </div>;
 }
 
+/**
+ * Shown only for the instant a page's code is downloading. It must stay small: the full-screen
+ * arcade scene belongs to the one-time homepage intro and looked like the intro replaying
+ * every time someone opened the register page.
+ */
 export function PageLoading() {
-  return <div className="page-loading arcade-page-loading" role="status" aria-label="Loading your page"><ArcadeLoadingScene /></div>;
+  return <div className="page-loading" role="status" aria-label="Loading your page"><span className="page-loading-orbit" aria-hidden="true" /><span>Loading…</span></div>;
 }

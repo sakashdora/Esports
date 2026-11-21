@@ -45,7 +45,7 @@ export function WelcomeAnnouncement({ onDismiss, onRegister }: {
         <p className="welcome-image-fallback">Campus LAN Championship 2026 — BGMI &amp; Free Fire.<br />Hosted by SAMT &amp; SAGS. Media partner: Srusti Prasar.</p>
       ) : (
         <button type="button" className="welcome-poster-link" onClick={onRegister} aria-label="Register now — choose BGMI or Free Fire">
-          <img src="/assets/brand/srusti-welcome-poster-2026.png" width="1600" height="900"
+          <img src="/assets/brand/srusti-welcome-poster-2026.webp" width="1600" height="900"
             alt="Srusti Campus LAN Championship 2026. Hosted by SAMT and SAGS, with media partner Srusti Prasar. BGMI and Free Fire — register now."
             onError={() => setImageFailed(true)} />
         </button>

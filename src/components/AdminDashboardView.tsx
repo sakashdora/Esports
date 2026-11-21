@@ -15,21 +15,73 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+// Proof images are private, so they are fetched with the admin token and kept as local
+// object URLs. Selecting a team again (or one that was prefetched) shows instantly.
+const proofImageCache = new Map<string, string>();
+const proofImageLoading = new Map<string, Promise<string>>();
+
+function loadProofImage(url: string, token: string, signal?: AbortSignal): Promise<string> {
+  const cached = proofImageCache.get(url);
+  if (cached) return Promise.resolve(cached);
+  let pending = proofImageLoading.get(url);
+  if (!pending) {
+    pending = fetch(url, { headers: url.startsWith('/api/') ? { Authorization: 'Bearer ' + token } : {} })
+      .then((response) => {
+        if (!response.ok) throw new Error('Proof unavailable');
+        return response.blob();
+      })
+      .then((blob) => {
+        const objectUrl = URL.createObjectURL(blob);
+        if (proofImageCache.size > 40) {
+          const oldest = proofImageCache.keys().next().value;
+          if (oldest) {
+            URL.revokeObjectURL(proofImageCache.get(oldest)!);
+            proofImageCache.delete(oldest);
+          }
+        }
+        proofImageCache.set(url, objectUrl);
+        return objectUrl;
+      })
+      .finally(() => proofImageLoading.delete(url));
+    proofImageLoading.set(url, pending);
+  }
+  if (!signal) return pending;
+  return new Promise((resolve, reject) => {
+    signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+    pending!.then(resolve, reject);
+  });
+}
+
+function clearProofImageCache() {
+  for (const objectUrl of proofImageCache.values()) URL.revokeObjectURL(objectUrl);
+  proofImageCache.clear();
+}
+
 function ProtectedProofImage({ url, token, zoom }: { url: string; token: string; zoom: boolean }) {
-  const [source, setSource] = useState('');
+  const [source, setSource] = useState(() => proofImageCache.get(url) || '');
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
-    let objectUrl = '';
-    setSource(''); setFailed(false);
-    fetch(url, { headers: url.startsWith('/api/') ? { Authorization: 'Bearer ' + token } : {}, signal: controller.signal })
-      .then(response => { if (!response.ok) throw new Error('Proof unavailable'); return response.blob(); })
-      .then(blob => { if (controller.signal.aborted) return; objectUrl = URL.createObjectURL(blob); setSource(objectUrl); })
+    setFailed(false);
+    const cached = proofImageCache.get(url);
+    if (cached) {
+      setSource(cached);
+      return;
+    }
+    setSource('');
+    loadProofImage(url, token, controller.signal)
+      .then((objectUrl) => { if (!controller.signal.aborted) setSource(objectUrl); })
       .catch(() => { if (!controller.signal.aborted) setFailed(true); });
-    return () => { controller.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
+    return () => controller.abort();
   }, [url, token]);
-  if (!source) return <p role="status">{failed ? 'Unable to load proof. Refresh to retry.' : 'Loading payment proof…'}</p>;
-  return <img src={source} alt="Uploaded UPI Payment Proof" className={zoom ? 'mx-auto max-h-[600px] w-full rounded object-contain' : 'mx-auto max-h-60 rounded object-contain'} />;
+  if (!source) {
+    return failed ? (
+      <p role="status" className="py-6 text-xs text-red-700">Unable to load the proof. Select the team again to retry.</p>
+    ) : (
+      <div role="status" aria-label="Loading payment proof" className="mx-auto h-40 w-full max-w-xs animate-pulse rounded bg-slate-200" />
+    );
+  }
+  return <img src={source} alt="Uploaded UPI Payment Proof" decoding="async" className={zoom ? 'mx-auto max-h-[600px] w-full rounded object-contain' : 'mx-auto max-h-60 rounded object-contain'} />;
 }
 
 import type { CampusEvent } from '../lib/defaultEvents';
@@ -147,6 +199,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [processingDecision, setProcessingDecision] = useState(false);
+  const [decisionNote, setDecisionNote] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [zoomImage, setZoomImage] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
@@ -198,6 +251,15 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
       if (activeToken.current !== requestToken || sequence !== overviewSequence.current) return;
       setEvents(json.events || []);
       setBundles(json.bundles || []);
+      // Warm the cache for the teams waiting for review so opening one is instant.
+      const waiting = ((json.bundles || []) as AdminBundle[])
+        .filter((b) => b.latestProofUrl && (b.registration.status === 'pending' || b.registration.status === 'waitlisted'))
+        .slice(0, 8);
+      void (async () => {
+        for (let i = 0; i < waiting.length; i += 2) {
+          await Promise.allSettled(waiting.slice(i, i + 2).map((b) => loadProofImage(b.latestProofUrl!, requestToken)));
+        }
+      })();
       setAuditLogs(json.auditLogs || []);
       setSystemMode(json.mode === 'supabase' ? 'supabase' : 'local');
       setSmtpConfigured(Boolean(json.smtpConfigured));
@@ -243,6 +305,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   }
 
   function handleLogout() {
+    clearProofImageCache();
     sessionStorage.removeItem(STORAGE_TOKEN_KEY);
     sessionStorage.removeItem(STORAGE_EMAIL_KEY);
     activeToken.current = '';
@@ -312,41 +375,52 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   async function handleDecision(decision: 'approve' | 'reject' | 'reupload_required') {
     if (!selectedBundle || processingDecision) return;
     if (decision !== 'approve' && !rejectReason.trim()) {
-      setActionMsg('Enter a reason before rejecting or requesting a new payment proof.');
+      setDecisionNote({ tone: 'error', text: 'Enter a reason before rejecting or requesting a new payment proof.' });
       return;
     }
+    const target = selectedBundle;
+    const targetId = target.registration.id;
+    const reason = rejectReason;
+    const optimisticStatus = decision === 'approve' ? 'verified' : decision === 'reject' ? 'rejected' : 'reupload_required';
     setProcessingDecision(true);
     setActionMsg('');
+    setDecisionNote(null);
+    // Show the result immediately; the server's answer replaces it (or it is rolled back).
+    overviewSequence.current += 1;
+    setBundles((current) => current.map((item) => item.registration.id === targetId
+      ? { ...item, registration: { ...item.registration, status: optimisticStatus } } : item));
     try {
       const res = await fetchAdmin(
-        `/api/admin/registrations/${selectedBundle.registration.id}/decision`,
+        `/api/admin/registrations/${targetId}/decision`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ decision, reason: rejectReason }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ decision, reason }),
         }
       );
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Decision failed.');
-      setActionMsg(
-        `${selectedBundle.registration.teamCode} updated to ${json.registration.status.toUpperCase()}. ${
-          json.emailNote || ''
-        }`
-      );
-      setRejectReason('');
-      // Apply the persisted result immediately without a full dashboard reload.
       overviewSequence.current += 1;
       setBundles((current) => current.map((item) => item.registration.id === json.registration.id
         ? { ...item, registration: json.registration, proofs: json.proofs } : item));
-      setAuditLogs((current) => [...(json.auditLogs || []),
-        ...current.filter((entry) => entry.registrationId !== json.registration.id)]
+      setAuditLogs((current) => [...(json.auditLogs || []), ...current]
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+      const label = decision === 'approve'
+        ? `Approved. ${json.registration.groupName ? `${json.registration.groupName} · slot ${json.registration.slotNumber}. ` : ''}`
+        : decision === 'reject' ? 'Rejected. ' : 'Re-upload requested. ';
+      setDecisionNote({ tone: 'ok', text: `${target.registration.teamCode}: ${label}${json.emailNote || ''}` });
+      setActionMsg(`${target.registration.teamCode} updated to ${String(json.registration.status).toUpperCase()}.`);
+      setRejectReason('');
       onEventsUpdated();
+      // Move straight on to the next team waiting for review.
+      if (decision === 'approve') {
+        const next = filteredBundles.find((b) => b.registration.id !== targetId &&
+          (b.registration.status === 'pending' || b.registration.status === 'waitlisted'));
+        if (next) { setSelectedId(next.registration.id); setZoomImage(false); }
+      }
     } catch (err) {
-      setActionMsg(err instanceof Error ? err.message : 'Action failed.');
+      // Roll back to the saved status and say why, next to the buttons.
+      setBundles((current) => current.map((item) => item.registration.id === targetId ? target : item));
+      setDecisionNote({ tone: 'error', text: err instanceof Error ? err.message : 'Action failed. Nothing was changed.' });
     } finally {
       setProcessingDecision(false);
     }
@@ -915,7 +989,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                             key={b.registration.id}
                             onClick={() => {
                               setSelectedId(b.registration.id);
-                              setRejectReason(''); setZoomImage(false);
+                              setRejectReason(''); setZoomImage(false); setDecisionNote(null);
                             }}
                             className={`cursor-pointer transition-colors ${
                               isSel ? 'bg-blue-50' : 'hover:bg-slate-50'
@@ -1106,6 +1180,18 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                       placeholder="Reason / Note (required if rejecting or requesting re-upload)"
                       className="w-full rounded border border-slate-300 px-3 py-2 text-xs focus:border-[#233D8B] focus:outline-none"
                     />
+                    {decisionNote && (
+                      <p
+                        role={decisionNote.tone === 'error' ? 'alert' : 'status'}
+                        className={`rounded border px-3 py-2 text-xs ${
+                          decisionNote.tone === 'ok'
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                            : 'border-red-200 bg-red-50 text-red-700'
+                        }`}
+                      >
+                        {decisionNote.text}
+                      </p>
+                    )}
                     <div className="grid grid-cols-3 gap-2">
                       <button
                         type="button"
@@ -1114,7 +1200,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                         className="inline-flex items-center justify-center gap-1 rounded bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
-                        Approve
+                        {processingDecision ? 'Saving…' : 'Approve'}
                       </button>
                       <button
                         type="button"
