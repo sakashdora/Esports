@@ -15,6 +15,7 @@ import {
   decideRegistrationPayment,
   getEventBySlug,
   getProofFile,
+  deleteRegistrations,
   getRegistrationBundleById,
   getLocalQrFile,
   getSupabaseAnonClient,
@@ -96,6 +97,9 @@ async function requireAdmin(req: AdminRequest, res: Response, next: NextFunction
 export function createApiApp(): Express {
   const app = express();
   app.disable('x-powered-by');
+  // Behind Vercel/a reverse proxy every request arrives from the proxy's address, so without
+  // this all students shared one rate-limit bucket and could lock each other out.
+  app.set('trust proxy', process.env.VERCEL ? true : 'loopback, linklocal, uniquelocal');
   app.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -455,6 +459,18 @@ export function createApiApp(): Express {
   });
 
   // 9. Admin Verification Decision (Approve / Reject / Re-upload) + Email Dispatch
+  // Permanently delete one or more registrations (used to clear demo/test entries).
+  app.post('/api/admin/registrations/delete', requireAdmin, rateLimit(20, 60_000), async (req: AdminRequest, res) => {
+    try {
+      const result = await deleteRegistrations(req.body?.ids);
+      console.info(JSON.stringify({ operation: 'admin-delete', deleted: result.deleted }));
+      emitLiveBoardUpdate();
+      return res.json({ ok: true, deleted: result.deleted });
+    } catch (err) {
+      return res.status(400).json({ error: clientErrorMessage(err, 'Delete failed.') });
+    }
+  });
+
   app.post('/api/admin/registrations/:id/decision', requireAdmin, async (req: AdminRequest, res) => {
     try {
       const decision = req.body.decision as 'approve' | 'reject' | 'reupload_required';

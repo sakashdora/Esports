@@ -18,7 +18,20 @@ export function isSmtpConfigured(): boolean {
   );
 }
 
+// One pooled connection is reused across emails instead of a fresh TLS login for each one.
+let cachedTransporter: ReturnType<typeof nodemailer.createTransport> | null = null;
+let cachedTransporterKey = '';
+
 function createTransporter() {
+  const key = [process.env.SMTP_HOST, process.env.SMTP_PORT, process.env.SMTP_USER, process.env.SMTP_PASS].join('|');
+  if (!cachedTransporter || cachedTransporterKey !== key) {
+    cachedTransporter = buildTransporter();
+    cachedTransporterKey = key;
+  }
+  return cachedTransporter;
+}
+
+function buildTransporter() {
   const port = Number(process.env.SMTP_PORT || '465');
   const secure = process.env.SMTP_SECURE
     ? process.env.SMTP_SECURE === 'true'
@@ -28,6 +41,8 @@ function createTransporter() {
     host: process.env.SMTP_HOST,
     port,
     secure,
+    pool: true,
+    maxConnections: 3,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
@@ -318,6 +333,12 @@ export async function sendTeamConfirmationEmail(params: {
     const info = await transporter.sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER,
       replyTo: process.env.SMTP_REPLY_TO || 'noreply@srustiacademy.ac.in',
+      // Tell mail servers and mailbox auto-responders this is an automated, no-reply message.
+      headers: {
+        'Auto-Submitted': 'auto-generated',
+        'X-Auto-Response-Suppress': 'All',
+        Precedence: 'bulk',
+      },
       to: params.toEmail,
       subject,
       html,

@@ -1,5 +1,7 @@
 import { Printer, Search, Upload } from 'lucide-react';
 import { useState } from 'react';
+import { clearDraft, lastTeamCode, loadDraft } from '../lib/registrationDraft';
+import type { AppRoute } from './Navbar';
 import { compressScreenshot } from '../lib/imageCompression';
 import { isValidUtr } from '../lib/tournamentRules';
 import type { StatusSummary } from '../lib/tracking';
@@ -49,10 +51,13 @@ interface TrackedData {
 
 interface TrackStatusViewProps {
   prefillCode?: string;
+  onNavigate?: (next: AppRoute) => void;
 }
 
-export function TrackStatusView({ prefillCode }: TrackStatusViewProps) {
-  const [teamCode, setTeamCode] = useState(prefillCode || '');
+export function TrackStatusView({ prefillCode, onNavigate }: TrackStatusViewProps) {
+  const [teamCode, setTeamCode] = useState(prefillCode || lastTeamCode());
+  // A registration this browser started but never submitted can be continued from here.
+  const [unfinished, setUnfinished] = useState(() => loadDraft());
   const [iglPhone, setIglPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -196,12 +201,38 @@ export function TrackStatusView({ prefillCode }: TrackStatusViewProps) {
             correction, enter both fields to verify your team.
           </p>
 
+          {unfinished && onNavigate && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E5C736]/40 bg-[#E5C736]/10 px-4 py-3 text-xs text-[#F3E7A6]">
+              <span>
+                You have an unfinished registration{unfinished.teamName ? ` for “${unfinished.teamName}”` : ''}. Pick up
+                where you stopped.
+              </span>
+              <span className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => onNavigate({ page: 'register', slug: unfinished.eventSlug })}
+                  className="rounded-md bg-[#E5C736] px-3 py-1.5 font-semibold text-[#110D0C] hover:bg-[#d4b72f]"
+                >
+                  Continue registration
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { clearDraft(); setUnfinished(null); }}
+                  className="font-semibold underline"
+                >
+                  Discard
+                </button>
+              </span>
+            </div>
+          )}
+
           {error && (
             <div
               role="alert"
               className="mt-4 rounded-md border border-red-500/40 bg-red-950/50 px-4 py-3 text-xs text-red-200"
             >
               {error}
+              {unfinished && onNavigate ? ' If you never finished paying and submitting, use “Continue registration” above.' : ''}
             </div>
           )}
 
@@ -223,6 +254,11 @@ export function TrackStatusView({ prefillCode }: TrackStatusViewProps) {
                   {({ pending: 'Pending payment verification', verified: 'Verified', rejected: 'Rejected',
                     reupload_required: 'Action required: re-upload payment proof', waitlisted: 'Waitlisted' } as Record<string, string>)[match.status] || 'Awaiting update'}
                 </p>
+                {match.status === 'reupload_required' && (
+                  <p className="mt-2 text-xs text-amber-200">
+                    To upload a new proof, enter both your Team ID and mobile number above, then check again.
+                  </p>
+                )}
                 {match.slotNumber && <p className="mt-2 text-sm text-neutral-300">{match.groupName} · Slot {match.slotNumber}</p>}
                 <p className="mt-2 text-sm text-neutral-400">{match.venueLabel} · {match.eventDateLabel}</p>
               </article>

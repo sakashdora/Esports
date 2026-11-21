@@ -142,7 +142,7 @@ export default function App() {
         />
       )}
 
-      {route.page === 'track' && <TrackStatusView prefillCode={route.prefillCode} />}
+      {route.page === 'track' && <TrackStatusView prefillCode={route.prefillCode} onNavigate={navigate} />}
 
       {route.page === 'admin' && <AdminDashboardView onEventsUpdated={refreshEvents} />}
       </Suspense>

@@ -656,10 +656,7 @@ export async function createRegistrationWithProof(input: {
         .eq('file_sha256', fileSha256)
         .neq('review_status', 'rejected')
         .limit(1),
-      sb
-        .from('registrations')
-        .select('id', { count: 'exact', head: true })
-        .eq('event_id', event.id),
+      sb.from('registrations').select('team_code').eq('event_id', event.id),
       sb
         .from('registrations')
         .select('id')
@@ -683,6 +680,10 @@ export async function createRegistrationWithProof(input: {
   }
 
   const isWaitlisted = (activeCountRes.count || 0) >= event.maxTeams;
+  const highestTeamNumber = (eventTotalRes.data || []).reduce((max, row) => {
+    const n = Number(String(row.team_code).split('-').pop());
+    return Number.isFinite(n) && n > max ? n : max;
+  }, 0);
   if (dupUtrRes.data && dupUtrRes.data.length > 0) {
     throw new ClientInputError(`UTR / Reference "${normalizedUtr}" has already been submitted.`);
   }
@@ -716,7 +717,7 @@ export async function createRegistrationWithProof(input: {
   let regRow: Record<string, unknown> | null = null;
   let regErr: { code?: string; message: string } | null = null;
   for (let attempt = 1; attempt <= 6; attempt += 1) {
-    const teamCode = formatTeamCode(prefix, (eventTotalRes.count || 0) + attempt);
+    const teamCode = formatTeamCode(prefix, highestTeamNumber + attempt);
     const result = await sb
       .from('registrations')
       .insert({
@@ -1920,6 +1921,9 @@ export async function saveOfficialQrImage(eventId: string, fileBuffer: Buffer): 
   return data.publicUrl;
 }
 
+const ADMIN_SESSION_TTL_MS = 60_000;
+const adminSessionCache = new Map<string, { email: string; userId: string; expiresAt: number }>();
+
 export async function verifyAdminToken(authHeader: string | undefined): Promise<{
   ok: boolean;
   email: string;
@@ -1951,6 +1955,14 @@ export async function verifyAdminToken(authHeader: string | undefined): Promise<
     }
   }
 
+  // Only the hash is kept in memory. A revoked admin loses access within the TTL.
+  const cacheKey = crypto.createHash('sha256').update(token).digest('hex');
+  const cached = adminSessionCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { ok: true, email: cached.email, userId: cached.userId };
+  }
+  adminSessionCache.delete(cacheKey);
+
   const { data, error } = await sb.auth.getUser(token);
   if (error || !data.user) return { ok: false, email: '', userId: null };
 
@@ -1961,7 +1973,64 @@ export async function verifyAdminToken(authHeader: string | undefined): Promise<
     .maybeSingle();
 
   if (!allowRow) return { ok: false, email: '', userId: null };
+  if (adminSessionCache.size > 200) {
+    const now = Date.now();
+    for (const [key, entry] of adminSessionCache) if (entry.expiresAt <= now) adminSessionCache.delete(key);
+  }
+  adminSessionCache.set(cacheKey, {
+    email: String(allowRow.email),
+    userId: data.user.id,
+    expiresAt: Date.now() + ADMIN_SESSION_TTL_MS,
+  });
   return { ok: true, email: String(allowRow.email), userId: data.user.id };
+}
+
+/** Permanently removes registrations with their roster, payment proofs, audit trail and files. */
+export async function deleteRegistrations(ids: unknown): Promise<{ deleted: number }> {
+  if (!Array.isArray(ids)) throw new ClientInputError('Choose at least one record to delete.');
+  const unique = [...new Set(ids.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+  if (unique.length === 0) throw new ClientInputError('Choose at least one record to delete.');
+  if (unique.length > 200) throw new ClientInputError('Delete at most 200 records at a time.');
+
+  const sb = getSupabaseServiceClient();
+  if (!sb) {
+    const store = readLocalStore();
+    const targets = new Set(unique);
+    const found = store.registrations.filter((r) => targets.has(r.id));
+    for (const proof of store.proofs.filter((p) => targets.has(p.registrationId))) {
+      try {
+        fs.unlinkSync(path.join(UPLOAD_DIR, path.basename(proof.screenshotPath)));
+      } catch {
+        // The file may already be gone; the record is what matters.
+      }
+    }
+    store.registrations = store.registrations.filter((r) => !targets.has(r.id));
+    store.members = store.members.filter((m) => !targets.has(m.registrationId));
+    store.proofs = store.proofs.filter((p) => !targets.has(p.registrationId));
+    store.auditLogs = store.auditLogs.filter((a) => !targets.has(a.registrationId));
+    writeLocalStore(store);
+    return { deleted: found.length };
+  }
+
+  const valid = unique.filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+  if (valid.length === 0) throw new ClientInputError('Those records no longer exist.');
+  const { data: proofRows } = await sb
+    .from('payment_proofs')
+    .select('screenshot_path')
+    .in('registration_id', valid);
+  // Members, proofs and audit entries are removed by the database (ON DELETE CASCADE).
+  const { data: deletedRows, error } = await sb.from('registrations').delete().in('id', valid).select('id');
+  if (error) {
+    console.error('Registration delete failed:', error.message);
+    throw new ClientInputError('Unable to delete the records. Please try again.');
+  }
+  const paths = (proofRows || []).map((row) => String(row.screenshot_path)).filter(Boolean);
+  if (paths.length > 0) {
+    // Best effort: an orphaned file is harmless, a record without its row is not.
+    const { error: removeErr } = await sb.storage.from('payment-proofs').remove(paths);
+    if (removeErr) console.error('Payment proof cleanup failed:', removeErr.message);
+  }
+  return { deleted: (deletedRows || []).length };
 }
 
 export async function listPublicLiveBoard(): Promise<{

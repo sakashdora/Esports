@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { PaymentQrPanel } from './PaymentQrPanel';
 import type { CampusEvent } from '../lib/defaultEvents';
 import { compressScreenshot } from '../lib/imageCompression';
+import { clearDraft, loadDraft, rememberTeamCode, saveDraft } from '../lib/registrationDraft';
 import {
   buildUpiIntentUri,
   calculateRegistrationFee,
@@ -96,20 +97,27 @@ export function RegisterView({
     [events, selectedSlug]
   );
 
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-  const [teamName, setTeamName] = useState('');
-  const [collegeName, setCollegeName] = useState('');
-  const [iglPhone, setIglPhone] = useState('');
-  const [iglEmail, setIglEmail] = useState('');
-  const [hasSubstitute, setHasSubstitute] = useState(false);
-  const [members, setMembers] = useState<PlayerInput[]>(DEFAULT_ROSTER);
-  const [eligibilityConfirmed, setEligibilityConfirmed] = useState(false);
-  const [fairPlayConfirmed, setFairPlayConfirmed] = useState(false);
-  const [activeSkillConfirmed, setActiveSkillConfirmed] = useState(false);
+  // An unfinished registration from this browser (refresh, closed tab, lost connection).
+  const [savedDraft] = useState(() => loadDraft());
+  const [draftRestored, setDraftRestored] = useState(Boolean(savedDraft));
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(savedDraft?.step ?? 1);
+  const [teamName, setTeamName] = useState(savedDraft?.teamName ?? '');
+  const [collegeName, setCollegeName] = useState(savedDraft?.collegeName ?? '');
+  const [iglPhone, setIglPhone] = useState(savedDraft?.iglPhone ?? '');
+  const [iglEmail, setIglEmail] = useState(savedDraft?.iglEmail ?? '');
+  const [hasSubstitute, setHasSubstitute] = useState(savedDraft?.hasSubstitute ?? false);
+  const [members, setMembers] = useState<PlayerInput[]>(() =>
+    savedDraft
+      ? DEFAULT_ROSTER.map((blank) => savedDraft.members.find((m) => m.slotRole === blank.slotRole) ?? blank)
+      : DEFAULT_ROSTER
+  );
+  const [eligibilityConfirmed, setEligibilityConfirmed] = useState(savedDraft?.eligibilityConfirmed ?? false);
+  const [fairPlayConfirmed, setFairPlayConfirmed] = useState(savedDraft?.fairPlayConfirmed ?? false);
+  const [activeSkillConfirmed, setActiveSkillConfirmed] = useState(savedDraft?.activeSkillConfirmed ?? false);
 
   // Payment step state
-  const [utrNumber, setUtrNumber] = useState('');
-  const [upiApp, setUpiApp] = useState('Google Pay');
+  const [utrNumber, setUtrNumber] = useState(savedDraft?.utrNumber ?? '');
+  const [upiApp, setUpiApp] = useState(savedDraft?.upiApp ?? 'Google Pay');
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
 
@@ -150,6 +158,34 @@ export function RegisterView({
   }, [event, feeSummary.totalFee, teamName]);
 
   const paymentReady = Boolean(event?.qrImageUrl || event?.upiVpa);
+
+  // Save progress shortly after every change. Screenshots are files and cannot be kept.
+  useEffect(() => {
+    if (step === 4 || !event) return;
+    const hasContent = [teamName, collegeName, iglPhone, iglEmail, utrNumber].some((v) => v.trim()) ||
+      members.some((m) => m.fullName.trim() || m.inGameName.trim() || m.characterId.trim());
+    if (!hasContent) return;
+    const timer = window.setTimeout(() => {
+      saveDraft({
+        eventSlug: event.slug, step, teamName, collegeName, iglPhone, iglEmail, hasSubstitute,
+        members, eligibilityConfirmed, fairPlayConfirmed, activeSkillConfirmed, utrNumber, upiApp,
+      });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [event, step, teamName, collegeName, iglPhone, iglEmail, hasSubstitute, members,
+    eligibilityConfirmed, fairPlayConfirmed, activeSkillConfirmed, utrNumber, upiApp]);
+
+  function startOver() {
+    clearDraft();
+    setDraftRestored(false);
+    setStep(1);
+    setTeamName(''); setCollegeName(''); setIglPhone(''); setIglEmail('');
+    setHasSubstitute(false); setMembers(DEFAULT_ROSTER);
+    setEligibilityConfirmed(false); setFairPlayConfirmed(false); setActiveSkillConfirmed(false);
+    setUtrNumber(''); setUpiApp('Google Pay');
+    setScreenshotFile(null); setScreenshotPreview(null);
+    setFieldErrors({}); setSubmitError('');
+  }
 
   // While waiting on the payment step for details to be published, re-check quietly so the
   // QR appears without a page refresh (which would wipe the filled-in form).
@@ -286,6 +322,9 @@ export function RegisterView({
         status: json.registration.status,
         emailNote: json.emailNote || '',
       });
+      clearDraft();
+      rememberTeamCode(json.registration.teamCode);
+      setDraftRestored(false);
       setStep(4);
       onRefreshEvents();
     } catch (err) {
@@ -332,6 +371,23 @@ export function RegisterView({
             })}
           </ol>
         </div>
+
+        {draftRestored && step < 4 && (
+          <div role="status" className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E5C736]/40 bg-[#E5C736]/10 px-4 py-3 text-xs text-[#F3E7A6]">
+            <span>
+              Welcome back: your unfinished registration was restored.
+              {step === 3 ? ' Please attach your payment screenshot again.' : ''}
+            </span>
+            <span className="flex gap-3">
+              <button type="button" onClick={() => setDraftRestored(false)} className="font-semibold underline">
+                Continue
+              </button>
+              <button type="button" onClick={startOver} className="font-semibold underline">
+                Start over
+              </button>
+            </span>
+          </div>
+        )}
 
         {/* Live Fee Banner */}
         {step < 4 && (

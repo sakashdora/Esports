@@ -9,6 +9,7 @@ import {
   Printer,
   RefreshCw,
   Search,
+  Trash2,
   Upload,
   XCircle,
 } from 'lucide-react';
@@ -147,6 +148,8 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   const [rejectReason, setRejectReason] = useState('');
   const [processingDecision, setProcessingDecision] = useState(false);
   const [zoomImage, setZoomImage] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   // New event form state
   const [newEvtTitle, setNewEvtTitle] = useState('');
@@ -347,6 +350,47 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
     } finally {
       setProcessingDecision(false);
     }
+  }
+
+  async function deleteRecords(ids: string[]) {
+    if (ids.length === 0 || deleting) return;
+    const label = ids.length === 1
+      ? (bundles.find((b) => b.registration.id === ids[0])?.registration.teamCode || 'this record')
+      : `${ids.length} records`;
+    const confirmed = window.confirm(
+      `Permanently delete ${label}?\n\nThis removes the team, its roster, payment proof and history. It cannot be undone.`
+    );
+    if (!confirmed) return;
+    setDeleting(true);
+    setActionMsg('');
+    try {
+      const res = await fetchAdmin('/api/admin/registrations/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      const json = await res.json();
+      const gone = new Set(ids);
+      setBundles((current) => current.filter((b) => !gone.has(b.registration.id)));
+      setAuditLogs((current) => current.filter((a) => !gone.has(a.registrationId)));
+      setCheckedIds(new Set());
+      if (selectedId && gone.has(selectedId)) setSelectedId(null);
+      setActionMsg(`Deleted ${json.deleted ?? ids.length} record(s).`);
+      onEventsUpdated();
+    } catch (error) {
+      setActionMsg(error instanceof Error ? error.message : 'Delete failed. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function toggleChecked(id: string) {
+    setCheckedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   async function handleResendEmail(regId: string) {
@@ -823,6 +867,19 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
             <div className="min-w-0 rounded-lg border border-slate-200 bg-white lg:col-span-7">
 
 
+              {checkedIds.size > 0 && (
+                <div className="no-print flex flex-wrap items-center justify-between gap-2 border-b border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                  <span>{checkedIds.size} selected</span>
+                  <span className="flex gap-2">
+                    <button type="button" onClick={() => setCheckedIds(new Set())} className="rounded border border-red-200 bg-white px-2.5 py-1 font-medium hover:bg-red-100">
+                      Clear selection
+                    </button>
+                    <button type="button" disabled={deleting} onClick={() => void deleteRecords([...checkedIds])} className="rounded bg-red-600 px-2.5 py-1 font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+                      {deleting ? 'Deleting…' : `Delete selected (${checkedIds.size})`}
+                    </button>
+                  </span>
+                </div>
+              )}
               {filteredBundles.length === 0 ? (
                 <div className="p-10 text-center text-xs text-slate-500">
                   No registrations match the current filters.
@@ -832,6 +889,16 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                        <th className="w-8 px-3 py-2.5">
+                          <input
+                            type="checkbox"
+                            aria-label="Select all shown records"
+                            checked={filteredBundles.length > 0 && filteredBundles.every((b) => checkedIds.has(b.registration.id))}
+                            onChange={(e) =>
+                              setCheckedIds(e.target.checked ? new Set(filteredBundles.map((b) => b.registration.id)) : new Set())
+                            }
+                          />
+                        </th>
                         <th className="px-3 py-2.5 font-medium">Team ID</th>
                         <th className="px-3 py-2.5 font-medium">Team &amp; Event</th>
                         <th className="px-3 py-2.5 font-medium">UTR Ref</th>
@@ -854,6 +921,14 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                               isSel ? 'bg-blue-50' : 'hover:bg-slate-50'
                             }`}
                           >
+                            <td className="w-8 px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                aria-label={`Select ${b.registration.teamCode}`}
+                                checked={checkedIds.has(b.registration.id)}
+                                onChange={() => toggleChecked(b.registration.id)}
+                              />
+                            </td>
                             <td className="px-3 py-2.5 font-mono font-semibold whitespace-nowrap text-slate-900">
                               {b.registration.teamCode}
                             </td>
@@ -921,6 +996,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                         {selectedBundle.registration.iglEmail}
                       </div>
                     </div>
+                    <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
                     <button
                       type="button"
                       onClick={() => handleResendEmail(selectedBundle.registration.id)}
@@ -929,6 +1005,16 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                       <Mail className="h-3 w-3" />
                       Resend Email
                     </button>
+                    <button
+                      type="button"
+                      disabled={deleting}
+                      onClick={() => void deleteRecords([selectedBundle.registration.id])}
+                      className="inline-flex items-center gap-1 rounded border border-red-300 px-2.5 py-1.5 text-[11px] font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Delete record
+                    </button>
+                    </div>
                   </div>
 
                   {/* Expected vs Paid Summary */}

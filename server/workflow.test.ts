@@ -152,6 +152,19 @@ test('local registration, review, reupload, privacy and admin authorization', as
       const multiLookup = await (await lookup({iglPhone:input.iglPhone})).json();
       assert.equal(multiLookup.matches.length,2);
       assert.equal(JSON.stringify(multiLookup).includes(multi.registration.teamCode),false);
+      // Admin-only permanent deletion of demo entries; the UTR and players are freed again.
+      const demo = await createRegistrationWithProof({...input,teamName:'Demo Entry',iglPhone:'9876500009',members:squad('90000'),utrNumber:'923456789012',fileBuffer:png('09')});
+      const deletePost = (headers, body) => fetch(base+'/api/admin/registrations/delete',{method:'POST',headers,body:JSON.stringify(body)});
+      assert.equal((await deletePost({'Content-Type':'application/json'},{ids:[demo.registration.id]})).status,401);
+      assert.equal((await deletePost(adminHeaders,{})).status,400);
+      assert.equal((await deletePost(adminHeaders,{ids:[]})).status,400);
+      const deleted = await deletePost(adminHeaders,{ids:[demo.registration.id,'does-not-exist']});
+      assert.equal(deleted.status,200);
+      assert.equal((await deleted.json()).deleted,1);
+      assert.equal(await trackRegistration(demo.registration.teamCode,'9876500009'),null);
+      const reused = await createRegistrationWithProof({...input,teamName:'Demo Entry',iglPhone:'9876500009',members:squad('90000'),utrNumber:'923456789012',fileBuffer:png('0a')});
+      assert.equal(reused.registration.status,'pending');
+      await deletePost(adminHeaders,{ids:[reused.registration.id]});
       // A stalled SMTP greeting must not hold either persisted operation open.
       const net = await import('node:net');
       const sockets = new Set();
