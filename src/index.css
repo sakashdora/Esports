@@ -643,3 +643,27 @@ button:disabled { cursor: not-allowed; }
  .cinematic-intro,.arcade-center,.arcade-poster,.arcade-loader > span { animation: none; }
  .arcade-loader > span { width: 100%; }
 }
+
+/* The supplied welcome poster appears after the intro, once per tab visit. */
+.welcome-announcement { margin: auto; width: min(1080px, calc(100% - 24px)); max-width: none; max-height: calc(100dvh - 24px); padding: 0; overflow-y: auto; border: 1px solid #ffffff26; border-radius: 12px; background: #110d0c; color: #f4f3ef; box-shadow: 0 24px 80px #0009; }
+.welcome-announcement[open] { animation: welcomeEnter 220ms ease-out both; }
+.welcome-announcement::backdrop { background: #050609df; }
+.welcome-announcement-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 12px 8px 20px; }
+.welcome-announcement-header h2 { margin: 0; font: 600 15px var(--font-sans); }
+.welcome-dismiss { display: grid; place-items: center; min-width: 44px; min-height: 44px; border-radius: 6px; color: white; }
+.welcome-dismiss:hover { background: #ffffff15; }
+.welcome-poster-link { display: block; width: 100%; padding: 0; background: #050609; cursor: pointer; }
+.welcome-poster-link img { display: block; width: 100%; height: auto; max-height: 65dvh; object-fit: contain; }
+.welcome-announcement-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 20px; }
+.welcome-announcement-footer p { margin: 0; font-size: 12px; line-height: 1.8; color: #d4cfcb; }
+.welcome-announcement-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.welcome-announcement-actions .arena-button { min-height: 44px; font-size: 12px; }
+.welcome-announcement button:focus-visible { outline: 2px solid #e5c736; outline-offset: -3px; }
+.welcome-image-fallback { padding: 36px 20px; font-size: 20px; text-align: center; }
+@keyframes welcomeEnter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 600px) {
+ .welcome-announcement-footer { flex-direction: column; align-items: stretch; gap: 14px; padding: 16px; }
+ .welcome-announcement-actions { flex-direction: column-reverse; }
+ .welcome-announcement-actions .arena-button { width: 100%; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) { .welcome-announcement[open] { animation: none; } }

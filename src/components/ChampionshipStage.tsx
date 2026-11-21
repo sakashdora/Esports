@@ -45,7 +45,7 @@ export function ChampionshipStage({ events, loading, onNavigate }: { events: Cam
       </div>
     </section>
     <section id="events" className="stage-container battlegrounds" aria-labelledby="battleground-title">
-      <div className="battleground-heading"><span aria-hidden="true" /><h2 id="battleground-title">Choose your battleground</h2><span aria-hidden="true" /></div>
+      <div className="battleground-heading"><span aria-hidden="true" /><h2 id="battleground-title" tabIndex={-1}>Choose your battleground</h2><span aria-hidden="true" /></div>
       <div className="battleground-grid" aria-busy={loading}>
         {events.map((event, index) => <article key={event.id} className="battleground-card animate-stage-delay-2">
           <img src={getEventBannerUrl(event.slug, event.gameTitle)} alt="" className="battleground-art" loading="lazy" />

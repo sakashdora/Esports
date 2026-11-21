@@ -3,6 +3,7 @@ import { CinematicIntro, PageLoading, shouldShowIntro } from './components/Cinem
 import { HomeView } from './components/HomeView';
 import { Navbar, type AppRoute } from './components/Navbar';
 import { DEFAULT_EVENTS, type CampusEvent } from './lib/defaultEvents';
+import { dismissAnnouncement, shouldShowAnnouncement, WelcomeAnnouncement } from './components/WelcomeAnnouncement';
 
 const AdminDashboardView = lazy(() => import('./components/AdminDashboardView').then(module => ({ default: module.AdminDashboardView })));
 const EventDetailView = lazy(() => import('./components/EventDetailView').then(module => ({ default: module.EventDetailView })));
@@ -51,6 +52,7 @@ function routeToPath(route: AppRoute): string {
 
 export default function App() {
   const [showIntro, setShowIntro] = useState(shouldShowIntro);
+  const [showAnnouncement, setShowAnnouncement] = useState(shouldShowAnnouncement);
   const completeIntro = useCallback(() => setShowIntro(false), []);
   const [route, setRoute] = useState<AppRoute>(() => parseLocationRoute());
   const [events, setEvents] = useState<CampusEvent[]>(DEFAULT_EVENTS);
@@ -89,6 +91,22 @@ export default function App() {
   }
 
   const defaultSlug = events[0]?.slug || 'kalinga-warriors-bgmi';
+  function closeAnnouncement() {
+    dismissAnnouncement();
+    setShowAnnouncement(false);
+  }
+
+  function registerFromAnnouncement() {
+    closeAnnouncement();
+    // The home page is already mounted. Scroll after the modal restores body scrolling.
+    window.requestAnimationFrame(() => {
+      document.getElementById('events')?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+        block: 'start',
+      });
+      document.getElementById('battleground-title')?.focus({ preventScroll: true });
+    });
+  }
   const activeEvent =
     route.page === 'event'
       ? events.find((e) => e.slug === route.slug) || events[0]
@@ -128,6 +146,9 @@ export default function App() {
 
       {route.page === 'admin' && <AdminDashboardView onEventsUpdated={refreshEvents} />}
       </Suspense>
+      {route.page === 'home' && showAnnouncement && (
+        <WelcomeAnnouncement onDismiss={closeAnnouncement} onRegister={registerFromAnnouncement} />
+      )}
     </div>
   );
 }
