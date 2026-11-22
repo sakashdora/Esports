@@ -1,0 +1,184 @@
+.cinematic-intro {
+  --intro-gold: #f7c974;
+  position: fixed;
+  inset: 0;
+  isolation: isolate;
+  width: 100%;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  overflow: auto;
+  background: #08090e;
+  color: #f8f5ed;
+}
+.cinematic-intro::backdrop { background: #08090e; }
+.intro-worlds, .intro-world, .intro-worlds::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.intro-worlds { overflow: hidden; }
+.intro-world {
+  width: 58%;
+  overflow: hidden;
+  animation: introWorldArrive 900ms cubic-bezier(.16,1,.3,1) both;
+}
+.intro-world-bgmi {
+  --world-from-x: -9%;
+  --world-from-y: 0;
+  clip-path: polygon(0 0, 100% 0, 76% 100%, 0 100%);
+  background: #112038;
+}
+.intro-world-freefire {
+  --world-from-x: 9%;
+  --world-from-y: 0;
+  left: auto;
+  clip-path: polygon(24% 0, 100% 0, 100% 100%, 0 100%);
+  background: #442115;
+}
+.intro-world img { width: 100%; height: 100%; object-fit: cover; object-position: right center; }
+.intro-world-bgmi img { transform: scaleX(-1); }
+.intro-world-freefire img { object-position: 87% center; }
+.intro-worlds::after {
+  content: '';
+  background:
+    linear-gradient(0deg, #06070af5 1%, #08090d10 29%, transparent 66%, #08090da6),
+    linear-gradient(90deg, transparent 4%, #08090d35 25%, #08090ded 50%, #08090d38 75%, transparent 96%);
+}
+
+.intro-stage {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 16px;
+  min-height: 100%;
+  padding: clamp(16px, 3.8vw, 52px);
+}
+.intro-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.intro-header img { object-fit: contain; }
+.intro-skip {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid #ffffff73;
+  border-radius: 3px;
+  background: #111219b8;
+  color: #f8f5ed;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.intro-skip:hover { background: #232630; }
+.intro-skip svg { width: 15px; height: 15px; }
+
+.intro-masthead { align-self: center; justify-self: center; width: min(100%, 650px); text-align: center; }
+.intro-title { margin: 0; }
+.intro-srusti {
+  display: block;
+  font: 800 clamp(84px, 15vw, 214px)/.8 "Barlow Condensed", Impact, "Arial Narrow", sans-serif;
+  letter-spacing: .045em;
+  text-shadow: 0 6px 22px #0009;
+  animation: introTitleArrive 660ms cubic-bezier(.19,1,.23,1) 100ms both;
+}
+.intro-esports {
+  position: relative;
+  display: block;
+  width: min(78%, 460px);
+  aspect-ratio: 4.9;
+  margin: 8px auto 12px;
+  overflow: hidden;
+  animation: introLogoArrive 650ms cubic-bezier(.16,1,.3,1) 330ms both;
+}
+.intro-esports img { position: absolute; top: 50%; width: 100%; height: auto; transform: translateY(-50%); }
+.intro-event-name { margin: 0 0 22px; color: #fff2db; font: 600 clamp(16px, 2.3vw, 27px)/1.2 var(--font-display); }
+.intro-enter {
+  display: inline-flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid #ffe1a5;
+  border-radius: 8px 2px;
+  padding: 8px 24px;
+  background: var(--intro-gold);
+  color: #251608;
+  font: 800 23px/1 var(--font-display);
+  cursor: pointer;
+}
+.intro-enter:hover:not(:disabled) { background: #ffdba0; }
+.intro-enter svg { width: 16px; height: 16px; fill: currentColor; }
+
+.intro-event {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid #ffffff40;
+}
+.intro-game { display: grid; gap: 4px; overflow-wrap: anywhere; }
+.intro-game strong { font: italic 800 clamp(24px, 4.5vw, 64px)/.9 var(--font-display); text-transform: uppercase; }
+.intro-game span { font-size: 13px; font-weight: 600; }
+.intro-game-bgmi strong { color: #bce4ff; }
+.intro-game-freefire { text-align: right; }
+.intro-game-freefire strong { color: #ffd08a; }
+.intro-event time { padding-bottom: 2px; color: #e6ded3; font: 500 12px/1.35 var(--font-mono); text-align: center; }
+
+.cinematic-intro[data-opening='true'] { animation: introSceneExit 760ms ease-in both; }
+.cinematic-intro[data-opening='true'] .intro-worlds { animation: introScenePush 760ms cubic-bezier(.24,.68,.29,.99) both; }
+.cinematic-intro[data-opening='true'] .intro-stage { animation: introStageExit 420ms ease-out both; }
+@keyframes introWorldArrive {
+  from { opacity: .12; transform: translate(var(--world-from-x), var(--world-from-y)) scale(1.1); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes introTitleArrive {
+  from { opacity: 0; transform: translateY(18px) scale(.94); clip-path: inset(100% -4% 0); }
+  to { opacity: 1; transform: none; clip-path: inset(-8% -4%); }
+}
+@keyframes introLogoArrive {
+  from { opacity: 0; clip-path: inset(0 49%); }
+  to { opacity: 1; clip-path: inset(0); }
+}
+@keyframes introScenePush { to { transform: scale(1.13); } }
+@keyframes introStageExit { to { opacity: 0; transform: scale(1.04); } }
+@keyframes introSceneExit { 45% { opacity: 1; } to { opacity: 0; } }
+
+@media (max-width: 650px) {
+  .intro-world { width: 100%; height: 62%; }
+  .intro-world-bgmi {
+    --world-from-x: 0;
+    --world-from-y: -10%;
+    clip-path: polygon(0 0, 100% 0, 100% 73%, 0 100%);
+  }
+  .intro-world-freefire {
+    --world-from-x: 0;
+    --world-from-y: 10%;
+    top: auto;
+    clip-path: polygon(0 28%, 100% 0, 100% 100%, 0 100%);
+  }
+  .intro-world-bgmi img { object-position: 94% top; }
+  .intro-world-freefire img { object-position: 82% center; }
+  .intro-worlds::after {
+    background:
+      linear-gradient(0deg, #070809ef, transparent 26%, transparent 79%, #07080ca3),
+      linear-gradient(0deg, transparent 26%, #08090ec4 46%, #08090edf 56%, transparent 78%);
+  }
+  .intro-srusti { font-size: clamp(70px, 21vw, 125px); }
+  .intro-esports { width: min(84%, 300px); margin: 6px auto 10px; }
+  .intro-event-name { margin-bottom: 16px; }
+  .intro-event { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .intro-event time { grid-column: 1 / -1; grid-row: 2; font-size: 11px; }
+  .intro-game span { font-size: 11px; }
+}
+@media (max-height: 520px) and (min-width: 651px) {
+  .intro-stage { padding-block: 12px; gap: 8px; }
+  .intro-srusti { font-size: clamp(64px, 13vh, 104px); }
+  .intro-esports { width: min(60%, 260px); margin-block: 0 8px; }
+  .intro-event-name { margin-bottom: 10px; }
+  .intro-game strong { font-size: 27px; }
+}

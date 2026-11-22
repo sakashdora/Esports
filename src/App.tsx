@@ -58,7 +58,11 @@ function routeToPath(route: AppRoute): string {
 export default function App() {
   const [showIntro, setShowIntro] = useState(shouldShowIntro);
   const [showAnnouncement, setShowAnnouncement] = useState(shouldShowAnnouncement);
-  const completeIntro = useCallback(() => setShowIntro(false), []);
+  const completeIntro = useCallback(() => {
+    dismissAnnouncement();
+    setShowAnnouncement(false);
+    setShowIntro(false);
+  }, []);
   const [route, setRoute] = useState<AppRoute>(() => parseLocationRoute());
   const [events, setEvents] = useState<CampusEvent[]>(DEFAULT_EVENTS);
   const [loadingEvents, setLoadingEvents] = useState(true);

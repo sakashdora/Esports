@@ -50,7 +50,7 @@ export function ChampionshipFooter({ onNavigate }: { onNavigate: (next: AppRoute
         </div>
 
         <div className="footer-bottom">
-          <p>Srusti Academy of Management &amp; Technology</p>
+          <p>Srusti Academy of Management and Technology (Autonomous)</p>
           <a href="#top">Back to top <ArrowUp aria-hidden="true" /></a>
         </div>
       </div>

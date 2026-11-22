@@ -532,31 +532,12 @@ button:disabled { cursor: not-allowed; }
  .countdown-heading { font-size: 14px; }
  .center-countdown { margin-top: 16px; }
 }
-/* Intro is decorative, bounded to 5 seconds, dismissible and shown once per tab. */
-.cinematic-intro { position: fixed; inset: 0; margin: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; border: 0; padding: 24px; color: #f4f3ef; background: #06070c; overflow: hidden; }
-.cinematic-intro[open] { display: grid; place-items: center; }
-.cinematic-intro::backdrop { background: #06070c; }
-.intro-brand { width: min(100%,650px); text-align: center; position: relative; z-index: 1; animation: introReveal 600ms cubic-bezier(.16,1,.3,1) both; }
-.intro-crest { display: block; width: 68px; height: auto; margin: 0 auto 22px; }
-.intro-eyebrow { font: 500 10px var(--font-mono); color: #c0c0c0; letter-spacing: .25em; }
-.intro-brand h2 { font: 800 clamp(34px,7vw,70px)/1 var(--font-display); letter-spacing: .03em; margin: 14px 0; }
-.intro-wordmark { position: relative; display: block; width: min(100%,420px); aspect-ratio: 5.3; overflow: hidden; margin: 25px auto; }
-.intro-wordmark img { position: absolute; width: 100%; top: 50%; transform: translateY(-50%); left: 0; }
-.intro-caption { font-size: 11px; color: #c1c3cc; line-height: 1.7; }
-.intro-light { position: absolute; width: 70vw; height: 120vh; top: -10vh; opacity: .6; pointer-events: none; }
-.intro-light-blue { left: -45vw; background: radial-gradient(ellipse,#233d8b77,transparent 65%); transform: rotate(-25deg); }
-.intro-light-red { right: -45vw; background: radial-gradient(ellipse,#d41b1477,transparent 65%); transform: rotate(25deg); }
-.intro-sweep { display: block; position: relative; overflow: hidden; width: 160px; height: 2px; background: #ffffff15; margin: 30px auto 0; }
-.intro-sweep::after { content: ''; display: block; height: 100%; width: 50%; background: linear-gradient(90deg,transparent,#e5c736,transparent); animation: introSweep 1.3s ease-in-out infinite; }
-.intro-skip { position: absolute; bottom: max(24px,env(safe-area-inset-bottom)); right: 24px; z-index: 2; padding: 12px 18px; border: 1px solid #ffffff44; background: #151211; color: #fff; border-radius: 3px; font-size: 12px; min-height: 44px; }
 .page-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: 50vh; color: #ddd; }
 .page-loading strong { font: 700 24px var(--font-display); letter-spacing: .05em; }
 .page-loading > span:last-child { font-size: 12px; color: #aaa; }
 .page-loading-orbit { width: 36px; height: 36px; border: 2px solid #233d8b66; border-top-color: #e5c736; border-right-color: #d41b14; border-radius: 50%; animation: loadingOrbit 1s linear infinite; }
-@keyframes introReveal { from { opacity: 0; transform: translateY(15px) scale(.97); } to { opacity: 1; transform: none; } }
-@keyframes introSweep { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
 @keyframes loadingOrbit { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .intro-brand,.intro-sweep::after,.page-loading-orbit { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .page-loading-orbit { animation: none; } }
 /* Light follows the logo artwork rather than a rectangular overlay. */
 .esports-wordmark i { display: none; }
 .esports-wordmark img { animation: esportsReveal 900ms cubic-bezier(.16,1,.3,1) both, logoLight 4s ease-in-out 900ms 1; }
@@ -598,65 +579,6 @@ button:disabled { cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
  .countdown-roll .countdown-digit-in { animation: none; }
  .countdown-roll .countdown-digit-out { display: none; }
-}
-
-/* Retro arcade loading scene: two posters frame a legible, stable center. */
-.cinematic-intro { padding: 0; background: #090b13; animation: arcadeExit 400ms ease-in 4600ms both; }
-.arcade-scene { position: relative; isolation: isolate; width: 100%; min-height: 100%; overflow: hidden; color: #f5eedb; background: radial-gradient(ellipse at 50% 85%,#233d8b55,transparent 65%),#090b13; padding: 30px clamp(16px,4vw,64px) 80px; display: flex; flex-direction: column; justify-content: center; }
-.cinematic-intro .arcade-scene { height: 100dvh; overflow-y: auto; }
-.arcade-grid { position: absolute; z-index: -1; inset: 45% -50% -40%; background-image: linear-gradient(#e5c73622 1px,transparent 1px),linear-gradient(90deg,#e5c73622 1px,transparent 1px); background-size: 60px 60px; transform: perspective(400px) rotateX(55deg); mask-image: linear-gradient(transparent,#000); }
-.arcade-scanlines { pointer-events: none; position: absolute; inset: 0; z-index: 3; opacity: .12; background: repeating-linear-gradient(transparent 0 3px,#000 3px 4px); }
-.arcade-topline,.arcade-bottomline { display: flex; justify-content: space-between; gap: 12px; font: 10px/1.5 var(--font-mono); letter-spacing: .12em; color: #b6b2a6; }
-.arcade-topline { padding-bottom: 16px; border-bottom: 1px solid #e5c73633; }
-.arcade-bottomline { margin-top: 24px; padding-top: 14px; border-top: 1px solid #e5c73633; }
-.arcade-layout { display: grid; grid-template-columns: minmax(0,1fr) minmax(250px,1.25fr) minmax(0,1fr); align-items: center; gap: clamp(12px,3vw,48px); width: min(100%,1200px); margin: auto; padding-top: 22px; }
-.arcade-poster { position: relative; margin: 0; aspect-ratio: 3/4; max-height: 62dvh; border: 1px solid #e5c73688; padding: 5px; background: #14151c; box-shadow: 8px 8px 0 #0006,0 0 35px #233d8b33; animation: posterArrive 900ms cubic-bezier(.16,1,.3,1) both; }
-.arcade-poster-left { transform: rotate(-4deg); --poster-offset: -35px; }
-.arcade-poster-right { transform: rotate(4deg); --poster-offset: 35px; animation-delay: 100ms; box-shadow: -8px 8px 0 #0006,0 0 35px #d41b1433; }
-.arcade-poster img { display: block; width: 100%; height: 100%; object-fit: cover; filter: saturate(.8) contrast(1.06); }
-.arcade-poster figcaption { position: absolute; inset: auto 5px 5px; padding: 45px 14px 14px; background: linear-gradient(transparent,#070911 70%); }
-.arcade-poster figcaption span { display: block; font: 8px var(--font-mono); letter-spacing: .12em; color: #e5c736; }
-.arcade-poster figcaption strong { font: 800 clamp(18px,2.6vw,34px)/1.2 var(--font-display); letter-spacing: .04em; }
-.arcade-center { position: relative; z-index: 2; text-align: center; animation: introReveal 700ms ease-out both; }
-.arcade-crest { width: 52px; height: auto; margin: 0 auto 16px; }
-.arcade-eyebrow { font: 9px/1.6 var(--font-mono); letter-spacing: .1em; color: #b8b9c6; }
-.arcade-center h2 { font: 900 clamp(44px,6.6vw,88px)/.9 var(--font-display); letter-spacing: .025em; margin: 18px 0; text-shadow: 3px 3px 0 #233d8b; }
-.arcade-center h2 span { display: block; color: #e5c736; text-shadow: 3px 3px 0 #8b2924; }
-.arcade-center .intro-wordmark { width: min(100%,300px); margin: 22px auto; }
-.arcade-loading-label { font: 10px/1.5 var(--font-mono); letter-spacing: .15em; color: #f5eedb; }
-.arcade-loader { width: min(80%,220px); height: 9px; overflow: hidden; padding: 2px; margin: 12px auto; border: 1px solid #e5c73666; background: #090b13; }
-.arcade-loader > span { display: block; width: 38%; height: 100%; background: repeating-linear-gradient(90deg,#e5c736 0 8px,transparent 8px 11px); animation: arcadeTravel 2s ease-in-out infinite; }
-.arcade-caption { color: #b8b9c6; font: 10px/1.8 var(--font-mono); margin-top: 16px; }
-.arcade-page-loading { display: block; min-height: calc(100svh - 80px); margin: 0; }
-.arcade-page-loading .arcade-scene { min-height: calc(100svh - 80px); }
-@keyframes posterArrive { from { opacity: 0; translate: var(--poster-offset) 20px; } to { opacity: 1; translate: 0 0; } }
-@keyframes arcadeTravel { from { transform: translateX(-110%); } to { transform: translateX(370%); } }
-@keyframes arcadeExit { to { opacity: 0; transform: scale(1.015); } }
-@media (max-width: 600px) {
- .arcade-scene { padding: 18px 14px 72px; }
- .arcade-layout { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; max-width: 400px; }
- .arcade-center { grid-column: 1/-1; grid-row: 2; }
- .arcade-poster { max-height: 22dvh; aspect-ratio: 1.35; width: 100%; }
- .arcade-poster img { object-position: 50% 30%; }
- .arcade-poster-right { grid-column: 2; grid-row: 1; }
- .arcade-poster figcaption { padding: 28px 8px 7px; }
- .arcade-poster figcaption span { display: none; }
- .arcade-poster figcaption strong { font-size: 18px; }
- .arcade-crest { width: 34px; margin-bottom: 8px; }
- .arcade-center h2 { font-size: 44px; margin: 10px 0; }
- .arcade-center .intro-wordmark { width: 180px; margin: 12px auto; }
- .arcade-eyebrow,.arcade-topline,.arcade-bottomline { font-size: 8px; letter-spacing: .04em; }
- .arcade-caption { margin-top: 8px; font-size: 9px; }
- .arcade-bottomline { margin-top: 16px; }
-}
-@media (max-height: 650px) and (min-width: 601px) {
- .arcade-center h2 { font-size: 48px; }
- .arcade-crest { width: 34px; margin-bottom: 8px; }
- .arcade-center .intro-wordmark { margin: 12px auto; width: 220px; }
-}
-@media (prefers-reduced-motion: reduce) {
- .cinematic-intro,.arcade-center,.arcade-poster,.arcade-loader > span { animation: none; }
- .arcade-loader > span { width: 100%; }
 }
 
 /* The supplied welcome poster appears after the intro, once per tab visit. */
