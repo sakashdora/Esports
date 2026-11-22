@@ -278,6 +278,9 @@ export function validateSquadSubmission(input: {
     if (member.wantsLunch && member.dietType !== 'VEG' && member.dietType !== 'NON_VEG') {
       errors[`${prefix}_dietType`] = 'Select VEG or NON-VEG for lunch add-on.';
     }
+    if (!member.academicLevel.trim()) {
+      errors[`${prefix}_academicLevel`] = 'Select an academic level.';
+    }
   });
 
   if (!input.eligibilityConfirmed) {

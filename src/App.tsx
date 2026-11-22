@@ -95,7 +95,7 @@ export default function App() {
     const titles: Record<AppRoute['page'], string> = {
       home: 'Srusti Campus Event & Esports Championship 2026 | SAMT',
       guide: `Tournament Guide | ${suffix}`,
-      live: `Live Registered Teams | ${suffix}`,
+      live: `Live Registration Counts | ${suffix}`,
       event: `${name ? name + ' Rulebook' : 'Tournament Rulebook'} | ${suffix}`,
       register: `Register Your Squad${name ? ' for ' + name : ''} | ${suffix}`,
       track: `Track Your Registration | ${suffix}`,

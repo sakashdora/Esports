@@ -26,7 +26,7 @@ const navbarPartners = [
     ],
   },
   {
-    name: 'Srusti Prasar',
+    name: 'Srusti Prasaar',
     role: 'Media partner',
     logos: ['/assets/aistudio/SRUSTI_PRASAAR_-_BRAND_DESIGN_GUIDE_a91fc8eb.png'],
   },
@@ -44,7 +44,7 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
       action: () => onNavigate({ page: 'home' }),
     },
     {
-      label: 'Live Teams',
+      label: 'Live Counts',
       active: route.page === 'live',
       action: () => onNavigate({ page: 'live' }),
     },
@@ -76,8 +76,9 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
         <div className="flex shrink-0 items-center gap-1 sm:gap-4">
           <button
             type="button"
+            aria-label="e-Sports home"
             onClick={() => onNavigate({ page: 'home' })}
-            className="group relative flex min-h-10 shrink-0 items-center overflow-hidden rounded-md px-1 py-1 text-left whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D41B14] sm:px-2"
+            className="group relative flex min-h-10 shrink-0 items-center overflow-hidden rounded-md px-1 py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D41B14] sm:px-2"
           >
             {isDarkShell && (
               <span
@@ -85,23 +86,14 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
                 className="logo-ember-aura pointer-events-none absolute -inset-1 rounded-lg bg-[radial-gradient(ellipse_at_center,rgba(212,27,20,0.28),rgba(255,107,26,0.12)_55%,transparent_75%)] opacity-80 transition-opacity duration-300 group-hover:opacity-100"
               />
             )}
-            <span className="relative flex items-center gap-1.5 whitespace-nowrap">
-              <span
-                className={`font-display text-xl leading-none font-extrabold tracking-wider uppercase min-[375px]:text-2xl sm:text-[1.65rem] ${
-                  isDarkShell ? 'text-white' : 'text-slate-900'
-                }`}
-              >
-                SRUSTI
-              </span>
-              <img
-                src="/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.webp"
-                alt="SRUSTI e-SPORTS"
-                referrerPolicy="no-referrer"
-                className={`hidden h-6 w-auto sm:block shrink-0 object-contain transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.04] ${
-                  isDarkShell ? 'drop-shadow-[0_0_10px_rgba(212,27,20,0.65)]' : ''
-                }`}
-              />
-            </span>
+            <img
+              src="/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.webp"
+              alt=""
+              referrerPolicy="no-referrer"
+              className={`relative h-8 w-auto shrink-0 object-contain transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.04] sm:h-9 ${
+                isDarkShell ? 'drop-shadow-[0_0_10px_rgba(212,27,20,0.65)]' : ''
+              }`}
+            />
             {isDarkShell && (
               <span
                 aria-hidden="true"

@@ -31,8 +31,10 @@ test('local registration, review, reupload, privacy and admin authorization', as
     const approved = await decideRegistrationPayment({registrationId:bundle.registration.id,decision:'approve',actorEmail:'admin@example.test',actorId:null});
     assert.equal(approved.registration.status,'verified');
     assert.equal(approved.registration.slotNumber,'A1');
-    const board = JSON.stringify(await listPublicLiveBoard());
-    for (const privateValue of ['9876543210','captain@example.test','Private Student','123456789013','screenshotPath']) assert.equal(board.includes(privateValue),false);
+    const board = await listPublicLiveBoard();
+    assert.deepEqual(Object.keys(board).sort(), ['generatedAt','summary']);
+    assert.equal(board.summary.totalActive,1);
+    assert.equal(board.summary.verifiedCount,1);
     delete process.env.ADMIN_DEMO_PASSCODE;
     assert.equal((await verifyAdminToken('Bearer invalid')).ok,false);
     assert.throws(()=>issueLocalAdminToken('admin@example.test'));
@@ -132,8 +134,38 @@ test('local registration, review, reupload, privacy and admin authorization', as
       assert.equal(proofDenied.status,401);
       const publicBoard=await fetch(base+'/api/live-registrations');
       const publicText=await publicBoard.text();
+      assert.equal(publicBoard.status,200);
+      assert.deepEqual(Object.keys(JSON.parse(publicText)).sort(), ['generatedAt','realtime','summary']);
+      assert.equal(publicText.includes(bundle.registration.teamCode),false);
+      assert.equal(publicText.includes(input.teamName),false);
+      assert.equal(publicText.includes(input.collegeName),false);
+      assert.equal(publicText.includes(members[0].inGameName),false);
       assert.equal(publicText.includes(input.iglEmail),false);
       assert.equal(publicText.includes(input.iglPhone),false);
+      const { get } = await import('node:http');
+      const frame = await new Promise((resolve, reject) => {
+        const request = get(base+'/api/live-registrations/stream', response => {
+          let buffer = '';
+          response.setEncoding('utf8');
+          response.on('data', chunk => {
+            buffer += chunk;
+            const boundary = buffer.indexOf('\\n\\n');
+            if (boundary < 0) return;
+            resolve(buffer.slice(0, boundary));
+            response.destroy();
+          });
+          response.on('end', () => reject(new Error('Live stream closed before sending a snapshot.')));
+          response.on('error', reject);
+        });
+        request.setTimeout(3000, () => request.destroy(new Error('Live stream timed out.')));
+        request.on('error', reject);
+      });
+      const dataLine = frame.split('\\n').find(line => line.startsWith('data: '));
+      assert.ok(dataLine);
+      const snapshot = JSON.parse(dataLine.slice(6));
+      assert.deepEqual(Object.keys(snapshot).sort(), ['generatedAt','summary']);
+      assert.equal(snapshot.summary.totalActive,1);
+      assert.equal(frame.includes(bundle.registration.teamCode),false);
       // Latest proof is reported first after a re-upload.
       const tracked = await trackRegistration(bundle.registration.teamCode,input.iglPhone);
       assert.equal(tracked.proofs[0].utrNumber,'123456789013');

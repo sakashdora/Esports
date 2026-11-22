@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { DEFAULT_EVENTS, EVENT_DATE_LABEL, type CampusEvent } from '../src/lib/defaultEvents.js';
-import { sanitizePublicTeam, type PublicRegisteredTeam } from '../src/lib/liveBoard.js';
+import { computeLiveBoardSummary, type LiveBoardSnapshot } from '../src/lib/liveBoard.js';
 import {
   assignFirstFreeTournamentSlot,
   calculateRegistrationFee,
@@ -2115,93 +2115,10 @@ export async function deleteRegistrations(ids: unknown): Promise<{ deleted: numb
   return { deleted: (deletedRows || []).length };
 }
 
-export async function listPublicLiveBoard(): Promise<{
-  events: CampusEvent[];
-  teams: PublicRegisteredTeam[];
-  generatedAt: string;
-}> {
-  const sb = getSupabaseServiceClient();
-
-  if (!sb) {
-    const events = await listPublicEvents();
-    const eventMap = new Map(events.map((e) => [e.id, e]));
-    const store = readLocalStore();
-    const teams = store.registrations
-      .filter((r) => r.status !== 'rejected')
-      .slice()
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .map((reg) => {
-        const evt = eventMap.get(reg.eventId) || DEFAULT_EVENTS[0];
-        const members = store.members.filter((m) => m.registrationId === reg.id);
-        return sanitizePublicTeam({
-          registration: reg,
-          event: evt,
-          members,
-        });
-      });
-
-    return {
-      events,
-      teams,
-      generatedAt: new Date().toISOString(),
-    };
-  }
-
-  const [events, { data: regRows, error: regErr }, { data: memRows, error: memErr }] = await Promise.all([
-    listPublicEvents(),
-    sb
-      .from('registrations')
-      .select(
-        'id, team_code, event_id, team_name, college_name, has_substitute, status, group_name, slot_number, created_at, updated_at'
-      )
-      .neq('status', 'rejected')
-      .order('created_at', { ascending: false }),
-    sb.from('team_members').select('registration_id, slot_role, in_game_name'),
-  ]);
-  if (regErr) throw new ClientInputError('Unable to load registration data.');
-  if (memErr) throw new ClientInputError('Unable to load roster data.');
-  const eventMap = new Map(events.map((e) => [e.id, e]));
-
-  const membersByReg = new Map<
-    string,
-    Array<{ slotRole: PlayerInput['slotRole']; inGameName: string }>
-  >();
-  for (const row of memRows || []) {
-    const regId = String(row.registration_id);
-    const list = membersByReg.get(regId) || [];
-    list.push({
-      slotRole: row.slot_role as PlayerInput['slotRole'],
-      inGameName: String(row.in_game_name || ''),
-    });
-    membersByReg.set(regId, list);
-  }
-
-  const teams = (regRows || []).map((row) => {
-    const regId = String(row.id);
-    const eventId = String(row.event_id);
-    const evt = eventMap.get(eventId) || DEFAULT_EVENTS[0];
-    return sanitizePublicTeam({
-      registration: {
-        id: regId,
-        teamCode: String(row.team_code),
-        eventId,
-        teamName: String(row.team_name),
-        collegeName: String(row.college_name),
-        hasSubstitute: Boolean(row.has_substitute),
-        status: row.status as RegistrationStatus,
-        groupName: row.group_name ? String(row.group_name) : null,
-        slotNumber: row.slot_number ? String(row.slot_number) : null,
-        createdAt: String(row.created_at),
-        updatedAt: String(row.updated_at),
-      },
-      event: evt,
-      members: membersByReg.get(regId) || [],
-    });
-  });
-
+export async function listPublicLiveBoard(): Promise<LiveBoardSnapshot> {
+  const events = await listPublicEvents();
   return {
-    events,
-    teams,
+    summary: computeLiveBoardSummary(events),
     generatedAt: new Date().toISOString(),
   };
 }

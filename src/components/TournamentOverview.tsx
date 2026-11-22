@@ -28,7 +28,7 @@ export function TournamentOverview({ events, onNavigate }: { events: CampusEvent
           <p>{events[0]?.rulesJson.eligibilitySummary}</p>
           <ul><li>4 active players and 1 optional substitute; Player 1 is your IGL.</li><li>Mobile devices only. No emulators, scripts, cheats or unauthorized peripherals.</li><li>Use registered Character IDs and in-game names for every match.</li><li>Free Fire: each squad member must equip a different active skill.</li></ul>
         </article>
-        <article className="overview-panel live-teams-panel"><Radio aria-hidden="true" /><div className="section-kicker">FOLLOW THE FIELD</div><h2>See who’s joining the arena</h2><p>Explore registered squads, verification status and confirmed group slots on the live team board.</p><button type="button" className="arena-button primary" onClick={() => onNavigate({page:'live'})}>View live teams <ArrowRight aria-hidden="true" /></button><small>Public listings show team and gaming names. Contact details and payment proofs stay off the public board.</small></article>
+        <article className="overview-panel live-teams-panel"><Radio aria-hidden="true" /><h2>Registration counts</h2><p>See how many squads have registered and how many slots are available in each tournament.</p><button type="button" className="arena-button primary" onClick={() => onNavigate({page:'live'})}>View registration counts <ArrowRight aria-hidden="true" /></button></article>
       </div>
     </section>
     <section className="stage-container overview-section faq-section" aria-labelledby="faq-title">

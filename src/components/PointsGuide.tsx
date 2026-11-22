@@ -32,7 +32,7 @@ export function PointsGuide({ events, onViewTeams }: PointsGuideProps) {
           ))}
         </div>
         <button type="button" className="arena-button primary" onClick={onViewTeams}>
-          View participating teams <ArrowRight aria-hidden="true" />
+          View registration counts <ArrowRight aria-hidden="true" />
         </button>
       </div>
     </details>

@@ -83,7 +83,7 @@ export default function TournamentGuide({ events, onNavigate }: GuideProps) {
           );
         })}
         <button type="button" className="arena-button primary mb-10" onClick={() => onNavigate({ page: 'live' })}>
-          View participating teams <ArrowRight aria-hidden="true" />
+          View registration counts <ArrowRight aria-hidden="true" />
         </button>
       </div>
     </main>

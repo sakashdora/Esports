@@ -17,7 +17,13 @@ export function ChampionshipStage({ events, loading, onNavigate }: { events: Cam
       <EmberParticles density={32} />
       <div className="stage-container hero-content">
         <div className="hero-identity animate-stage-enter">
-          <div className="hero-organizer"><img className="hero-college-crest" src="/assets/aistudio/Prospectus_2026_-_27_-_1_bb4cb47c.png" alt="Srusti Academy of Management and Technology crest" width="100" height="104" /><p className="stage-eyebrow">Srusti Academy of Management &amp; Technology</p></div>
+          <div className="hero-organizer">
+            <img className="hero-college-crest" src="/assets/aistudio/Prospectus_2026_-_27_-_1_bb4cb47c.png" alt="" width="100" height="104" />
+            <p className="hero-college-name">
+              <span>Srusti Academy <em>of</em> Management</span>{' '}
+              <span><em>and</em> Technology (Autonomous)</span>
+            </p>
+          </div>
           <h1 id="championship-title" className="srusti-title" aria-label="Srusti e-Sports">
             <span>SRUSTI</span>
             <span className="esports-wordmark"><img src="/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.webp" alt="" width="1400" height="500" /></span>
@@ -28,19 +34,14 @@ export function ChampionshipStage({ events, loading, onNavigate }: { events: Cam
         </div>
         <div className="hero-bottom animate-stage-delay-1">
           <div className="match-day-strip">
-            <span><CalendarDays aria-hidden="true" /><time dateTime={EVENT_ENTRY_ISO}>13 DECEMBER 2026</time></span>
+            <span><CalendarDays aria-hidden="true" /><time dateTime={EVENT_ENTRY_ISO}>13th December 2026</time></span>
             <span><Clock3 aria-hidden="true" />ENTRY 9:30 AM IST</span>
             <span><MapPin aria-hidden="true" />SAMT CAMPUS LAN ARENA</span>
           </div>
           <div className="hero-actions">
             <a className="arena-button primary" href="#events">Register your squad <ArrowRight aria-hidden="true" /></a>
             <a className="arena-button secondary" href="#events">Explore tournaments</a>
-            <div className="hero-price"><strong>₹{primary?.baseFee ?? 299}<small> / team</small></strong><span>Optional lunch +₹{primary?.lunchFee ?? 100} / team</span></div>
-          </div>
-          <div className="campus-brand-row" aria-label="Srusti campus brands">
-            <div className="campus-brand"><img src="/assets/aistudio/SAGSH_22e6af6f.png" alt="SAGS" width="1500" height="1587" decoding="async" /><span>SAGS</span></div>
-            <span className="campus-brand-divider" aria-hidden="true" />
-            <div className="campus-brand"><img src="/assets/aistudio/SRUSTI_PRASAAR_-_BRAND_DESIGN_GUIDE_a91fc8eb.png" alt="Srusti Prasaar" width="641" height="600" decoding="async" /><span>Srusti Prasaar</span></div>
+            <div className="hero-price"><strong>₹{primary?.baseFee ?? 299}<small> / team</small></strong></div>
           </div>
         </div>
       </div>

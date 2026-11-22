@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { computeCountdown } from '../lib/tournamentRules';
 import { EVENT_ENTRY_ISO } from '../lib/defaultEvents';
 
+const ordinalDay = new Intl.PluralRules('en', { type: 'ordinal' });
+const daySuffixes = { one: 'st', two: 'nd', few: 'rd', other: 'th', zero: 'th', many: 'th' };
+
 function RollingDigit({ digit }: { digit: string }) {
   const [frame, setFrame] = useState({ current: digit, previous: digit });
   if (frame.current !== digit) setFrame({ current: digit, previous: frame.current });
@@ -41,7 +44,10 @@ export function HeroCountdown({ deadlineText = EVENT_ENTRY_ISO }: { deadlineText
     document.addEventListener('visibilitychange', refresh);
     return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', refresh); };
   }, [targetMs]);
-  const dateLabel = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' }).format(targetMs);
+  const dateLabel = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
+    .formatToParts(targetMs)
+    .map(({ type, value }) => type === 'day' ? value + daySuffixes[ordinalDay.select(Number(value))] : value)
+    .join('');
   const timeLabel = new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }).format(targetMs);
   const segments = [
     { label: 'Days', value: countdown.days }, { label: 'Hours', value: countdown.hours },

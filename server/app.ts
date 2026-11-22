@@ -142,7 +142,7 @@ export function createApiApp(): Express {
     }
   });
 
-  // 2b. Public Live Registered Teams Board (JSON + Real-time SSE Stream)
+  // Public registration totals (JSON and server-sent events).
   app.get('/api/live-registrations', async (_req, res) => {
     try {
       const board = await listPublicLiveBoard();

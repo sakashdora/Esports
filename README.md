@@ -1,6 +1,6 @@
 # Srusti Campus Esports
 
-React + Vite frontend with an Express API. BGMI and Free Fire squads register, submit UPI payment proof, track applications, and receive a slot after administrator verification. The public board exposes team and gaming names, not contact or payment details.
+React + Vite frontend with an Express API. BGMI and Free Fire squads register, submit UPI payment proof, track applications, and receive a slot after administrator verification. The public board shows aggregate registration counts and available capacity by game.
 
 ## Event and fees
 

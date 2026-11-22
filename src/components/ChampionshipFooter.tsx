@@ -43,7 +43,7 @@ export function ChampionshipFooter({ onNavigate }: { onNavigate: (next: AppRoute
             <ul className="footer-links">
               <li><a href="#events">Tournaments</a></li>
               <li><a href="#how-it-works">How it works</a></li>
-              <li><button type="button" onClick={() => onNavigate({ page: 'live' })}>View live teams</button></li>
+              <li><button type="button" onClick={() => onNavigate({ page: 'live' })}>View registration counts</button></li>
               <li><button type="button" onClick={() => onNavigate({ page: 'track' })}>Track status</button></li>
             </ul>
           </nav>

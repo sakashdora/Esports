@@ -1,0 +1,107 @@
+import { Check, Utensils } from 'lucide-react';
+import type { PlayerInput } from '../lib/tournamentRules';
+
+const playerFields = [
+  { key: 'fullName', label: 'Full name', id: 'fullName' },
+  { key: 'inGameName', label: 'In-game name (IGN)', id: 'ign' },
+  { key: 'characterId', label: 'Character ID', id: 'cid' },
+] as const;
+
+interface RegistrationPlayerCardProps {
+  member: PlayerInput;
+  label: string;
+  complete: boolean;
+  errors: Record<string, string>;
+  onChange: (patch: Partial<PlayerInput>) => void;
+}
+
+export function RegistrationPlayerCard({ member, label, complete, errors, onChange }: RegistrationPlayerCardProps) {
+  const leader = member.slotRole === 'IGL';
+  const prefix = `member_${member.slotRole}`;
+  const levelError = errors[`${prefix}_academicLevel`];
+  const dietError = errors[`${prefix}_dietType`];
+
+  return (
+    <section className={`registration-player ${leader ? 'registration-player-leader' : ''}`} aria-labelledby={`${prefix}-title`}>
+      <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+        <h3 id={`${prefix}-title`} className="font-display text-xl font-bold">{label}</h3>
+        {complete && <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-300"><Check className="size-4" aria-hidden="true" /> Ready</span>}
+      </div>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        {playerFields.map(({ key, label, id }) => {
+          const fieldId = `${prefix}-${id}`;
+          const error = errors[`${prefix}_${key}`];
+          const leaderName = leader && key === 'fullName';
+          return (
+            <div key={key}>
+              <label htmlFor={fieldId} className={`registration-label ${leaderName ? 'text-[#F5D985]' : ''}`}>
+                {leaderName ? 'Team leader’s full name' : label} *
+              </label>
+              <input
+                id={fieldId}
+                type="text"
+                value={member[key]}
+                onChange={(e) => onChange({ [key]: e.target.value })}
+                aria-required="true"
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? `${fieldId}-error` : undefined}
+                className={`registration-input ${leaderName ? 'registration-leader-input' : ''}`}
+              />
+              {error && <p id={`${fieldId}-error`} className="registration-error">{error}</p>}
+            </div>
+          );
+        })}
+        <div>
+          <label htmlFor={`${prefix}-level`} className="registration-label">Academic level *</label>
+          <select
+            id={`${prefix}-level`}
+            value={member.academicLevel}
+            onChange={(e) => onChange({ academicLevel: e.target.value })}
+            aria-required="true"
+            aria-invalid={Boolean(levelError)}
+            aria-describedby={levelError ? `${prefix}-level-error` : undefined}
+            className="registration-input"
+          >
+            <option value="" disabled>Select academic level</option>
+            <option value="11th">11th Class</option>
+            <option value="12th">12th Class</option>
+            <option value="UG">Undergraduate (UG)</option>
+            <option value="Age 16-22">Other (Age 16–22)</option>
+          </select>
+          {levelError && <p id={`${prefix}-level-error`} className="registration-error">{levelError}</p>}
+        </div>
+      </div>
+
+      <div className="registration-meal">
+        <label className="inline-flex min-h-10 min-w-0 cursor-pointer items-center gap-2 text-sm text-neutral-200">
+          <input
+            type="checkbox"
+            checked={member.wantsLunch}
+            onChange={(e) => onChange({ wantsLunch: e.target.checked })}
+            className="size-4 shrink-0 accent-[#D41B14]"
+          />
+          <Utensils className="size-4 shrink-0 text-neutral-400" aria-hidden="true" />
+          Add optional lunch
+        </label>
+        {member.wantsLunch && (
+          <fieldset className="flex flex-wrap gap-2">
+            <legend className="sr-only">Meal preference</legend>
+            {(['VEG', 'NON_VEG'] as const).map((diet) => (
+              <label key={diet} className="registration-meal-choice">
+                <input
+                  type="radio"
+                  name={`${prefix}-diet`}
+                  checked={member.dietType === diet}
+                  onChange={() => onChange({ dietType: diet })}
+                />
+                <span>{diet === 'VEG' ? 'Veg' : 'Non-veg'}</span>
+              </label>
+            ))}
+            {dietError && <p className="registration-error">{dietError}</p>}
+          </fieldset>
+        )}
+      </div>
+    </section>
+  );
+}

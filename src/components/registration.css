@@ -1,0 +1,121 @@
+.registration-page {
+  --registration-border: #ffffff20;
+  --registration-surface: #191615;
+  --registration-field: #110e0d;
+  --registration-gold: #f5d985;
+  background: #100d0c;
+}
+
+.registration-cover {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-height: clamp(148px, 23vw, 224px);
+  align-items: end;
+  overflow: hidden;
+  padding: clamp(20px, 4vw, 40px);
+  border: 1px solid #a77c49;
+  border-radius: 14px 3px;
+  background: #191412;
+}
+.registration-cover img,
+.registration-cover::before {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.registration-cover img { z-index: -2; object-fit: cover; object-position: center 42%; }
+.registration-cover::before {
+  z-index: -1;
+  content: '';
+  background: linear-gradient(90deg, #100d0cf5, #100d0cbb 51%, #100d0c22),
+    linear-gradient(0deg, #100d0cdd, transparent 80%);
+}
+.registration-cover-copy p { margin-bottom: 6px; color: var(--registration-gold); font-size: 14px; font-weight: 700; }
+.registration-cover-copy h1 { font: italic 800 clamp(37px, 6vw, 76px)/.95 var(--font-display); text-transform: uppercase; }
+
+.registration-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  margin-block: 16px;
+}
+.registration-steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 2px solid var(--registration-border);
+  padding: 8px;
+  color: #a8a29e;
+  font-size: 13px;
+  line-height: 1.2;
+}
+.registration-step-number {
+  display: grid;
+  place-items: center;
+  flex: 0 0 24px;
+  height: 24px;
+  border: 1px solid var(--registration-border);
+  border-radius: 4px;
+  font: 600 11px var(--font-mono);
+}
+.registration-steps li[data-complete='true'] { color: #e7e5e4; }
+.registration-steps li[aria-current='step'] { border-color: var(--registration-gold); color: var(--registration-gold); font-weight: 700; }
+.registration-steps li[aria-current='step'] .registration-step-number { border-color: var(--registration-gold); color: #22170c; background: var(--registration-gold); }
+
+.registration-layout { display: grid; align-items: start; gap: 16px; margin-top: 20px; }
+.registration-panel, .registration-fees { border: 1px solid var(--registration-border); border-radius: 10px; background: var(--registration-surface); }
+.registration-panel { padding: clamp(16px, 3vw, 28px); }
+.registration-fees { padding: 16px; }
+.registration-fees dl { display: grid; gap: 8px; margin-top: 8px; }
+.registration-fees dl div { display: flex; justify-content: space-between; gap: 8px; color: #d6d3d1; font-size: 13px; }
+.registration-fees dd { text-align: right; font-variant-numeric: tabular-nums; }
+.registration-fees .registration-fee-meals { color: #a8a29e; font-size: 12px; }
+.registration-fees .registration-fee-total { align-items: center; border-top: 1px solid var(--registration-border); padding-top: 8px; color: white; font-weight: 600; }
+.registration-fee-total dd { color: var(--registration-gold); font: 800 30px/1.1 var(--font-display); }
+
+.registration-step-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; }
+.registration-step-header h2 { font: 700 32px/1 var(--font-display); }
+.registration-step-header p { max-width: 68ch; margin-top: 8px; color: #d6d3d1; font-size: 14px; line-height: 1.5; }
+.registration-progress { color: var(--registration-gold); font: 600 12px var(--font-mono); }
+.registration-leader, .registration-player, .registration-substitute { border: 1px solid var(--registration-border); border-radius: 8px; padding: clamp(12px, 2vw, 20px); background: var(--registration-field); }
+.registration-leader { margin-top: 20px; }
+.registration-leader, .registration-player-leader { border-left: 3px solid var(--registration-gold); }
+.registration-player-leader h3 { color: var(--registration-gold); }
+.registration-substitute { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; border-style: dashed; }
+.registration-label { display: block; font-size: 13px; font-weight: 600; }
+.registration-input {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 4px;
+  border: 1px solid var(--registration-border);
+  border-radius: 5px;
+  padding: 8px 12px;
+  background: #1f1a18;
+  color: #fafaf9;
+  color-scheme: dark;
+  font-size: 16px;
+}
+.registration-input:focus-visible { outline: 2px solid var(--registration-gold); outline-offset: 2px; }
+.registration-leader-input { border-color: #9a7948; }
+.registration-input[aria-invalid='true'] { border-color: #f87171; }
+.registration-error { margin-top: 4px; color: #fca5a5; font-size: 12px; }
+.registration-meal { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 16px; border-top: 1px solid var(--registration-border); padding-top: 8px; }
+.registration-meal-choice { display: inline-flex; min-height: 36px; align-items: center; gap: 6px; border: 1px solid var(--registration-border); border-radius: 5px; padding-inline: 8px; color: #d6d3d1; font-size: 13px; cursor: pointer; }
+.registration-meal-choice input { accent-color: #b91c1c; }
+.registration-meal-choice:has(:checked) { border-color: #a77c49; color: var(--registration-gold); }
+.registration-secondary { display: inline-flex; min-height: 44px; align-items: center; gap: 6px; border: 1px solid var(--registration-border); border-radius: 5px; padding: 8px 14px; color: white; font-size: 13px; font-weight: 700; }
+.registration-secondary:not(:disabled):hover { border-color: var(--registration-gold); }
+.registration-secondary:disabled { opacity: .55; }
+.registration-page button:not(:disabled) { cursor: pointer; }
+
+@media (min-width: 1024px) {
+  .registration-layout { grid-template-columns: minmax(0, 1fr) 248px; gap: 20px; }
+  .registration-layout > div { grid-area: 1 / 1; }
+  .registration-fees { grid-area: 1 / 2; position: sticky; top: 96px; }
+}
+@media (max-width: 480px) {
+  .registration-steps li { flex-direction: column; align-items: flex-start; font-size: 11px; }
+}
