@@ -200,6 +200,8 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   const [rejectReason, setRejectReason] = useState('');
   const [processingDecision, setProcessingDecision] = useState(false);
   const [decisionNote, setDecisionNote] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  const [lastApproval, setLastApproval] = useState<{ id: string; text: string; nextTeamCode?: string; emailNote?: string } | null>(null);
+  const approvalNotice = useRef<HTMLParagraphElement>(null);
   const [zoomImage, setZoomImage] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
@@ -302,6 +304,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
     overviewSequence.current += 1;
     setBundles([]); setEvents([]); setAuditLogs([]); setSchemaSql('');
     setRejectReason(''); setZoomImage(false); setActionMsg(''); setLoginPass('');
+    setLastApproval(null); setDecisionNote(null);
     setToken('');
     setAdminEmail('');
     setSelectedId(null);
@@ -314,6 +317,17 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
 
   const filteredBundles = useMemo(() => filterAdminRegistrations(bundles, filters),
     [bundles, searchQuery, statusFilter, eventFilter, lunchFilter, dateFrom, dateTo, sortOrder]);
+
+  useEffect(() => {
+    if (lastApproval) approvalNotice.current?.focus();
+  }, [lastApproval]);
+
+  function selectRegistration(id: string | null) {
+    setSelectedId(id);
+    setRejectReason('');
+    setZoomImage(false);
+    setDecisionNote(null);
+  }
 
   async function exportReport(format: 'xlsx' | 'pdf') {
     if (exporting) return;
@@ -371,14 +385,12 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
     const target = selectedBundle;
     const targetId = target.registration.id;
     const reason = rejectReason;
-    const optimisticStatus = decision === 'approve' ? 'verified' : decision === 'reject' ? 'rejected' : 'reupload_required';
     setProcessingDecision(true);
     setActionMsg('');
     setDecisionNote(null);
-    // Show the result immediately; the server's answer replaces it (or it is rolled back).
+    setLastApproval(null);
+    // Ignore older refresh responses while a decision is being saved.
     overviewSequence.current += 1;
-    setBundles((current) => current.map((item) => item.registration.id === targetId
-      ? { ...item, registration: { ...item.registration, status: optimisticStatus } } : item));
     try {
       const res = await fetchAdmin(
         `/api/admin/registrations/${targetId}/decision`,
@@ -394,22 +406,29 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
         ? { ...item, registration: json.registration, proofs: json.proofs } : item));
       setAuditLogs((current) => [...(json.auditLogs || []), ...current]
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
-      const label = decision === 'approve'
-        ? `Approved. ${json.registration.groupName ? `${json.registration.groupName} · slot ${json.registration.slotNumber}. ` : ''}`
-        : decision === 'reject' ? 'Rejected. ' : 'Re-upload requested. ';
-      setDecisionNote({ tone: 'ok', text: `${target.registration.teamCode}: ${label}${json.emailNote || ''}` });
-      setActionMsg(`${target.registration.teamCode} updated to ${String(json.registration.status).toUpperCase()}.`);
       setRejectReason('');
       onEventsUpdated();
-      // Move straight on to the next team waiting for review.
-      if (decision === 'approve') {
-        const next = filteredBundles.find((b) => b.registration.id !== targetId &&
-          (b.registration.status === 'pending' || b.registration.status === 'waitlisted'));
-        if (next) { setSelectedId(next.registration.id); setZoomImage(false); }
+      if (decision === 'approve' && json.registration.status === 'verified') {
+        const index = filteredBundles.findIndex((bundle) => bundle.registration.id === targetId);
+        const inReviewOrder = [...filteredBundles.slice(index + 1), ...filteredBundles.slice(0, Math.max(0, index))];
+        const next = inReviewOrder.find(({ registration }) =>
+          registration.id !== targetId && registration.status === 'pending'
+        );
+        const { groupName, slotNumber } = json.registration;
+        const seat = slotNumber ? ` · ${groupName ? groupName + ' · ' : ''}Seat ${slotNumber}` : '';
+        setLastApproval({
+          id: targetId,
+          text: `${target.registration.teamCode} approved${seat}`,
+          nextTeamCode: next?.registration.teamCode,
+          emailNote: json.emailNote,
+        });
+        if (next) selectRegistration(next.registration.id);
+      } else {
+        const label = decision === 'reject' ? 'Rejected.' : decision === 'reupload_required' ? 'Re-upload requested.' : 'Decision saved.';
+        setDecisionNote({ tone: 'ok', text: `${target.registration.teamCode}: ${label} ${json.emailNote || ''}` });
+        setActionMsg(`${target.registration.teamCode} updated to ${String(json.registration.status).toUpperCase()}.`);
       }
     } catch (err) {
-      // Roll back to the saved status and say why, next to the buttons.
-      setBundles((current) => current.map((item) => item.registration.id === targetId ? target : item));
       setDecisionNote({ tone: 'error', text: err instanceof Error ? err.message : 'Action failed. Nothing was changed.' });
     } finally {
       setProcessingDecision(false);
@@ -832,7 +851,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
           </div>
         )}
 
-        <section aria-label="Registration filters" className="no-print mt-5 rounded-lg border border-slate-200 bg-white p-4">
+        <fieldset aria-label="Registration filters" disabled={processingDecision} className="no-print mt-5 min-w-0 rounded-lg border border-slate-200 bg-white p-4">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <div className="relative sm:col-span-2">
               <Search className="pointer-events-none absolute top-2.5 left-3 h-3.5 w-3.5 text-slate-400" />
@@ -854,7 +873,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
             <select aria-label="Filter by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded border border-slate-300 p-2 text-xs">
               <option value="all">All Statuses</option>
               <option value="pending">Pending</option>
-              <option value="verified">Verified</option>
+              <option value="verified">Approved</option>
               <option value="reupload_required">Re-upload Needed</option>
               <option value="waitlisted">Waitlisted</option>
               <option value="rejected">Rejected</option>
@@ -888,7 +907,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
               Clear filters
             </button>
           </div>
-        </section>
+        </fieldset>
         {/* Navigation Tabs */}
         <div className="no-print mt-6 flex flex-wrap items-center gap-1 border-b border-slate-200">
           {(
@@ -922,7 +941,32 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
           <div className="mt-6 grid gap-6 lg:grid-cols-12">
             {/* Queue List */}
             <div className="min-w-0 rounded-lg border border-slate-200 bg-white lg:col-span-7">
-
+              <div className="no-print flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
+                <h2 className="text-sm font-semibold text-slate-900">Payment review</h2>
+                <div role="group" aria-label="Quick review filters" className="flex gap-1.5">
+                  {([['pending', 'Pending'], ['verified', 'Approved']] as const).map(([status, label]) => (
+                    <button
+                      key={status}
+                      type="button"
+                      disabled={processingDecision}
+                      aria-pressed={statusFilter === status}
+                      onClick={() => {
+                        const nextStatus = statusFilter === status ? 'all' : status;
+                        setStatusFilter(nextStatus);
+                        if (nextStatus !== 'all' && selectedBundle?.registration.status !== nextStatus) {
+                          const first = filterAdminRegistrations(bundles, { ...filters, status: nextStatus })[0];
+                          selectRegistration(first?.registration.id ?? null);
+                        }
+                      }}
+                      className={`rounded border px-3 py-1.5 text-xs font-semibold ${statusFilter === status
+                        ? 'border-[#233D8B] bg-[#233D8B] text-white'
+                        : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {checkedIds.size > 0 && (
                 <div className="no-print flex flex-wrap items-center justify-between gap-2 border-b border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
@@ -971,8 +1015,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                           <tr
                             key={b.registration.id}
                             onClick={() => {
-                              setSelectedId(b.registration.id);
-                              setRejectReason(''); setZoomImage(false); setDecisionNote(null);
+                              if (!processingDecision) selectRegistration(b.registration.id);
                             }}
                             className={`cursor-pointer transition-colors ${
                               isSel ? 'bg-blue-50' : 'hover:bg-slate-50'
@@ -987,7 +1030,18 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                               />
                             </td>
                             <td className="px-3 py-2.5 font-mono font-semibold whitespace-nowrap text-slate-900">
-                              {b.registration.teamCode}
+                              <button
+                                type="button"
+                                disabled={processingDecision}
+                                aria-current={isSel ? 'true' : undefined}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  selectRegistration(b.registration.id);
+                                }}
+                                className="text-[#233D8B] hover:underline"
+                              >
+                                {b.registration.teamCode}
+                              </button>
                             </td>
                             <td className="px-3 py-2.5">
                               <div className="font-medium text-slate-900">
@@ -1020,8 +1074,8 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                                     : 'bg-red-50 text-red-700'
                                 }`}
                               >
-                                {b.registration.status === 'verified' && b.registration.slotNumber
-                                  ? `VERIFIED (${b.registration.slotNumber})`
+                                {b.registration.status === 'verified'
+                                  ? `Approved${b.registration.slotNumber ? ` (${b.registration.slotNumber})` : ''}`
                                   : b.registration.status.replace(/_/g, ' ')}
                               </span>
                             </td>
@@ -1036,6 +1090,26 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
 
             {/* Right: Side-by-Side Payment Proof Inspector */}
             <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 lg:col-span-5">
+              {lastApproval && (
+                <div className="no-print mb-4 grid gap-2 rounded border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+                  <p ref={approvalNotice} tabIndex={-1} role="status" className="scroll-mt-24 font-semibold">
+                    {lastApproval.text}
+                  </p>
+                  <p>{lastApproval.nextTeamCode ? `Next pending team opened · ${lastApproval.nextTeamCode}` : 'No other pending teams match these filters.'}</p>
+                  {lastApproval.emailNote && <p>{lastApproval.emailNote}</p>}
+                  <button
+                    type="button"
+                    disabled={processingDecision || !bundles.some(({ registration }) => registration.id === lastApproval.id)}
+                    onClick={() => {
+                      setStatusFilter('verified');
+                      selectRegistration(lastApproval.id);
+                    }}
+                    className="w-fit rounded border border-emerald-300 bg-white px-2.5 py-1.5 font-semibold hover:bg-emerald-100 disabled:opacity-50"
+                  >
+                    View approved registration
+                  </button>
+                </div>
+              )}
               {!selectedBundle ? (
                 <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center text-xs text-slate-500">
                   Select a team row from the queue to inspect the uploaded payment screenshot,
@@ -1111,7 +1185,9 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                         {' '}Refresh to check the latest delivery result.
                       </span>
                       <span>
-                        Status: <strong className="text-slate-800">{selectedBundle.registration.status.replace(/_/g, ' ')}</strong>
+                        Status: <strong className="text-slate-800">{selectedBundle.registration.status === 'verified'
+                          ? 'Approved'
+                          : selectedBundle.registration.status.replace(/_/g, ' ')}</strong>
                         {selectedBundle.registration.slotNumber ? ` · ${selectedBundle.registration.groupName} ${selectedBundle.registration.slotNumber}` : ''}
                       </span>
                     </div>
@@ -1148,7 +1224,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
 
                     {selectedBundle.latestProofUrl ? (
                       <div className="mt-1.5 overflow-auto rounded border border-slate-200 bg-slate-100 p-2 text-center">
-                        <ProtectedProofImage url={selectedBundle.latestProofUrl} token={token} zoom={zoomImage} />
+                        <ProtectedProofImage key={selectedBundle.latestProofUrl} url={selectedBundle.latestProofUrl} token={token} zoom={zoomImage} />
                       </div>
                     ) : (
                       <div className="mt-1.5 rounded border border-slate-200 bg-slate-50 p-6 text-center text-xs text-slate-400">

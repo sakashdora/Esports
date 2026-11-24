@@ -63,7 +63,7 @@ function resolveAppUrl(): string {
   return 'http://localhost:3000';
 }
 
-export async function sendTeamConfirmationEmail(params: {
+interface TeamConfirmationEmailParams {
   toEmail: string;
   teamCode: string;
   teamName: string;
@@ -80,7 +80,169 @@ export async function sendTeamConfirmationEmail(params: {
   rejectionReason?: string | null;
   venueLabel?: string;
   eventDateLabel?: string;
-}): Promise<EmailSendResult> {
+}
+
+const BRAND = 'Srusti Esports 2026';
+const ACADEMY = 'Srusti Academy of Management and Technology (Autonomous)';
+const SUPPORT_EMAIL = 'info.esport@srustiacademy.ac.in';
+const LOGO_PATH = 'assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.png';
+
+const CHECK_IN = [
+  'Bring your original college or institution photo ID to check-in.',
+  'Use the Character ID and in-game name you entered at registration.',
+  'Verified team leaders receive room credentials 15 minutes before their match wave.',
+];
+
+function registrationMessage(params: TeamConfirmationEmailParams) {
+  const reason = params.rejectionReason?.trim();
+  switch (params.status) {
+    case 'verified':
+      return {
+        title: params.slotNumber ? 'Slot Confirmed' : 'Registration Verified',
+        status: 'Verified',
+        message: params.slotNumber
+          ? 'The tournament desk has verified your registration and assigned your LAN seat. Open your team pass before match day.'
+          : 'The tournament desk has verified your registration. Check Team Status for your LAN seat.',
+        action: params.slotNumber ? 'Open team pass' : 'Check team status',
+        accent: '#116149',
+      };
+    case 'reupload_required':
+      return {
+        title: 'Payment Proof Re-upload Required',
+        status: 'Action required',
+        message: 'Open Team Status and enter your team ID and team leader’s mobile number to upload a clear payment screenshot with the 12-digit UTR visible.',
+        reason: reason || 'The tournament desk could not verify the UTR or screenshot.',
+        action: 'Update payment proof',
+        accent: '#a33521',
+      };
+    case 'rejected':
+      return {
+        title: 'Registration Not Approved',
+        status: 'Review complete',
+        message: 'Check Team Status for the latest decision or contact the tournament desk if you have questions.',
+        reason: reason || 'The tournament desk could not verify the submitted registration or payment details.',
+        action: 'Review team status',
+        accent: '#a33521',
+      };
+    case 'pending':
+      return {
+        title: 'Registration Received',
+        status: 'Pending verification',
+        message: 'We received your squad registration and payment proof. The tournament desk will review your UPI reference before confirming your slot.',
+        action: 'Track registration',
+        accent: '#805009',
+      };
+  }
+}
+
+export function buildTeamConfirmationEmail(params: TeamConfirmationEmailParams, appUrl: string, logoSrc: string) {
+  const message = registrationMessage(params);
+  const subject = `${BRAND} — ${message.title} — ${params.teamCode}`;
+  const trackUrl = `${appUrl}/track?code=${encodeURIComponent(params.teamCode)}`;
+  const slot = params.status === 'verified' && params.slotNumber
+    ? `${params.groupName || 'Main Bracket'} · Seat ${params.slotNumber}`
+    : '';
+  const mealSummary = params.lunchCount > 0
+    ? `${params.lunchCount} (${params.vegCount} veg · ${params.nonVegCount} non-veg)`
+    : 'None selected';
+  const event = params.eventTitle.toLowerCase().includes(params.gameTitle.toLowerCase())
+    ? params.eventTitle
+    : `${params.eventTitle} · ${params.gameTitle}`;
+  const details = [
+    ['Tournament', event],
+    ['Entry date', params.eventDateLabel || 'Dates to be announced'],
+    ['Venue', params.venueLabel || 'SAMT Campus LAN Arena'],
+    ['Submitted fee', `₹${params.totalFee.toLocaleString('en-IN')}`],
+    ['UPI reference (UTR)', params.utrNumber || '—'],
+    ['Optional meals', mealSummary],
+  ];
+  const rows = details.map(([label, value]) => `
+    <tr>
+      <th scope="row" align="left" valign="top" width="39%" style="padding:10px 10px;border-bottom:1px solid #eae2d6;font-size:13px;line-height:1.4;color:#61554d;font-weight:normal;">${label}</th>
+      <td valign="top" style="padding:10px 10px;border-bottom:1px solid #eae2d6;font-size:14px;line-height:1.4;color:#241b19;font-weight:bold;overflow-wrap:anywhere;">${escapeHtml(value)}</td>
+    </tr>`).join('');
+
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${BRAND}</title>
+</head>
+<body bgcolor="#efebe5" style="margin:0;padding:0;background-color:#efebe5;font-family:Arial,Helvetica,sans-serif;color:#241b19;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#efebe5" style="background-color:#efebe5;">
+    <tr><td align="center" style="padding:18px 8px;">
+      <!--[if mso]><table role="presentation" width="620" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="max-width:620px;background-color:#ffffff;">
+        <tr><td bgcolor="#231716" style="padding:22px 20px;border-bottom:4px solid #eec36c;background-color:#231716;color:#fff8ed;">
+          <img src="${escapeHtml(logoSrc)}" alt="Srusti e-Sports logo" width="146" style="display:block;width:146px;max-width:100%;height:auto;color:#fff8ed;font-size:13px;">
+          <p style="margin:8px 0 0;font-size:17px;line-height:1.35;font-weight:bold;color:#fff8ed;">${BRAND}</p>
+          <p style="margin:4px 0 0;font-size:13px;line-height:1.5;color:#f3d6a1;">${ACADEMY}</p>
+        </td></tr>
+        <tr><td style="padding:24px 20px 20px;">
+          <p style="margin:0 0 6px;color:${message.accent};font-size:13px;font-weight:bold;line-height:1.4;">${message.status}</p>
+          <h1 style="margin:0 0 14px;font-size:28px;line-height:1.12;color:#241b19;">${message.title}</h1>
+          <p style="margin:0 0 8px;font-size:15px;line-height:1.5;">Hello, team leader of <strong>${escapeHtml(params.teamName)}</strong>.</p>
+          <p style="margin:0;font-size:15px;line-height:1.5;color:#51453e;">${message.message}</p>
+          ${message.reason ? `<p style="margin:14px 0 0;padding:10px 12px;background-color:#fff3eb;border-left:3px solid ${message.accent};font-size:14px;line-height:1.5;"><strong>Review note</strong><br>${escapeHtml(message.reason)}</p>` : ''}
+        </td></tr>
+        <tr><td style="padding:0 20px 20px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f8ebd1" style="background-color:#f8ebd1;border-left:4px solid #ad2d21;">
+            <tr><td style="padding:12px 14px;">
+              <p style="margin:0 0 4px;font-size:12px;color:#6a5140;">Team registration ID</p>
+              <p style="margin:0;font-family:Consolas,'Courier New',monospace;font-weight:bold;font-size:24px;line-height:1.2;color:#251818;overflow-wrap:anywhere;">${escapeHtml(params.teamCode)}</p>
+              ${slot ? `<p style="margin:8px 0 0;font-size:14px;font-weight:bold;color:#116149;">${escapeHtml(slot)}</p>` : ''}
+            </td></tr>
+          </table>
+        </td></tr>
+        <tr><td style="padding:0 20px 20px;">
+          <h2 style="margin:0 0 6px;font-size:17px;color:#241b19;">Registration details</h2>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#faf8f4" style="background-color:#faf8f4;">${rows}</table>
+        </td></tr>
+        <tr><td style="padding:0 20px 24px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+            <tr><td bgcolor="#a6281d" style="background-color:#a6281d;mso-padding-alt:12px 18px;border-radius:4px;">
+              <a href="${escapeHtml(trackUrl)}" style="display:inline-block;padding:12px 18px;color:#ffffff;font-size:15px;line-height:1.4;font-weight:bold;text-decoration:none;">${message.action}</a>
+            </td></tr>
+          </table>
+          ${slot ? `<h2 style="margin:18px 0 6px;font-size:17px;color:#241b19;">Match-day check-in</h2>
+          <ul style="margin:0;padding-left:20px;color:#51453e;font-size:14px;line-height:1.55;">${CHECK_IN.map(item => `<li>${item}</li>`).join('')}</ul>` : ''}
+        </td></tr>
+        <tr><td bgcolor="#f5f0e9" style="padding:16px 20px;background-color:#f5f0e9;border-top:1px solid #e3d8cb;font-size:13px;line-height:1.55;color:#57493f;">
+          <strong style="color:#241b19;">Srusti Esports Tournament Desk</strong><br>
+          For help, email <a href="mailto:${SUPPORT_EMAIL}" style="color:#962518;overflow-wrap:anywhere;">${SUPPORT_EMAIL}</a>.<br>
+          Replies to this automated notification are unmonitored.
+        </td></tr>
+      </table>
+      <!--[if mso]></td></tr></table><![endif]-->
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  const text = [
+    BRAND,
+    ACADEMY,
+    '',
+    `${message.title} · ${message.status}`,
+    `Hello, team leader of ${params.teamName}.`,
+    message.message,
+    ...(message.reason ? [`Review note: ${message.reason}`] : []),
+    '',
+    `Team registration ID: ${params.teamCode}`,
+    ...(slot ? [slot] : []),
+    ...details.map(([label, value]) => `${label}: ${value}`),
+    '',
+    `${message.action}: ${trackUrl}`,
+    ...(slot ? ['', 'Match-day check-in', ...CHECK_IN.map(item => `- ${item}`)] : []),
+    '',
+    `For help, email ${SUPPORT_EMAIL}. Replies to this automated notification are unmonitored.`,
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
+export async function sendTeamConfirmationEmail(params: TeamConfirmationEmailParams): Promise<EmailSendResult> {
   if (!isSmtpConfigured()) {
     return {
       sent: false,
@@ -90,243 +252,12 @@ export async function sendTeamConfirmationEmail(params: {
   }
 
   const appUrl = resolveAppUrl();
-  const trackUrl = `${appUrl}/track?code=${encodeURIComponent(params.teamCode)}`;
-
-  const safeTeam = escapeHtml(params.teamName);
-  const safeCode = escapeHtml(params.teamCode);
-  const safeEvent = escapeHtml(params.eventTitle);
-  const safeGame = escapeHtml(params.gameTitle);
-  const safeUtr = escapeHtml(params.utrNumber);
-  const safeVenue = escapeHtml(params.venueLabel || 'SAMT Campus LAN Arena');
-  const safeDate = escapeHtml(params.eventDateLabel || 'Dates to be announced');
-
-  // Handle Logo attachment & resolution
-  const logoPath = path.resolve(process.cwd(), 'public/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.png');
-  const attachments: Array<{ filename: string; path: string; cid: string }> = [];
-  let logoSrc = `${appUrl}/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.png`;
-
-  if (fs.existsSync(logoPath)) {
-    attachments.push({
-      filename: 'srusti-esports-logo.png',
-      path: logoPath,
-      cid: 'srusti-esports-logo',
-    });
-    logoSrc = 'cid:srusti-esports-logo';
-  }
-
-  let subject = `[SAMT Esports 2026] Registration Received — ${params.teamCode}`;
-  let statusBadge = 'Pending Verification';
-  let badgeColor = '#D97706';
-  let badgeBg = 'rgba(217, 119, 6, 0.15)';
-  let headline = 'Registration & Payment Received';
-  let warmWelcome =
-    'On behalf of the faculty, student leadership, and tournament committee of <strong>Srusti Academy of Management and Technology (SAMT)</strong>, we are delighted to receive your squad registration. Our verification desk is cross-checking your UPI reference against our college accounts.';
-
-  if (params.status === 'verified') {
-    subject = `🎮 Confirmed Slot & Official Welcome — ${params.teamName} (${params.teamCode})`;
-    statusBadge = 'Verified & Confirmed';
-    badgeColor = '#4ADE80';
-    badgeBg = 'rgba(22, 163, 74, 0.15)';
-    headline = 'Slot Confirmed — Welcome to the Arena!';
-    warmWelcome =
-      'On behalf of the leadership, faculty, and esports organizing council of <strong>Srusti Academy of Management and Technology (SAMT)</strong>, we extend our warmest welcome to you and your squad! Your registration, roster eligibility, and UPI payment reference have been verified by the Tournament Desk. Your team is officially confirmed for competition!';
-  } else if (params.status === 'reupload_required') {
-    subject = `⚠️ Payment Proof Re-Upload Required — ${params.teamCode}`;
-    statusBadge = 'Re-Upload Required';
-    badgeColor = '#F87171';
-    badgeBg = 'rgba(220, 38, 38, 0.15)';
-    headline = 'Action Required: Update Payment Proof';
-    warmWelcome = `The tournament desk reviewed your payment submission and flagged the following issue: <strong>${escapeHtml(
-      params.rejectionReason || 'UTR transaction reference or screenshot could not be verified.'
-    )}</strong>. Please submit a clear screenshot with visible 12-digit UTR reference.`;
-  } else if (params.status === 'rejected') {
-    subject = `❌ Registration Notice — ${params.teamCode}`;
-    statusBadge = 'Rejected';
-    badgeColor = '#EF4444';
-    badgeBg = 'rgba(239, 68, 68, 0.15)';
-    headline = 'Registration Not Approved';
-    warmWelcome = `Your tournament submission could not be approved due to: <strong>${escapeHtml(
-      params.rejectionReason || 'Duplicate or invalid transaction reference.'
-    )}</strong>. Please contact tournament support if you have questions.`;
-  }
-
-  const mealSummary =
-    params.lunchCount > 0
-      ? `${params.lunchCount} Meal(s) (${params.vegCount} Veg, ${params.nonVegCount} Non-Veg)`
-      : 'No Lunch Add-on';
-
-  const html = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SAMT Esports 2026</title>
-</head>
-<body style="margin: 0; padding: 0; background-color: #080B10; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-  <div style="background-color: #080B10; padding: 30px 12px;">
-    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 620px; margin: 0 auto; background-color: #0E131F; border-radius: 16px; border: 1px solid #1E293B; overflow: hidden; box-shadow: 0 20px 45px rgba(0,0,0,0.6);">
-      
-      <!-- Top Accent Line -->
-      <tr>
-        <td style="height: 4px; background: linear-gradient(90deg, #D41B14 0%, #FF6B1A 50%, #E5C736 100%);"></td>
-      </tr>
-
-      <!-- Header with Logo and College Identity -->
-      <tr>
-        <td style="padding: 32px 32px 24px 32px; background: radial-gradient(circle at top right, rgba(212,27,20,0.18), transparent 70%), #0E131F; border-bottom: 1px solid #1E293B; text-align: center;">
-          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
-            <tr>
-              <td align="center">
-                <img src="${logoSrc}" alt="Srusti Esports" width="190" style="display: block; width: 190px; max-width: 100%; height: auto; margin: 0 auto 16px auto;" />
-                <div style="font-size: 11px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: #E5C736; margin-bottom: 4px;">
-                  Srusti Academy of Management and Technology
-                </div>
-                <div style="font-size: 13px; font-weight: 500; color: #94A3B8; letter-spacing: 0.5px;">
-                  Campus LAN Esports Championship &bull; Edition 2026
-                </div>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-
-      <!-- Main Body -->
-      <tr>
-        <td style="padding: 32px 32px 20px 32px; color: #F8FAFC;">
-          <div style="display: inline-block; padding: 6px 14px; background: ${badgeBg}; border: 1px solid ${badgeColor}; border-radius: 9999px; font-size: 11px; font-weight: 800; letter-spacing: 1.5px; color: ${badgeColor}; text-transform: uppercase; margin-bottom: 16px;">
-            &#10003; ${statusBadge}
-          </div>
-          
-          <h1 style="margin: 0 0 14px 0; font-size: 24px; font-weight: 800; color: #FFFFFF; line-height: 1.3; letter-spacing: -0.5px;">
-            ${headline}
-          </h1>
-
-          <p style="margin: 0 0 16px 0; font-size: 15px; color: #CBD5E1; line-height: 1.6;">
-            Dear In-Game Leader (IGL) of <strong>${safeTeam}</strong>,
-          </p>
-
-          <p style="margin: 0 0 20px 0; font-size: 14px; color: #94A3B8; line-height: 1.6;">
-            ${warmWelcome}
-          </p>
-
-          ${
-            params.status === 'verified' && params.slotNumber
-              ? `
-          <!-- Allocation Highlight Banner -->
-          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background: linear-gradient(135deg, rgba(212,27,20,0.12), rgba(229,199,54,0.08)); border: 1px solid rgba(229,199,54,0.4); border-radius: 12px; margin-bottom: 24px;">
-            <tr>
-              <td style="padding: 20px; text-align: center;">
-                <div style="font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #E5C736; margin-bottom: 6px;">
-                  OFFICIAL TOURNAMENT ALLOCATION
-                </div>
-                <div style="font-size: 22px; font-weight: 900; color: #FFFFFF; letter-spacing: 0.5px;">
-                  ${escapeHtml(params.groupName || 'Main Bracket')} &bull; ${escapeHtml(params.slotNumber)}
-                </div>
-                <div style="font-size: 13px; color: #4ADE80; font-weight: 600; margin-top: 4px;">
-                  ${safeGame} &bull; LAN Stage
-                </div>
-              </td>
-            </tr>
-          </table>`
-              : ''
-          }
-
-          <!-- Dossier Matrix -->
-          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #141B2D; border: 1px solid #1E293B; border-radius: 12px; overflow: hidden; margin-bottom: 28px;">
-            <tr>
-              <td colspan="2" style="background-color: #1A2238; padding: 12px 18px; font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #E2E8F0; border-bottom: 1px solid #1E293B;">
-                Registration & Payment Dossier
-              </td>
-            </tr>
-            <tr>
-              <td style="padding: 12px 18px; color: #94A3B8; font-size: 13px; border-bottom: 1px solid #1E293B; width: 45%;">Team Code</td>
-              <td style="padding: 12px 18px; color: #FFFFFF; font-size: 13px; font-weight: 700; text-align: right; border-bottom: 1px solid #1E293B; font-family: monospace;">${safeCode}</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px 18px; color: #94A3B8; font-size: 13px; border-bottom: 1px solid #1E293B;">Tournament Event</td>
-              <td style="padding: 12px 18px; color: #FFFFFF; font-size: 13px; font-weight: 600; text-align: right; border-bottom: 1px solid #1E293B;">${safeEvent} (${safeGame})</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px 18px; color: #94A3B8; font-size: 13px; border-bottom: 1px solid #1E293B;">UTR / Transaction Ref</td>
-              <td style="padding: 12px 18px; color: #4ADE80; font-size: 13px; font-weight: 700; text-align: right; border-bottom: 1px solid #1E293B; font-family: monospace;">${safeUtr}</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px 18px; color: #94A3B8; font-size: 13px; border-bottom: 1px solid #1E293B;">Total Fee</td>
-              <td style="padding: 12px 18px; color: #E5C736; font-size: 14px; font-weight: 800; text-align: right; border-bottom: 1px solid #1E293B;">Rs. ${params.totalFee}</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px 18px; color: #94A3B8; font-size: 13px; border-bottom: 1px solid #1E293B;">Lunch Add-On</td>
-              <td style="padding: 12px 18px; color: #CBD5E1; font-size: 13px; text-align: right; border-bottom: 1px solid #1E293B;">${escapeHtml(mealSummary)}</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px 18px; color: #94A3B8; font-size: 13px;">Campus Venue</td>
-              <td style="padding: 12px 18px; color: #FFFFFF; font-size: 13px; font-weight: 600; text-align: right;">${safeVenue} &bull; ${safeDate}</td>
-            </tr>
-          </table>
-
-          <!-- Button Call to Action -->
-          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 28px;">
-            <tr>
-              <td align="center">
-                <a href="${trackUrl}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #D41B14 0%, #FF6B1A 100%); color: #FFFFFF; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-size: 14px; font-weight: 800; letter-spacing: 0.5px; box-shadow: 0 4px 15px rgba(212,27,20,0.4); text-transform: uppercase;">
-                  Open Live Tracker &bull; View Team Pass &rarr;
-                </a>
-              </td>
-            </tr>
-          </table>
-
-          <!-- Matchday Check-in Instructions -->
-          <div style="background-color: #0B0E17; border-left: 3px solid #E5C736; padding: 14px 18px; border-radius: 4px; margin-bottom: 24px;">
-            <div style="font-size: 12px; font-weight: 800; color: #E5C736; text-transform: uppercase; margin-bottom: 4px;">
-              Important Matchday Instructions:
-            </div>
-            <ul style="margin: 0; padding-left: 18px; color: #94A3B8; font-size: 12px; line-height: 1.6;">
-              <li>All squad members must carry original <strong>College / Institution Photo ID cards</strong> for arena check-in.</li>
-              <li>Custom match room credentials will be shared with verified IGLs 15 minutes before match wave.</li>
-              <li>Players must enter using their registered <strong>Character IDs and In-Game Names</strong> strictly.</li>
-            </ul>
-          </div>
-
-          <!-- Closing Signature -->
-          <div style="padding-top: 10px; border-top: 1px solid #1E293B; color: #CBD5E1; font-size: 13px; line-height: 1.6;">
-            <p style="margin: 0 0 4px 0;">We wish your squad the very best of luck and peak performance. Train hard, play fair, and see you on the battlefield!</p>
-            <p style="margin: 12px 0 0 0; color: #94A3B8;">
-              Warm regards,<br>
-              <strong style="color: #FFFFFF;">Tournament Organizing Committee</strong><br>
-              Srusti Academy of Management and Technology (SAMT)<br>
-              <span style="font-size: 12px; color: #E5C736;">Bhubaneswar, Odisha</span>
-            </p>
-          </div>
-
-        </td>
-      </tr>
-
-      <!-- Footer -->
-      <tr>
-        <td style="padding: 24px 32px; background-color: #080B10; border-top: 1px solid #1E293B; text-align: center; color: #64748B; font-size: 11px; line-height: 1.6;">
-          <div style="margin-bottom: 12px;">
-            Official communication from <strong>Srusti Academy of Management and Technology</strong>.<br>
-            Campus Esports Tournament Directorate &bull; Edition 2026
-          </div>
-
-          <!-- No Reply Notice Box -->
-          <div style="margin: 12px auto; max-width: 500px; padding: 10px 14px; background-color: #0E131F; border: 1px dashed #334155; border-radius: 8px; color: #94A3B8; font-size: 11px;">
-            🔒 <strong>AUTOMATED NOTIFICATION &bull; PLEASE DO NOT REPLY</strong><br>
-            This email was sent from an unmonitored notification service. Direct replies to this address will not be received. If you need assistance or wish to request roster updates, please email our support desk at <a href="mailto:info.esport@srustiacademy.ac.in" style="color: #FF6B1A; text-decoration: none; font-weight: 600;">info.esport@srustiacademy.ac.in</a>.
-          </div>
-
-          <div style="margin-top: 12px; font-size: 10px; color: #475569;">
-            &copy; 2026 Srusti Academy of Management and Technology. All rights reserved.
-          </div>
-        </td>
-      </tr>
-
-    </table>
-  </div>
-</body>
-</html>
-  `;
+  const logoPath = path.resolve(process.cwd(), 'public', LOGO_PATH);
+  const attachments = fs.existsSync(logoPath)
+    ? [{ filename: 'srusti-esports-logo.png', path: logoPath, cid: 'srusti-esports-logo' }]
+    : [];
+  const logoSrc = attachments.length ? 'cid:srusti-esports-logo' : `${appUrl}/${LOGO_PATH}`;
+  const { subject, html, text } = buildTeamConfirmationEmail(params, appUrl, logoSrc);
 
   try {
     const transporter = createTransporter();
@@ -342,6 +273,7 @@ export async function sendTeamConfirmationEmail(params: {
       to: params.toEmail,
       subject,
       html,
+      text,
       attachments,
     });
     return {
