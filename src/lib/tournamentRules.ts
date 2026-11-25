@@ -4,6 +4,10 @@ export type DietType = 'VEG' | 'NON_VEG' | 'NONE';
 
 export type SlotRole = 'IGL' | 'P2' | 'P3' | 'P4' | 'SUB';
 
+export const OTHER_ACADEMIC_LEVEL = 'Age 16-22';
+export const MAX_ACADEMIC_LEVEL_LENGTH = 80;
+export const MAX_COLLEGE_NAME_LENGTH = 120;
+
 export type RegistrationStatus =
   | 'pending'
   | 'verified'
@@ -17,6 +21,7 @@ export interface PlayerInput {
   inGameName: string;
   characterId: string;
   academicLevel: string;
+  otherAcademicLevel?: string;
   collegeOverride?: string;
   wantsLunch: boolean;
   dietType: DietType;
@@ -215,6 +220,8 @@ export function validateSquadSubmission(input: {
     !member || !['IGL', 'P2', 'P3', 'P4', 'SUB'].includes(member.slotRole) ||
     ['fullName', 'inGameName', 'characterId', 'academicLevel'].some(key =>
       typeof member[key as keyof PlayerInput] !== 'string') ||
+    (member.collegeOverride !== undefined && typeof member.collegeOverride !== 'string') ||
+    (member.otherAcademicLevel !== undefined && typeof member.otherAcademicLevel !== 'string') ||
     typeof member.wantsLunch !== 'boolean'
   )) {
     return { valid: false, errors: { members: 'Provide a valid squad roster.' } };
@@ -227,8 +234,8 @@ export function validateSquadSubmission(input: {
   }
   if (!input.collegeName.trim() || input.collegeName.trim().length < 3) {
     errors.collegeName = 'College / Institution name is required.';
-  } else if (input.collegeName.trim().length > 120) {
-    errors.collegeName = 'College / Institution name must be 120 characters or fewer.';
+  } else if (input.collegeName.trim().length > MAX_COLLEGE_NAME_LENGTH) {
+    errors.collegeName = `College / Institution name must be ${MAX_COLLEGE_NAME_LENGTH} characters or fewer.`;
   }
   if (!isValidIndianPhone(input.iglPhone)) {
     errors.iglPhone = 'Enter a valid 10-digit Indian mobile / WhatsApp number.';
@@ -278,8 +285,24 @@ export function validateSquadSubmission(input: {
     if (member.wantsLunch && member.dietType !== 'VEG' && member.dietType !== 'NON_VEG') {
       errors[`${prefix}_dietType`] = 'Select VEG or NON-VEG for lunch add-on.';
     }
-    if (!member.academicLevel.trim()) {
+    const college = member.collegeOverride?.trim() ?? '';
+    if (college.length < 3) {
+      errors[`${prefix}_collegeOverride`] = 'Enter this player’s college or institution name.';
+    } else if (college.length > MAX_COLLEGE_NAME_LENGTH) {
+      errors[`${prefix}_collegeOverride`] = `College or institution name must be ${MAX_COLLEGE_NAME_LENGTH} characters or fewer.`;
+    }
+    const level = member.academicLevel.trim();
+    if (!level) {
       errors[`${prefix}_academicLevel`] = 'Select an academic level.';
+    } else if (level === OTHER_ACADEMIC_LEVEL) {
+      const course = member.otherAcademicLevel?.trim() ?? '';
+      if (!course) {
+        errors[`${prefix}_otherAcademicLevel`] = 'Enter this player’s course or academic level.';
+      } else if (course.length > MAX_ACADEMIC_LEVEL_LENGTH) {
+        errors[`${prefix}_otherAcademicLevel`] = `Course or academic level must be ${MAX_ACADEMIC_LEVEL_LENGTH} characters or fewer.`;
+      }
+    } else if (level.length > MAX_ACADEMIC_LEVEL_LENGTH) {
+      errors[`${prefix}_academicLevel`] = `Academic level must be ${MAX_ACADEMIC_LEVEL_LENGTH} characters or fewer.`;
     }
   });
 

@@ -15,6 +15,7 @@ import {
   isValidUpiVpa,
   normalizePhone,
   OFFICIAL_REGISTRATION_DEADLINE_ISO,
+  OTHER_ACADEMIC_LEVEL,
   resolveDeadlineTimestamp,
   validateSquadSubmission,
   type PlayerInput,
@@ -28,6 +29,7 @@ function makeMembers(lunchFlags: Array<{ lunch: boolean; diet: 'VEG' | 'NON_VEG'
     inGameName: `IGN_${idx + 1}`,
     characterId: `51000000${idx + 1}`,
     academicLevel: 'UG',
+    collegeOverride: `College ${idx + 1}`,
     wantsLunch: flag.lunch,
     dietType: flag.diet,
   }));
@@ -104,6 +106,28 @@ test('roster validation rejects malformed and duplicated roles', () => {
   input.members[3].slotRole = 'P3';
   assert.equal(validateSquadSubmission(input).valid, false);
   assert.equal(validateSquadSubmission({ ...input, members: [null] as unknown as PlayerInput[] }).valid, false);
+});
+
+test('each active player needs a college and Other needs a course', () => {
+  const members = makeMembers(Array.from({ length: 5 }, () => ({ lunch: false, diet: 'NONE' as const })));
+  members[1].academicLevel = OTHER_ACADEMIC_LEVEL;
+  members[1].otherAcademicLevel = ' ';
+  members[2].collegeOverride = '';
+  members[4].collegeOverride = undefined;
+  const input = {
+    eventSlug: 'kalinga-warriors-bgmi', teamName: 'Test', collegeName: 'College',
+    iglPhone: '9876543210', iglEmail: 'test@example.test', hasSubstitute: true,
+    eligibilityConfirmed: true, fairPlayConfirmed: true, members,
+  };
+  const { errors } = validateSquadSubmission(input);
+  assert.ok(errors.member_P2_otherAcademicLevel);
+  assert.ok(errors.member_P3_collegeOverride);
+  assert.ok(errors.member_SUB_collegeOverride);
+  members[1].otherAcademicLevel = 'MBA';
+  members[2].collegeOverride = 'Player Three College';
+  assert.equal(validateSquadSubmission({ ...input, hasSubstitute: false }).valid, true);
+  members[4].collegeOverride = 'Player Five College';
+  assert.equal(validateSquadSubmission(input).valid, true);
 });
 
 test('assignTournamentSlot assigns Group A (1-12), Group B (1-12), and Waitlist', () => {

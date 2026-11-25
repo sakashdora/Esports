@@ -1,10 +1,11 @@
 import { Check, Utensils } from 'lucide-react';
-import type { PlayerInput } from '../lib/tournamentRules';
+import { MAX_ACADEMIC_LEVEL_LENGTH, MAX_COLLEGE_NAME_LENGTH, OTHER_ACADEMIC_LEVEL, type PlayerInput } from '../lib/tournamentRules';
 
 const playerFields = [
   { key: 'fullName', label: 'Full name', id: 'fullName' },
   { key: 'inGameName', label: 'In-game name (IGN)', id: 'ign' },
   { key: 'characterId', label: 'Character ID', id: 'cid' },
+  { key: 'collegeOverride', label: 'College / institution name', id: 'college' },
 ] as const;
 
 interface RegistrationPlayerCardProps {
@@ -19,6 +20,7 @@ export function RegistrationPlayerCard({ member, label, complete, errors, onChan
   const leader = member.slotRole === 'IGL';
   const prefix = `member_${member.slotRole}`;
   const levelError = errors[`${prefix}_academicLevel`];
+  const otherLevelError = errors[`${prefix}_otherAcademicLevel`];
   const dietError = errors[`${prefix}_dietType`];
 
   return (
@@ -41,7 +43,8 @@ export function RegistrationPlayerCard({ member, label, complete, errors, onChan
               <input
                 id={fieldId}
                 type="text"
-                value={member[key]}
+                value={member[key] ?? ''}
+                maxLength={key === 'collegeOverride' ? MAX_COLLEGE_NAME_LENGTH : undefined}
                 onChange={(e) => onChange({ [key]: e.target.value })}
                 aria-required="true"
                 aria-invalid={Boolean(error)}
@@ -57,7 +60,7 @@ export function RegistrationPlayerCard({ member, label, complete, errors, onChan
           <select
             id={`${prefix}-level`}
             value={member.academicLevel}
-            onChange={(e) => onChange({ academicLevel: e.target.value })}
+            onChange={(e) => onChange({ academicLevel: e.target.value, otherAcademicLevel: '' })}
             aria-required="true"
             aria-invalid={Boolean(levelError)}
             aria-describedby={levelError ? `${prefix}-level-error` : undefined}
@@ -67,10 +70,28 @@ export function RegistrationPlayerCard({ member, label, complete, errors, onChan
             <option value="11th">11th Class</option>
             <option value="12th">12th Class</option>
             <option value="UG">Undergraduate (UG)</option>
-            <option value="Age 16-22">Other (Age 16–22)</option>
+            <option value={OTHER_ACADEMIC_LEVEL}>Other (Age 16–22)</option>
           </select>
           {levelError && <p id={`${prefix}-level-error`} className="registration-error">{levelError}</p>}
         </div>
+        {member.academicLevel === OTHER_ACADEMIC_LEVEL && (
+          <div>
+            <label htmlFor={`${prefix}-other-level`} className="registration-label">Course / academic level *</label>
+            <input
+              id={`${prefix}-other-level`}
+              type="text"
+              placeholder="e.g. MBA, MCA"
+              value={member.otherAcademicLevel ?? ''}
+              maxLength={MAX_ACADEMIC_LEVEL_LENGTH}
+              onChange={(e) => onChange({ otherAcademicLevel: e.target.value })}
+              aria-required="true"
+              aria-invalid={Boolean(otherLevelError)}
+              aria-describedby={otherLevelError ? `${prefix}-other-level-error` : undefined}
+              className="registration-input"
+            />
+            {otherLevelError && <p id={`${prefix}-other-level-error`} className="registration-error">{otherLevelError}</p>}
+          </div>
+        )}
       </div>
 
       <div className="registration-meal">

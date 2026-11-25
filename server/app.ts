@@ -311,6 +311,7 @@ export function createApiApp(): Express {
           inGameName: m.inGameName,
           characterId: m.characterId,
           academicLevel: m.academicLevel,
+          collegeOverride: m.collegeOverride,
           wantsLunch: m.wantsLunch,
           dietType: m.dietType,
         })),

@@ -219,25 +219,6 @@ button:disabled { cursor: not-allowed; }
 /* Approved centered college championship. */
 .approved-home { background: #0d0a09; color: #f4f3ef; }
 .stage-container { width: min(1240px,calc(100% - 64px)); margin-inline: auto; }
-.academy-logo {
-  display: grid;
-  grid-template-columns: minmax(0, 18fr) minmax(0, 78fr);
-  align-items: center;
-  gap: 3%;
-  width: 100%;
-}
-.academy-logo .academy-crest { width: 100%; height: auto; }
-.academy-wordmark { position: relative; aspect-ratio: 728 / 108; overflow: hidden; }
-.academy-wordmark img {
-  /* Show the lettering portion of the supplied image beside the original crest. */
-  position: absolute;
-  top: calc(-100% * 56 / 108);
-  left: calc(-100% * 244 / 728);
-  width: calc(100% * 1007 / 728);
-  max-width: none;
-  height: auto;
-}
-.academy-logo-dark .academy-wordmark img { filter: contrast(.58) brightness(2.05); }
 .campus-map-link { text-decoration: underline; text-underline-offset: 3px; }
 .campus-map-link:hover { color: var(--color-samt-gold); }
 .campus-map-link:focus-visible { outline: 2px solid var(--color-samt-gold); outline-offset: 4px; }

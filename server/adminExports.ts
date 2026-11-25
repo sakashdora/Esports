@@ -10,11 +10,11 @@ export async function exportAdminWorkbook(bundles: Bundles): Promise<Buffer> {
   const teams = workbook.addWorksheet('Registrations');
   const players = workbook.addWorksheet('Players');
   teams.addRow(['Team code', 'Team', 'Event', 'College', 'Status', 'Group', 'Slot', 'Captain phone', 'Captain email', 'Fee (INR)', 'Lunch meals', 'Veg', 'Non-veg', 'Latest UTR', 'Registered (IST)']);
-  players.addRow(['Team code', 'Team', 'Role', 'Player name', 'In-game name', 'Character ID', 'Lunch', 'Diet']);
+  players.addRow(['Team code', 'Team', 'Role', 'Player name', 'In-game name', 'Character ID', 'Lunch', 'Diet', 'Player college', 'Academic level']);
   for (const { registration: r, event, members, proofs } of bundles) {
     // Explicit columns exclude internal UUIDs, storage paths and authentication data.
     teams.addRow([r.teamCode, r.teamName, event.title, r.collegeName, r.status, r.groupName || '', r.slotNumber || '', r.iglPhone, r.iglEmail, r.totalFee, r.lunchCount, r.vegCount, r.nonVegCount, proofs[0]?.utrNumber || '', new Date(r.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })]);
-    for (const m of members) players.addRow([r.teamCode, r.teamName, m.slotRole, m.fullName, m.inGameName, m.characterId, m.wantsLunch ? 'Yes' : 'No', m.dietType]);
+    for (const m of members) players.addRow([r.teamCode, r.teamName, m.slotRole, m.fullName, m.inGameName, m.characterId, m.wantsLunch ? 'Yes' : 'No', m.dietType, m.collegeOverride || '', m.academicLevel]);
   }
   for (const sheet of [teams, players]) {
     sheet.views = [{ state: 'frozen', ySplit: 1 }];
@@ -45,7 +45,10 @@ export function exportAdminPdf(bundles: Bundles): Promise<Buffer> {
       doc.moveDown().fontSize(11).fillColor('#222222');
       for (const line of [event.title, `College: ${r.collegeName}`, `Status: ${r.status} | Group: ${r.groupName || '-'} | Slot: ${r.slotNumber || '-'}`, `Captain: ${r.iglEmail} | ${r.iglPhone}`, `Fee: INR ${r.totalFee} | Lunch: ${r.vegCount} veg / ${r.nonVegCount} non-veg`, `UTR: ${proofs[0]?.utrNumber || '-'}`]) doc.text(line).moveDown(0.5);
       doc.moveDown().fontSize(14).text('Squad roster').moveDown(0.5).fontSize(11);
-      for (const m of members) doc.text(`${m.slotRole}: ${m.fullName}\nIGN: ${m.inGameName} | Character ID: ${m.characterId}\nLunch: ${m.wantsLunch ? m.dietType : 'No'}`).moveDown();
+      for (const m of members) {
+        const collegeAndCourse = [m.collegeOverride, m.academicLevel].filter(Boolean).join(' | ');
+        doc.text(`${m.slotRole}: ${m.fullName}\nIGN: ${m.inGameName} | Character ID: ${m.characterId}\n${collegeAndCourse}\nLunch: ${m.wantsLunch ? m.dietType : 'No'}`).moveDown();
+      }
     }
     doc.end();
   });

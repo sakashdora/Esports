@@ -15,12 +15,13 @@ import {
   isValidUtr,
   normalizePhone,
   normalizeUtr,
+  OTHER_ACADEMIC_LEVEL,
   validateSquadSubmission,
   type PlayerInput,
   type RegistrationStatus,
 } from '../src/lib/tournamentRules.js';
 
-export interface StoredTeamMember extends PlayerInput {
+export interface StoredTeamMember extends Omit<PlayerInput, 'otherAcademicLevel'> {
   id: string;
   registrationId: string;
   eventId: string;
@@ -517,9 +518,15 @@ export async function createRegistrationWithProof(input: {
   }
 
   const fileSha256 = crypto.createHash('sha256').update(input.fileBuffer).digest('hex');
-  const activeMembers = input.members.filter((m) =>
-    input.hasSubstitute ? true : m.slotRole !== 'SUB'
-  );
+  const activeMembers = input.members
+    .filter((member) => input.hasSubstitute || member.slotRole !== 'SUB')
+    .map(({ otherAcademicLevel, ...member }) => ({
+      ...member,
+      academicLevel: member.academicLevel.trim() === OTHER_ACADEMIC_LEVEL
+        ? otherAcademicLevel?.trim() ?? ''
+        : member.academicLevel.trim(),
+      collegeOverride: member.collegeOverride?.trim(),
+    }));
   const fees = calculateRegistrationFee(activeMembers, event.baseFee, event.lunchFee);
   const cleanPhone = normalizePhone(input.iglPhone);
   const cleanEmail = input.iglEmail.trim().toLowerCase();
@@ -794,7 +801,7 @@ export async function createRegistrationWithProof(input: {
     in_game_name: m.inGameName.trim(),
     character_id: m.characterId.trim(),
     academic_level: m.academicLevel,
-    college_override: m.collegeOverride?.trim() || null,
+    college_override: m.collegeOverride || null,
     wants_lunch: m.wantsLunch,
     diet_type: m.wantsLunch ? m.dietType : 'NONE',
   }));

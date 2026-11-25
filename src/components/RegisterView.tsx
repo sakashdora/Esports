@@ -11,6 +11,7 @@ import {
   buildUpiIntentUri,
   calculateRegistrationFee,
   isStrict12DigitUtr,
+  MAX_COLLEGE_NAME_LENGTH,
   validateSquadSubmission,
   type PlayerInput,
   type SlotRole,
@@ -105,11 +106,7 @@ export function RegisterView({
   // An unfinished registration from this browser (refresh, closed tab, lost connection).
   const [savedDraft] = useState(() => loadDraft());
   const [draftRestored, setDraftRestored] = useState(Boolean(savedDraft));
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(savedDraft?.step ?? 1);
-  const stepHeading = useRef<HTMLHeadingElement>(null);
-  const previousStep = useRef(step);
   const [teamName, setTeamName] = useState(savedDraft?.teamName ?? '');
-  const [collegeName, setCollegeName] = useState(savedDraft?.collegeName ?? '');
   const [iglPhone, setIglPhone] = useState(savedDraft?.iglPhone ?? '');
   const [iglEmail, setIglEmail] = useState(savedDraft?.iglEmail ?? '');
   const [hasSubstitute, setHasSubstitute] = useState(savedDraft?.hasSubstitute ?? false);
@@ -117,11 +114,28 @@ export function RegisterView({
     savedDraft
       ? DEFAULT_ROSTER.map((blank) => {
           const saved = savedDraft.members.find((m) => m.slotRole === blank.slotRole);
-          if (!saved) return blank;
-          return { ...saved, academicLevel: typeof saved.academicLevel === 'string' ? saved.academicLevel : '' };
+          return {
+            ...blank,
+            ...saved,
+            academicLevel: typeof saved?.academicLevel === 'string' ? saved.academicLevel : '',
+            otherAcademicLevel: typeof saved?.otherAcademicLevel === 'string' ? saved.otherAcademicLevel : '',
+            collegeOverride: typeof saved?.collegeOverride === 'string'
+              ? saved.collegeOverride
+              : blank.slotRole === 'IGL' ? savedDraft.collegeName : '',
+          };
         })
       : DEFAULT_ROSTER
   );
+  const leader = members.find((member) => member.slotRole === 'IGL');
+  const leaderName = leader?.fullName ?? '';
+  const collegeName = leader?.collegeOverride ?? '';
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(() => {
+    if (savedDraft?.step !== 3) return savedDraft?.step ?? 1;
+    const roster = validateSquadSubmission({ ...savedDraft, eventSlug: event?.slug ?? initialSlug, collegeName, members });
+    return roster.valid ? 3 : 2;
+  });
+  const stepHeading = useRef<HTMLHeadingElement>(null);
+  const previousStep = useRef(step);
   const [eligibilityConfirmed, setEligibilityConfirmed] = useState(savedDraft?.eligibilityConfirmed ?? false);
   const [fairPlayConfirmed, setFairPlayConfirmed] = useState(savedDraft?.fairPlayConfirmed ?? false);
   const [activeSkillConfirmed, setActiveSkillConfirmed] = useState(savedDraft?.activeSkillConfirmed ?? false);
@@ -148,7 +162,6 @@ export function RegisterView({
   );
   const requiredMembers = members.filter((member) => member.slotRole !== 'SUB');
   const substitute = members.find((member) => member.slotRole === 'SUB');
-  const leaderName = members.find((member) => member.slotRole === 'IGL')?.fullName ?? '';
   const rosterErrors = step === 2 ? validateSquadSubmission({
     eventSlug: event?.slug ?? initialSlug,
     teamName, collegeName, iglPhone, iglEmail,
@@ -200,7 +213,8 @@ export function RegisterView({
   useEffect(() => {
     if (step === 4 || !event) return;
     const hasContent = [teamName, collegeName, iglPhone, iglEmail, utrNumber].some((v) => v.trim()) ||
-      members.some((m) => m.fullName.trim() || m.inGameName.trim() || m.characterId.trim());
+      members.some((m) => m.fullName.trim() || m.inGameName.trim() || m.characterId.trim() ||
+        m.collegeOverride?.trim() || m.otherAcademicLevel?.trim());
     if (!hasContent) return;
     const timer = window.setTimeout(() => {
       saveDraft({
@@ -216,7 +230,7 @@ export function RegisterView({
     clearDraft();
     setDraftRestored(false);
     setStep(1);
-    setTeamName(''); setCollegeName(''); setIglPhone(''); setIglEmail('');
+    setTeamName(''); setIglPhone(''); setIglEmail('');
     setHasSubstitute(false); setMembers(DEFAULT_ROSTER);
     setEligibilityConfirmed(false); setFairPlayConfirmed(false); setActiveSkillConfirmed(false);
     setUtrNumber(''); setUpiApp('Google Pay');
@@ -247,6 +261,7 @@ export function RegisterView({
     setFieldErrors((errors) => {
       const updatedFields = Object.keys(patch).map((field) => `member_${role}_${field}`);
       if ('wantsLunch' in patch) updatedFields.push(`member_${role}_dietType`);
+      if (role === 'IGL' && 'collegeOverride' in patch) updatedFields.push('collegeName');
       if (!updatedFields.some((field) => field in errors)) return errors;
       return Object.fromEntries(Object.entries(errors).filter(([field]) => !updatedFields.includes(field)));
     });
@@ -500,18 +515,22 @@ export function RegisterView({
 
                   <div>
                     <label htmlFor="reg-college" className="block text-xs font-medium text-neutral-300">
-                      College / Educational Institution *
+                      Team leader’s college / institution *
                     </label>
                     <input
                       id="reg-college"
                       type="text"
                       value={collegeName}
-                      onChange={(e) => setCollegeName(e.target.value)}
+                      onChange={(e) => updateMember('IGL', { collegeOverride: e.target.value })}
+                      maxLength={MAX_COLLEGE_NAME_LENGTH}
+                      aria-required="true"
+                      aria-invalid={Boolean(fieldErrors.collegeName)}
+                      aria-describedby={fieldErrors.collegeName ? 'reg-college-error' : undefined}
                       placeholder="e.g. Srusti Academy of Management and Technology"
                       className="mt-1.5 w-full rounded-md border border-white/15 bg-[#110D0C] px-3.5 py-2.5 text-sm text-white placeholder:text-neutral-500 focus:border-[#D41B14] focus:outline-none"
                     />
                     {fieldErrors.collegeName && (
-                      <p className="mt-1 text-xs text-red-400">{fieldErrors.collegeName}</p>
+                      <p id="reg-college-error" className="mt-1 text-xs text-red-400">{fieldErrors.collegeName}</p>
                     )}
                   </div>
                 </div>
@@ -596,7 +615,7 @@ export function RegisterView({
                 <div className="registration-step-header">
                   <div>
                     <h2 ref={stepHeading} tabIndex={-1}>Player roster</h2>
-                    <p>Enter each player’s in-game details and academic level. Any meals selected add ₹{event.lunchFee} once per squad.</p>
+                    <p>Enter each player’s in-game details, college and academic level. Any meals selected add ₹{event.lunchFee} once per squad.</p>
                   </div>
                   <span className="registration-progress" role="status">{readyRoles.size} of 4 ready</span>
                 </div>

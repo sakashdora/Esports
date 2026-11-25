@@ -124,6 +124,7 @@ interface AdminBundle {
     inGameName: string;
     characterId: string;
     academicLevel: string;
+    collegeOverride?: string;
     wantsLunch: boolean;
     dietType: string;
   }>;
@@ -630,7 +631,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
       'Veg Meals',
       'Non-Veg Meals',
       'Latest UTR',
-      'Roster (Role: Name / IGN / CharID)',
+      'Roster (Role: Name / IGN / CharID / College / Academic level)',
     ];
     const rows = filteredBundles.map((b) => [
       b.registration.teamCode,
@@ -649,7 +650,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
       b.registration.nonVegCount,
       b.proofs[0]?.utrNumber || '',
       b.members
-        .map((m) => `${m.slotRole}: ${m.fullName} (${m.inGameName} / ${m.characterId})`)
+        .map((m) => `${m.slotRole}: ${m.fullName} (${[m.inGameName, m.characterId, m.collegeOverride, m.academicLevel].filter(Boolean).join(' / ')})`)
         .join(' | '),
     ]);
 
@@ -1197,6 +1198,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                           <span className="w-8 font-mono font-semibold text-slate-500">{m.slotRole}</span>
                           <span className="text-slate-900">{m.fullName}</span>
                           <span className="text-slate-500">{m.inGameName} · {m.characterId}</span>
+                          <span className="basis-full text-slate-500">{[m.collegeOverride, m.academicLevel].filter(Boolean).join(' · ')}</span>
                         </li>
                       ))}
                     </ul>
@@ -1337,6 +1339,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                               </span>{' '}
                               {m.fullName} · <strong>{m.inGameName}</strong> ·{' '}
                               <span className="font-mono">{m.characterId}</span>
+                              <div className="text-slate-500">{[m.collegeOverride, m.academicLevel].filter(Boolean).join(' · ')}</div>
                             </li>
                           ))}
                         </ul>

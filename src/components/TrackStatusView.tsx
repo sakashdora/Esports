@@ -38,6 +38,7 @@ interface TrackedData {
     inGameName: string;
     characterId: string;
     academicLevel: string;
+    collegeOverride?: string;
     wantsLunch: boolean;
     dietType: string;
   }>;
@@ -363,7 +364,12 @@ export function TrackStatusView({ prefillCode, onNavigate }: TrackStatusViewProp
                       <td className="px-4 py-2.5 font-mono font-semibold text-[#E5C736] print:text-slate-900">
                         {m.slotRole}
                       </td>
-                      <td className="px-4 py-2.5">{m.fullName}</td>
+                      <td className="px-4 py-2.5">
+                        {m.fullName}
+                        <span className="mt-1 block text-neutral-400 print:text-slate-600">
+                          {[m.collegeOverride, m.academicLevel].filter(Boolean).join(' · ')}
+                        </span>
+                      </td>
                       <td className="px-4 py-2.5">{m.inGameName}</td>
                       <td className="px-4 py-2.5 font-mono tabular-nums">{m.characterId}</td>
                       <td className="px-4 py-2.5">

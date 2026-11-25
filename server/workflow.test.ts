@@ -13,13 +13,21 @@ test('local registration, review, reupload, privacy and admin authorization', as
     import assert from 'node:assert/strict';
     const { createRegistrationWithProof, trackRegistration, decideRegistrationPayment, resubmitPaymentProof, listPublicLiveBoard, updateEventConfig, listPublicEvents, issueLocalAdminToken, verifyAdminToken } = await import(${JSON.stringify(new URL('./store.ts', import.meta.url).href)});
     const { createApiApp } = await import(${JSON.stringify(new URL('./app.ts', import.meta.url).href)});
-    const members = ['IGL','P2','P3','P4','SUB'].map((slotRole, index) => ({ slotRole, fullName: 'Private Student '+index, inGameName: 'Player'+index, characterId: '10000'+index, academicLevel: 'UG', wantsLunch: true, dietType: 'VEG' }));
+    const { OTHER_ACADEMIC_LEVEL } = await import(${JSON.stringify(new URL('../src/lib/tournamentRules.ts', import.meta.url).href)});
+    const members = ['IGL','P2','P3','P4','SUB'].map((slotRole, index) => ({
+      slotRole, fullName: 'Private Student '+index, inGameName: 'Player'+index, characterId: '10000'+index,
+      academicLevel: index === 1 ? OTHER_ACADEMIC_LEVEL : 'UG',
+      otherAcademicLevel: index === 1 ? ' MBA ' : undefined,
+      collegeOverride: ' Private College '+index+' ', wantsLunch: true, dietType: 'VEG',
+    }));
     const input = { eventSlug:'kalinga-warriors-bgmi', teamName:'Test Squad', collegeName:'Test College', iglPhone:'9876543210', iglEmail:'captain@example.test', hasSubstitute:true, members, eligibilityConfirmed:true, fairPlayConfirmed:true, utrNumber:'123456789012', upiApp:'UPI', fileBuffer:Buffer.from('89504e470d0a1a0a000000000000','hex') };
     await assert.rejects(createRegistrationWithProof(input), /Payment details/);
     const bgmi = (await listPublicEvents()).find((e) => e.slug === 'kalinga-warriors-bgmi');
     await assert.rejects(updateEventConfig(bgmi.id, { upiVpa: 'not a vpa' }), /valid UPI ID/);
     await updateEventConfig(bgmi.id, { upiVpa: 'college@sbi' });
     const bundle = await createRegistrationWithProof(input);
+    assert.equal(bundle.members[1].academicLevel, 'MBA');
+    assert.equal(bundle.members[1].collegeOverride, 'Private College 1');
     assert.equal(bundle.registration.totalFee,399);
     assert.equal(bundle.registration.lunchCount,5);
     assert.equal(bundle.event.eventDateLabel,'13 December 2026 · Entry 9:30 AM IST');
@@ -73,6 +81,8 @@ test('local registration, review, reupload, privacy and admin authorization', as
           await workbook.xlsx.load(bytes);
           assert.equal(workbook.getWorksheet('Registrations').rowCount,2);
           assert.equal(workbook.getWorksheet('Players').rowCount,6);
+          assert.equal(workbook.getWorksheet('Players').getCell('I3').value,'Private College 1');
+          assert.equal(workbook.getWorksheet('Players').getCell('J3').value,'MBA');
           assert.equal(workbook.getWorksheet('Registrations').getCell('H2').value,'9876543210');
           assert.equal(JSON.stringify(workbook.model).includes(bundle.registration.id),false);
           assert.equal(JSON.stringify(workbook.model).includes(loginData.token),false);
@@ -113,7 +123,7 @@ test('local registration, review, reupload, privacy and admin authorization', as
         assert.equal(summary.matches[0].status,'verified');
         assert.equal(summary.matches[0].teamName,input.teamName);
         const text = JSON.stringify(summary);
-        for (const privateValue of [input.iglPhone,input.iglEmail,bundle.registration.teamCode,bundle.registration.id,'123456789013','Private Student','screenshotPath','100000']) assert.equal(text.includes(privateValue),false);
+        for (const privateValue of [input.iglPhone,input.iglEmail,bundle.registration.teamCode,bundle.registration.id,'123456789013','Private Student','Private College','screenshotPath','100000']) assert.equal(text.includes(privateValue),false);
       }
       assert.equal((await lookup({})).status,400);
       assert.equal((await lookup({iglPhone:'123'})).status,400);
@@ -121,7 +131,10 @@ test('local registration, review, reupload, privacy and admin authorization', as
       assert.equal((await lookup({teamCode:bundle.registration.teamCode,iglPhone:'9876543211'})).status,404);
       const privateDetails = await lookup({teamCode:bundle.registration.teamCode,iglPhone:input.iglPhone});
       assert.equal(privateDetails.status,200);
-      assert.equal((await privateDetails.json()).members.length,5);
+      const privateRoster = (await privateDetails.json()).members;
+      assert.equal(privateRoster.length,5);
+      assert.equal(privateRoster[1].collegeOverride,'Private College 1');
+      assert.equal(privateRoster[1].academicLevel,'MBA');
       const deniedReupload = new FormData();
       deniedReupload.set('teamCode',bundle.registration.teamCode);
       deniedReupload.set('utrNumber','999456789012');
@@ -139,6 +152,7 @@ test('local registration, review, reupload, privacy and admin authorization', as
       assert.equal(publicText.includes(bundle.registration.teamCode),false);
       assert.equal(publicText.includes(input.teamName),false);
       assert.equal(publicText.includes(input.collegeName),false);
+      assert.equal(publicText.includes('Private College'),false);
       assert.equal(publicText.includes(members[0].inGameName),false);
       assert.equal(publicText.includes(input.iglEmail),false);
       assert.equal(publicText.includes(input.iglPhone),false);
