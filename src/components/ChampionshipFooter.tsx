@@ -1,12 +1,14 @@
 import { ArrowUp, Facebook, Instagram, Linkedin, Mail, MapPin, Phone, Youtube } from 'lucide-react';
+import { ACADEMY_ADDRESS, ACADEMY_MAP_URL } from '../lib/academy';
 import { EVENT_DATE_LABEL, EVENT_ENTRY_ISO } from '../lib/defaultEvents';
+import { AcademyLogo } from './AcademyLogo';
 import type { AppRoute } from './Navbar';
 
 const socialLinks = [
-  { name: 'Facebook', Icon: Facebook, href: 'https://www.facebook.com/srustiacademyofmanagementandtechnology' },
-  { name: 'Instagram', Icon: Instagram, href: 'https://www.instagram.com/srustiacademy/' },
-  { name: 'YouTube', Icon: Youtube, href: 'https://www.youtube.com/@srustiacademyofmanagement' },
-  { name: 'LinkedIn', Icon: Linkedin, href: 'https://www.linkedin.com/company/srusti-academy-of-management-and-technology/' },
+  { name: 'Facebook', Icon: Facebook, href: 'https://www.facebook.com/srustiacademyofmanagementandtechnology', className: 'social-facebook' },
+  { name: 'Instagram', Icon: Instagram, href: 'https://www.instagram.com/srustiacademy/', className: 'social-instagram' },
+  { name: 'YouTube', Icon: Youtube, href: 'https://www.youtube.com/@srustiacademyofmanagement', className: 'social-youtube' },
+  { name: 'LinkedIn', Icon: Linkedin, href: 'https://www.linkedin.com/company/srusti-academy-of-management-and-technology/', className: 'social-linkedin' },
 ];
 
 export function ChampionshipFooter({ onNavigate }: { onNavigate: (next: AppRoute) => void }) {
@@ -15,19 +17,13 @@ export function ChampionshipFooter({ onNavigate }: { onNavigate: (next: AppRoute
       <div className="stage-container">
         <div className="footer-main">
           <div className="footer-brand">
-            <div className="footer-academy">
-              <img src="/assets/aistudio/Prospectus_2026_-_27_-_1_bb4cb47c.png" alt="" width="64" height="68" loading="lazy" />
-              <h2>
-                Srusti Academy of Management and Technology{' '}
-                <span>(Autonomous)</span>
-              </h2>
-            </div>
+            <h2 className="footer-academy"><AcademyLogo darkSurface /></h2>
             <nav aria-labelledby="footer-social-title">
               <h3 id="footer-social-title" className="footer-label">Follow us</h3>
               <ul className="footer-social-links">
-                {socialLinks.map(({ name, Icon, href }) => (
+                {socialLinks.map(({ name, Icon, href, className }) => (
                   <li key={name}>
-                    <a href={href} target="_blank" rel="noopener noreferrer" aria-label={name} title={name}>
+                    <a href={href} className={className} target="_blank" rel="noopener noreferrer" aria-label={name} title={name}>
                       <Icon aria-hidden="true" />
                     </a>
                   </li>
@@ -40,7 +36,6 @@ export function ChampionshipFooter({ onNavigate }: { onNavigate: (next: AppRoute
             <h2 id="footer-links-title" className="footer-label">Tournament links</h2>
             <ul className="footer-links">
               <li><a href="#events">Tournaments</a></li>
-              <li><a href="#how-it-works">How it works</a></li>
               <li><button type="button" onClick={() => onNavigate({ page: 'live' })}>View registration counts</button></li>
               <li><button type="button" onClick={() => onNavigate({ page: 'track' })}>Track status</button></li>
             </ul>
@@ -51,8 +46,10 @@ export function ChampionshipFooter({ onNavigate }: { onNavigate: (next: AppRoute
             <address>
               <ul className="footer-contact">
                 <li>
-                  <MapPin aria-hidden="true" />
-                  <span>38/1, Chandaka Industrial Estate, Near Infocity, Bhubaneswar, Odisha 751024, India</span>
+                  <a className="campus-map-link" href={ACADEMY_MAP_URL} target="_blank" rel="noopener noreferrer">
+                    <MapPin aria-hidden="true" />
+                    <span>{ACADEMY_ADDRESS}</span>
+                  </a>
                 </li>
                 <li>
                   <Phone aria-hidden="true" />

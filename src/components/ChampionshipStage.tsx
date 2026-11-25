@@ -1,9 +1,9 @@
 import { ArrowRight, CalendarDays, Clock3, MapPin, Trophy } from 'lucide-react';
+import { ACADEMY_MAP_URL, ACADEMY_NAME } from '../lib/academy';
 import { EVENT_ENTRY_ISO, type CampusEvent } from '../lib/defaultEvents';
 import { getEventBannerUrl } from '../lib/eventArtwork';
 import type { AppRoute } from './Navbar';
 import { EmberParticles } from './EmberParticles';
-import { HeroCountdown } from './HeroCountdown';
 import { PointsGuide } from './PointsGuide';
 
 export function ChampionshipStage({ events, loading, onNavigate }: { events: CampusEvent[]; loading: boolean; onNavigate: (route: AppRoute) => void }) {
@@ -17,26 +17,20 @@ export function ChampionshipStage({ events, loading, onNavigate }: { events: Cam
       <EmberParticles density={32} />
       <div className="stage-container hero-content">
         <div className="hero-identity animate-stage-enter">
-          <div className="hero-organizer">
-            <img className="hero-college-crest" src="/assets/aistudio/Prospectus_2026_-_27_-_1_bb4cb47c.png" alt="" width="100" height="104" />
-            <p className="hero-college-name">
-              <span>Srusti Academy <em>of</em> Management</span>{' '}
-              <span><em>and</em> Technology (Autonomous)</span>
-            </p>
-          </div>
           <h1 id="championship-title" className="srusti-title" aria-label="Srusti e-Sports">
             <span>SRUSTI</span>
             <span className="esports-wordmark"><img src="/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.webp" alt="" width="1400" height="500" /></span>
           </h1>
           <p className="championship-subtitle">Campus LAN Championship 2026</p>
-
-          <HeroCountdown deadlineText={EVENT_ENTRY_ISO} />
+          <p className="championship-eligibility">Age criteria 16–22</p>
         </div>
         <div className="hero-bottom animate-stage-delay-1">
           <div className="match-day-strip">
             <span><CalendarDays aria-hidden="true" /><time dateTime={EVENT_ENTRY_ISO}>13th December 2026</time></span>
             <span><Clock3 aria-hidden="true" />ENTRY 9:30 AM IST</span>
-            <span><MapPin aria-hidden="true" />SAMT CAMPUS LAN ARENA</span>
+            <a className="campus-map-link" href={ACADEMY_MAP_URL} target="_blank" rel="noopener noreferrer">
+              <MapPin aria-hidden="true" />{ACADEMY_NAME}
+            </a>
           </div>
           <div className="hero-actions">
             <a className="arena-button primary" href="#events">Register your squad <ArrowRight aria-hidden="true" /></a>

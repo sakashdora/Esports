@@ -68,38 +68,6 @@
   }
 }
 
-@keyframes digitTickEnter {
-  0% {
-    opacity: 0.35;
-    transform: translate3d(0, -5px, 0);
-  }
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes logoEmberPulse {
-  0% {
-    opacity: 0.5;
-    transform: scale(0.97);
-  }
-  100% {
-    opacity: 0.95;
-    transform: scale(1.04);
-  }
-}
-
-@keyframes logoShimmerSweep {
-  0% {
-    transform: translate3d(-130%, 0, 0) skewX(-20deg);
-  }
-  42%,
-  100% {
-    transform: translate3d(240%, 0, 0) skewX(-20deg);
-  }
-}
-
 .hero-backdrop-drift {
   animation: heroBackdropDrift 24s ease-in-out infinite alternate;
   will-change: transform;
@@ -124,20 +92,6 @@
 
 .animate-panel-enter {
   animation: panelSlideIn 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.countdown-digit-tick {
-  animation: digitTickEnter 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.logo-ember-aura {
-  animation: logoEmberPulse 3.8s ease-in-out infinite alternate;
-  will-change: transform, opacity;
-}
-
-.logo-shimmer-beam {
-  animation: logoShimmerSweep 5.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
-  will-change: transform;
 }
 
 .reveal-section {
@@ -218,9 +172,6 @@
   .animate-stage-delay-1,
   .animate-stage-delay-2,
   .animate-panel-enter,
-  .countdown-digit-tick,
-  .logo-ember-aura,
-  .logo-shimmer-beam,
   .chevron-flow {
     animation: none;
   }
@@ -268,6 +219,28 @@ button:disabled { cursor: not-allowed; }
 /* Approved centered college championship. */
 .approved-home { background: #0d0a09; color: #f4f3ef; }
 .stage-container { width: min(1240px,calc(100% - 64px)); margin-inline: auto; }
+.academy-logo {
+  display: grid;
+  grid-template-columns: minmax(0, 18fr) minmax(0, 78fr);
+  align-items: center;
+  gap: 3%;
+  width: 100%;
+}
+.academy-logo .academy-crest { width: 100%; height: auto; }
+.academy-wordmark { position: relative; aspect-ratio: 728 / 108; overflow: hidden; }
+.academy-wordmark img {
+  /* Show the lettering portion of the supplied image beside the original crest. */
+  position: absolute;
+  top: calc(-100% * 56 / 108);
+  left: calc(-100% * 244 / 728);
+  width: calc(100% * 1007 / 728);
+  max-width: none;
+  height: auto;
+}
+.academy-logo-dark .academy-wordmark img { filter: contrast(.58) brightness(2.05); }
+.campus-map-link { text-decoration: underline; text-underline-offset: 3px; }
+.campus-map-link:hover { color: var(--color-samt-gold); }
+.campus-map-link:focus-visible { outline: 2px solid var(--color-samt-gold); outline-offset: 4px; }
 .championship-stage { overflow: clip; background: #0d0a09; }
 .campus-hero { position: relative; isolation: isolate; border-bottom: 1px solid #d41b1466; }
 .campus-arena,.arena-scrim { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -2; }
@@ -275,22 +248,22 @@ button:disabled { cursor: not-allowed; }
 .arena-scrim { z-index: -1; background: linear-gradient(0deg,#0d0a09 0%,#0d0a09a6 14%,transparent 48%); }
 .hero-content { padding-block: 22px 28px; position: relative; }
 .hero-identity { width: min(54%,640px); text-align: center; margin-inline: auto; }
-.hero-college-crest { display: block; width: 90px; height: auto; margin: 0 auto 16px; filter: drop-shadow(0 4px 18px #233d8b55); }
 .srusti-title { margin: 0; line-height: .9; }
-.srusti-title > span:first-child { display: block; font: 800 clamp(46px,5.8vw,82px)/.95 var(--font-display); letter-spacing: .045em; color: #f2f1ed; text-shadow: 0 5px 28px #ffffff22; }
+.srusti-title > span:first-child {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+.srusti-title > span:first-child { display: block; font-size: clamp(46px,5.8vw,82px); line-height: .95; color: #f2f1ed; text-shadow: 0 5px 28px #ffffff22; }
 .esports-wordmark { position: relative; display: block; margin: -2px auto 0; }
 .esports-wordmark img { width: 100%; height: auto; filter: drop-shadow(0 6px 24px #d41b1444); }
 .esports-wordmark i { position: absolute; top: 29%; left: 9%; width: 80%; height: 42%; background: linear-gradient(110deg,transparent 38%,#ffffff66 49%,transparent 60%); background-size: 260% 100%; mix-blend-mode: screen; animation: titleShimmer 6s ease-in-out infinite; pointer-events: none; }
 .championship-subtitle { font: 700 clamp(16px,1.8vw,24px)/1.25 Georgia,serif; text-transform: uppercase; color: #e5c736; letter-spacing: .035em; }
-.center-countdown { width: min(100%,480px); margin: 24px auto 0; }
-.countdown-heading { font: 700 19px var(--font-display); text-transform: uppercase; text-align: center; margin-bottom: 12px; letter-spacing: .055em; }
-.countdown-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
-.countdown-tile { display: flex; flex-direction: column; align-items: center; padding: 10px 4px; border: 1px solid #eb3935; border-top: 2px solid #f56460; border-radius: 3px 12px 3px 12px; background: linear-gradient(#1b1113ee,#090809ee); box-shadow: 0 0 16px #d41b142b,inset 0 1px 14px #d41b141a; }
-.countdown-tile .countdown-digit-tick { font: 700 clamp(30px,4vw,54px)/1 var(--font-display); color: #f2f1ed; font-variant-numeric: tabular-nums; }
-.countdown-unit { margin-top: 4px; color: #e5c736; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.championship-eligibility { margin-top: 8px; font: 600 clamp(12px, 1.2vw, 15px)/1.45 var(--font-sans); color: #f2f1ed; text-shadow: 0 1px 4px #070b11; text-wrap: balance; }
 .hero-bottom { margin: 30px auto 0; max-width: 1000px; }
 .match-day-strip { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 12px 28px; padding: 14px 20px; border-block: 1px solid #e5c736aa; background: #0d0a09cc; }
-.match-day-strip > span { display: flex; align-items: center; gap: 8px; font: 600 16px var(--font-display); }
+.match-day-strip > * { display: flex; align-items: center; gap: 8px; font: 600 16px var(--font-display); }
 .match-day-strip svg { width: 20px; height: 20px; flex-shrink: 0; color: #e5c736; }
 .hero-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px; margin-top: 20px; }
 .arena-button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 11px 24px; border: 1px solid transparent; border-radius: 3px; font: 700 20px/1.1 var(--font-display); color: #fff; text-decoration: none; transition: background .18s,transform .18s; }
@@ -326,12 +299,6 @@ button:disabled { cursor: not-allowed; }
 .game-entry,.game-roster { font-size: 12px; color: #e1e1e1; margin-top: 6px; }
 .game-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
 .game-actions .arena-button { padding: 10px 18px; font-size: 17px; }
-.road-section { padding-block: 32px; scroll-margin-top: 95px; }
-.road-steps { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 28px; list-style: none; padding: 0; text-align: center; }
-.road-steps li > svg { display: block; width: 40px; height: 40px; margin: 0 auto 14px; stroke-width: 1.3; }
-.road-steps h3 { font: 600 22px var(--font-display); }
-.road-steps h3 span { color: #e5c736; }
-.road-steps p { font-size: 12px; line-height: 1.6; color: #bbb; max-width: 230px; margin: 6px auto 0; }
 .match-day-help { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 24px; padding-bottom: 38px; }
 .match-help-panel { display: flex; align-items: center; gap: 24px; padding: 25px; border: 1px solid #e5c736aa; border-radius: 18px 3px 18px 3px; background: linear-gradient(120deg,#151211,#0a0d14); }
 .tracking-panel { border-color: #5277c9; }
@@ -357,12 +324,9 @@ button:disabled { cursor: not-allowed; }
   gap: clamp(24px, 4vw, 56px);
   padding-block: 36px 28px;
 }
-.footer-brand, .footer-academy, .footer-event-identity { display: grid; align-items: start; }
+.footer-brand, .footer-event-identity { display: grid; align-items: start; }
 .footer-brand { gap: 20px; align-content: start; }
-.footer-academy { grid-template-columns: auto minmax(0, 1fr); gap: 12px; }
-.footer-academy img { width: 64px; height: 68px; object-fit: contain; }
-.footer-academy h2 { font: 600 clamp(23px, 2.25vw, 32px)/1.05 var(--font-display); }
-.footer-academy h2 span { display: block; margin-top: 8px; color: var(--footer-muted); font: 500 13px/1.3 var(--font-sans); }
+.footer-academy { width: min(100%, 360px); }
 .footer-label { font: 600 22px/1.1 var(--font-display); }
 .footer-social-links, .footer-links, .footer-contact { list-style: none; padding: 0; }
 .footer-social-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
@@ -373,8 +337,13 @@ button:disabled { cursor: not-allowed; }
   place-items: center;
   border: 1px solid var(--footer-rule);
   border-radius: 6px;
+  color: #fff;
 }
-.footer-social-links a:hover { border-color: var(--color-samt-gold); color: var(--color-samt-gold); }
+.footer-social-links a:hover { border-color: var(--color-samt-gold); }
+.footer-social-links .social-facebook { background: #0866ff; }
+.footer-social-links .social-instagram { background: radial-gradient(circle at 24% 100%, #ffdc80, #f77737 26%, #d62976 56%, #962fbf 82%, #4f5bd5); }
+.footer-social-links .social-youtube { background: #e60026; }
+.footer-social-links .social-linkedin { background: #0a66c2; }
 .footer-social-links svg { width: 20px; height: 20px; stroke-width: 1.7; }
 .footer-links { display: grid; margin-top: 8px; }
 .footer-links a, .footer-links button, .footer-bottom a { display: inline-flex; align-items: center; min-height: 44px; }
@@ -388,6 +357,8 @@ button:disabled { cursor: not-allowed; }
 .footer-contact svg { width: 16px; height: 16px; margin-top: 14px; color: var(--color-samt-gold); }
 .footer-contact li:first-child svg { margin-top: 4px; }
 .footer-contact a { display: inline-flex; align-items: center; width: fit-content; min-height: 44px; overflow-wrap: anywhere; }
+.footer-contact .campus-map-link { grid-column: 1 / -1; align-items: flex-start; gap: 12px; }
+.footer-contact .campus-map-link svg { flex-shrink: 0; }
 .footer-phones { display: flex; flex-wrap: wrap; gap: 0 16px; }
 .footer-event {
   display: flex;
@@ -418,7 +389,6 @@ button:disabled { cursor: not-allowed; }
  .campus-arena { opacity: .65; }
  .battleground-copy { max-width: 100%; padding: 22px; }
  .battleground-heading > span { width: 35px; }
- .road-steps { gap: 18px; }
  .match-help-panel { gap: 14px; padding: 20px; }
  .match-help-panel h2 { font-size: 17px; }
 }
@@ -428,22 +398,17 @@ button:disabled { cursor: not-allowed; }
  .hero-identity { width: 100%; max-width: 510px; }
  .campus-arena { object-fit: contain; object-position: center top; opacity: .45; }
  .arena-scrim { background: linear-gradient(0deg,#0d0a09 30%,#0d0a0977 80%,#0d0a0944); }
- .hero-college-crest { width: 70px; }
  .srusti-title > span:first-child { font-size: clamp(46px,10vw,72px); }
  .esports-wordmark { max-width: 440px; }
- .center-countdown { margin-top: 20px; width: min(100%,420px); }
- .countdown-tile .countdown-digit-tick { font-size: 42px; }
- .countdown-grid { gap: 8px; }
  .match-day-strip { gap: 12px 18px; padding: 14px 6px; }
- .match-day-strip > span { font-size: 15px; }
- .match-day-strip > span:last-child { flex-basis: 100%; justify-content: center; }
+ .match-day-strip > * { font-size: 15px; }
+ .match-day-strip > :last-child { flex-basis: 100%; justify-content: center; }
  .hero-actions { gap: 12px; }
  .hero-actions > .arena-button { font-size: 18px; padding: 12px 16px; }
  .battleground-grid { grid-template-columns: 1fr; gap: 18px; }
  .battleground-heading { gap: 12px; }
  .battleground-heading > span { width: 18px; }
  .battleground-heading h2 { font-size: 24px; }
- .road-steps { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 26px 16px; }
  .match-day-help { grid-template-columns: 1fr; gap: 16px; }
  .match-help-panel { padding: 24px; }
  .footer-main { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-block: 28px 24px; }
@@ -457,8 +422,6 @@ button:disabled { cursor: not-allowed; }
 }
 @media (max-width: 380px) {
  .hero-actions > .arena-button { width: 100%; }
- .countdown-tile .countdown-digit-tick { font-size: 36px; }
- .countdown-unit { font-size: 10px; }
  .match-help-panel { padding: 20px 16px; gap: 12px; }
  .help-icon { width: 30px; }
 }
@@ -471,16 +434,6 @@ button:disabled { cursor: not-allowed; }
  .campus-arena { object-fit: contain; object-position: center top; }
  .arena-scrim { background: linear-gradient(0deg,#0d0a09 18%,#0d0a0955 64%,transparent); }
 }
-/* Precision timer and lightweight brand motion. */
-.center-countdown { padding: 18px 14px 12px; border: 1px solid #ffffff12; border-radius: 12px; background: #080b12a8; backdrop-filter: blur(6px); }
-.countdown-heading { display: flex; align-items: center; justify-content: center; gap: 9px; font-size: 16px; letter-spacing: .08em; }
-.countdown-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #e5c736; box-shadow: 0 0 12px #e5c73677; }
-.countdown-tile { position: relative; border-color: #ffffff26; border-top-color: #e5c73699; background: linear-gradient(150deg,#211c1b,#080a10); box-shadow: inset 0 1px 0 #ffffff0d,0 8px 20px #0004; padding-block: 14px 10px; }
-.countdown-tile:last-child { border-color: #d41b1480; border-top-color: #f56460; }
-.countdown-tile .countdown-digit-tick { font-family: var(--font-mono); font-size: clamp(28px,3.3vw,44px); font-weight: 600; line-height: 1.2; }
-.countdown-unit { font-size: 9px; color: #c8c2bb; letter-spacing: .08em; }
-.countdown-target { display: block; margin-top: 12px; font-size: 10px; letter-spacing: .02em; color: #b9b6b4; text-align: center; }
-.hero-college-crest { filter: drop-shadow(0 5px 18px #233d8b55); }
 .esports-wordmark { isolation: isolate; }
 .esports-wordmark::before { content: ''; position: absolute; inset: 25% 8%; z-index: -1; background: radial-gradient(ellipse,#d41b1426,transparent 70%); animation: brandGlow 6s ease-in-out infinite alternate; }
 @keyframes brandGlow { from { opacity: .4; transform: scale(.98); } to { opacity: .85; transform: scale(1.04); } }
@@ -520,29 +473,11 @@ button:disabled { cursor: not-allowed; }
  .overview-grid { grid-template-columns: 1fr; gap: 18px; }
  .overview-panel { padding: 22px; }
  .overview-section { padding-block: 26px; }
- .countdown-tile .countdown-digit-tick { font-size: clamp(26px,8vw,40px); }
- .center-countdown { padding-inline: 8px; }
- .countdown-grid { gap: 6px; }
- .countdown-unit { font-size: 8px; letter-spacing: 0; }
- .countdown-heading { font-size: 15px; }
- .countdown-target { font-size: 9px; }
  .section-kicker { font-size: 9px; }
 }
 @media (prefers-reduced-motion: reduce) { .esports-wordmark::before { animation: none; } }
-/* Compact hero keeps the full timer above the fold on shorter screens. */
+/* Compact hero spacing for shorter screens. */
 .hero-content { padding-top: 22px; }
-.hero-organizer { display: flex; justify-content: center; align-items: center; gap: 12px; margin: 0 auto 16px; }
-.hero-organizer .hero-college-crest { width: 44px; height: auto; margin: 0; flex-shrink: 0; }
-.hero-college-name {
-  margin: 0;
-  color: #f2f6ff;
-  font: 600 clamp(13px, 1.55vw, 21px)/1.2 Georgia, 'Times New Roman', serif;
-  font-variant-caps: small-caps;
-  text-align: left;
-  text-shadow: 0 1px 4px #070b11;
-}
-.hero-college-name span { display: block; }
-.hero-college-name em { color: #8cdeff; font-variant-caps: normal; }
 .hero-identity { width: min(68%,600px); }
 .srusti-title > span:first-child { font-size: clamp(40px,4.5vw,64px); }
 .esports-wordmark { width: min(100%,510px); aspect-ratio: 5.3; overflow: hidden; margin: 14px auto 16px; }
@@ -550,29 +485,18 @@ button:disabled { cursor: not-allowed; }
 .esports-wordmark i { inset: 0; width: 100%; height: 100%; }
 .esports-wordmark::before { inset: 0; }
 .championship-subtitle { font-size: clamp(15px,1.7vw,22px); }
-.center-countdown { margin-top: 18px; }
 .hero-bottom { margin-top: 24px; }
 @media (max-height: 760px) {
  .hero-content { padding-top: 18px; }
- .hero-organizer { margin-bottom: 12px; }
- .hero-organizer .hero-college-crest { width: 36px; }
  .srusti-title > span:first-child { font-size: clamp(36px,4vw,54px); }
  .esports-wordmark { max-width: 440px; margin-block: 10px 12px; }
- .center-countdown { margin-top: 14px; padding-block: 12px 9px; }
- .countdown-heading { margin-bottom: 8px; }
- .countdown-tile { padding-block: 9px 7px; }
- .countdown-target { margin-top: 9px; }
  .hero-bottom { margin-top: 18px; }
 }
 @media (max-width: 767px) {
  .hero-content { padding-top: 48px; }
  .hero-identity { width: 100%; max-width: 510px; }
- .hero-organizer { gap: 10px; margin-bottom: 14px; }
- .hero-organizer .hero-college-crest { width: 38px; }
  .srusti-title > span:first-child { font-size: clamp(36px,7.5vw,54px); }
  .esports-wordmark { width: 96%; max-width: 420px; margin-block: 10px 14px; }
- .countdown-heading { font-size: 14px; }
- .center-countdown { margin-top: 16px; }
 }
 .page-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: 50vh; color: #ddd; }
 .page-loading strong { font: 700 24px var(--font-display); letter-spacing: .05em; }
@@ -599,28 +523,15 @@ button:disabled { cursor: not-allowed; }
  .esports-wordmark img { animation: none; transition: none; }
 }
 
-/* Stable digit slots let only changing numerals roll, without layout shifts. */
-.countdown-number { display: inline-flex; font: 600 clamp(28px,3.3vw,44px)/1.2 var(--font-mono); color: #f2f1ed; font-variant-numeric: tabular-nums; }
-.countdown-reel { position: relative; display: block; width: .64em; height: 1.2em; overflow: hidden; }
-.countdown-reel-digit { position: absolute; inset: 0; display: grid; place-items: center; }
-.countdown-tile { border-radius: 10px; border-top-width: 1px; }
 .match-day-strip { width: fit-content; max-width: 100%; margin-inline: auto; padding: 12px 18px; gap: 12px 24px; border: 1px solid #ffffff14; border-radius: 12px; background: #0d0a09b8; }
-.match-day-strip > span { font: 500 11px/1.5 var(--font-sans); letter-spacing: .025em; color: #dedbd5; }
+.match-day-strip > * { font: 500 11px/1.5 var(--font-sans); letter-spacing: .025em; color: #dedbd5; }
+.match-day-strip > :last-child { text-align: center; text-wrap: balance; }
+.match-day-strip > .campus-map-link:hover { color: var(--color-samt-gold); }
 .match-day-strip svg { width: 16px; height: 16px; color: #c5b76d; }
 @media (max-width: 767px) {
- .countdown-number { font-size: clamp(24px,7vw,38px); }
  .match-day-strip { gap: 10px 16px; padding: 12px; }
- .match-day-strip > span { font-size: 10px; gap: 6px; }
- .match-day-strip > span:last-child { flex-basis: 100%; justify-content: center; }
-}
-
-.countdown-roll .countdown-digit-in { animation: clockRollIn 480ms cubic-bezier(.22,1,.36,1) both; }
-.countdown-roll .countdown-digit-out { animation: clockRollOut 480ms cubic-bezier(.22,1,.36,1) both; }
-@keyframes clockRollIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-@keyframes clockRollOut { from { transform: translateY(0); opacity: 1; } to { transform: translateY(100%); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) {
- .countdown-roll .countdown-digit-in { animation: none; }
- .countdown-roll .countdown-digit-out { display: none; }
+ .match-day-strip > * { font-size: 10px; gap: 6px; }
+ .match-day-strip > :last-child { flex-basis: 100%; justify-content: center; }
 }
 
 /* The supplied welcome poster appears after the intro, once per tab visit. */

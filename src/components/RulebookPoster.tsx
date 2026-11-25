@@ -5,14 +5,15 @@ export const rulebookPosters: Partial<Record<string, string>> = {
   'kurukshetra-free-fire': '/assets/brand/kurukshetra-guide.png',
 };
 
-export function RulebookPoster({ event, loading = 'eager' }: {
+export function RulebookPoster({ event, loading = 'eager', className }: {
   event: CampusEvent;
   loading?: 'eager' | 'lazy';
+  className?: string;
 }) {
   const poster = rulebookPosters[event.slug];
   if (!poster) return null;
   return (
-    <figure>
+    <figure className={className}>
       <a className="block cursor-zoom-in" href={poster} aria-label={`Open full-size ${event.gameTitle} tournament poster`}>
         <img className="block h-auto w-full" src={poster} width="1122" height="1402" loading={loading}
           alt={`${event.title} tournament poster showing gameplay rules, fixtures, qualification flowchart, placement points and prizes`} />

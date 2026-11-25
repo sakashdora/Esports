@@ -51,8 +51,6 @@ export function EventDetailView({ event, allEvents, onNavigate }: EventDetailVie
           </div>
         </div>
 
-        <RulebookPoster key={event.slug} event={event} />
-
         {/* Event Banner + Title Header */}
         <section
           key={event.slug}
@@ -280,6 +278,8 @@ export function EventDetailView({ event, allEvents, onNavigate }: EventDetailVie
             </ol>
           </div>
         </section>
+
+        <RulebookPoster key={event.slug} event={event} loading="lazy" className="mt-12" />
       </div>
     </main>
   );
