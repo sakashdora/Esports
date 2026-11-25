@@ -1,11 +1,11 @@
 import { Check, Utensils } from 'lucide-react';
+import { CollegePicker } from './CollegePicker';
 import { MAX_ACADEMIC_LEVEL_LENGTH, MAX_COLLEGE_NAME_LENGTH, OTHER_ACADEMIC_LEVEL, type PlayerInput } from '../lib/tournamentRules';
 
 const playerFields = [
   { key: 'fullName', label: 'Full name', id: 'fullName' },
   { key: 'inGameName', label: 'In-game name (IGN)', id: 'ign' },
   { key: 'characterId', label: 'Character ID', id: 'cid' },
-  { key: 'collegeOverride', label: 'College / institution name', id: 'college' },
 ] as const;
 
 interface RegistrationPlayerCardProps {
@@ -13,15 +13,21 @@ interface RegistrationPlayerCardProps {
   label: string;
   complete: boolean;
   errors: Record<string, string>;
+  /** Team leader's college, offered as a one-click fill for teammates. */
+  leaderCollege?: string;
   onChange: (patch: Partial<PlayerInput>) => void;
 }
 
-export function RegistrationPlayerCard({ member, label, complete, errors, onChange }: RegistrationPlayerCardProps) {
+export function RegistrationPlayerCard({ member, label, complete, errors, leaderCollege = '', onChange }: RegistrationPlayerCardProps) {
   const leader = member.slotRole === 'IGL';
   const prefix = `member_${member.slotRole}`;
   const levelError = errors[`${prefix}_academicLevel`];
   const otherLevelError = errors[`${prefix}_otherAcademicLevel`];
   const dietError = errors[`${prefix}_dietType`];
+  const collegeError = errors[`${prefix}_collegeOverride`];
+  const collegeId = `${prefix}-college`;
+  const college = member.collegeOverride ?? '';
+  const offerLeaderCollege = !leader && leaderCollege.trim() !== '' && college.trim() !== leaderCollege.trim();
 
   return (
     <section className={`registration-player ${leader ? 'registration-player-leader' : ''}`} aria-labelledby={`${prefix}-title`}>
@@ -44,7 +50,6 @@ export function RegistrationPlayerCard({ member, label, complete, errors, onChan
                 id={fieldId}
                 type="text"
                 value={member[key] ?? ''}
-                maxLength={key === 'collegeOverride' ? MAX_COLLEGE_NAME_LENGTH : undefined}
                 onChange={(e) => onChange({ [key]: e.target.value })}
                 aria-required="true"
                 aria-invalid={Boolean(error)}
@@ -55,6 +60,24 @@ export function RegistrationPlayerCard({ member, label, complete, errors, onChan
             </div>
           );
         })}
+        <div className="sm:col-span-2">
+          <label htmlFor={collegeId} className="registration-label">College / institution name *</label>
+          <CollegePicker
+            id={collegeId}
+            value={college}
+            onChange={(value) => onChange({ collegeOverride: value })}
+            maxLength={MAX_COLLEGE_NAME_LENGTH}
+            invalid={Boolean(collegeError)}
+            errorId={`${collegeId}-error`}
+            inputClassName="registration-input"
+          />
+          {offerLeaderCollege && (
+            <button type="button" className="college-picker-same" onClick={() => onChange({ collegeOverride: leaderCollege })}>
+              Same as team leader: {leaderCollege}
+            </button>
+          )}
+          {collegeError && <p id={`${collegeId}-error`} className="registration-error">{collegeError}</p>}
+        </div>
         <div>
           <label htmlFor={`${prefix}-level`} className="registration-label">Academic level *</label>
           <select
@@ -70,7 +93,7 @@ export function RegistrationPlayerCard({ member, label, complete, errors, onChan
             <option value="11th">11th Class</option>
             <option value="12th">12th Class</option>
             <option value="UG">Undergraduate (UG)</option>
-            <option value={OTHER_ACADEMIC_LEVEL}>Other (Age 16–22)</option>
+            <option value={OTHER_ACADEMIC_LEVEL}>Others</option>
           </select>
           {levelError && <p id={`${prefix}-level-error`} className="registration-error">{levelError}</p>}
         </div>

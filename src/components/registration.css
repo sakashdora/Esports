@@ -119,3 +119,30 @@
 @media (max-width: 480px) {
   .registration-steps li { flex-direction: column; align-items: flex-start; font-size: 11px; }
 }
+
+/* College search box */
+.college-picker .college-picker-input { padding-right: 38px; }
+.college-picker-icon { position: absolute; right: 12px; top: 50%; width: 16px; height: 16px; margin-top: 1px; transform: translateY(-50%); color: #78716c; pointer-events: none; }
+.college-picker-list {
+  position: absolute;
+  z-index: 40;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  max-height: min(320px, 50vh);
+  overflow-y: auto;
+  border: 1px solid #57534e;
+  border-radius: 6px;
+  padding: 4px;
+  background: #1c1917;
+  box-shadow: 0 16px 32px rgb(0 0 0 / .5);
+}
+.college-picker-option { display: grid; gap: 2px; border-radius: 4px; padding: 8px 10px; cursor: pointer; }
+.college-picker-option[aria-selected='true'] { background: #292524; outline: 1px solid #a77c49; }
+.college-picker-name { color: #fafaf9; font-size: 14px; line-height: 1.3; }
+.college-picker-meta { color: #a8a29e; font-size: 12px; }
+.college-picker-manual { margin-top: 4px; border-top: 1px solid #44403c; padding: 10px; color: #d6d3d1; font-size: 13px; cursor: pointer; }
+.college-picker-manual strong { color: #F5D985; font-weight: 600; }
+.college-picker-hint { margin-top: 4px; color: #a8a29e; font-size: 12px; }
+.college-picker-same { margin-top: 6px; border: 1px dashed #57534e; border-radius: 4px; padding: 4px 8px; color: #F5D985; font-size: 12px; }
+.college-picker-same:hover { border-color: #a77c49; }

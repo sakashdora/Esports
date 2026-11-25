@@ -18,6 +18,7 @@ import {
 } from '../lib/tournamentRules';
 import type { AppRoute } from './Navbar';
 import { RegistrationPlayerCard } from './RegistrationPlayerCard';
+import { CollegePicker } from './CollegePicker';
 import './registration.css';
 
 interface RegisterViewProps {
@@ -517,17 +518,14 @@ export function RegisterView({
                     <label htmlFor="reg-college" className="block text-xs font-medium text-neutral-300">
                       Team leader’s college / institution *
                     </label>
-                    <input
+                    <CollegePicker
                       id="reg-college"
-                      type="text"
                       value={collegeName}
-                      onChange={(e) => updateMember('IGL', { collegeOverride: e.target.value })}
+                      onChange={(value) => updateMember('IGL', { collegeOverride: value })}
                       maxLength={MAX_COLLEGE_NAME_LENGTH}
-                      aria-required="true"
-                      aria-invalid={Boolean(fieldErrors.collegeName)}
-                      aria-describedby={fieldErrors.collegeName ? 'reg-college-error' : undefined}
-                      placeholder="e.g. Srusti Academy of Management and Technology"
-                      className="mt-1.5 w-full rounded-md border border-white/15 bg-[#110D0C] px-3.5 py-2.5 text-sm text-white placeholder:text-neutral-500 focus:border-[#D41B14] focus:outline-none"
+                      invalid={Boolean(fieldErrors.collegeName)}
+                      errorId="reg-college-error"
+                      inputClassName="mt-1.5 w-full rounded-md border border-white/15 bg-[#110D0C] px-3.5 py-2.5 text-sm text-white placeholder:text-neutral-500 focus:border-[#D41B14] focus:outline-none"
                     />
                     {fieldErrors.collegeName && (
                       <p id="reg-college-error" className="mt-1 text-xs text-red-400">{fieldErrors.collegeName}</p>
@@ -628,6 +626,7 @@ export function RegisterView({
                       label={ROLE_LABELS[member.slotRole]}
                       complete={readyRoles.has(member.slotRole)}
                       errors={fieldErrors}
+                      leaderCollege={collegeName}
                       onChange={(patch) => updateMember(member.slotRole, patch)}
                     />
                   ))}
@@ -663,6 +662,7 @@ export function RegisterView({
                       label={ROLE_LABELS.SUB}
                       complete={false}
                       errors={fieldErrors}
+                      leaderCollege={collegeName}
                       onChange={(patch) => updateMember('SUB', patch)}
                     />
                   )}

@@ -459,6 +459,8 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
       setAuditLogs((current) => current.filter((a) => !gone.has(a.registrationId)));
       setCheckedIds(new Set());
       if (selectedId && gone.has(selectedId)) setSelectedId(null);
+      // Don't keep showing "approved" for a team that no longer exists.
+      setLastApproval((current) => (current && gone.has(current.id) ? null : current));
       setActionMsg(`Deleted ${json.deleted ?? ids.length} record(s).`);
       onEventsUpdated();
     } catch (error) {
@@ -1303,6 +1305,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                     <th className="px-4 py-3 font-medium">IGL Contact</th>
                     <th className="px-4 py-3 font-medium">Squad Members (Name · IGN · ID)</th>
                     <th className="px-4 py-3 font-medium">Meals</th>
+                    <th className="px-4 py-3 font-medium"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1346,6 +1349,17 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
                       </td>
                       <td className="px-4 py-3 font-mono text-[11px] tabular-nums">
                         {b.registration.vegCount} Veg / {b.registration.nonVegCount} NV
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          disabled={deleting}
+                          onClick={() => void deleteRecords([b.registration.id])}
+                          aria-label={`Delete ${b.registration.teamCode} ${b.registration.teamName}`}
+                          className="inline-flex items-center gap-1 rounded border border-red-200 px-2 py-1 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          <Trash2 className="size-3.5" aria-hidden="true" /> Delete
+                        </button>
                       </td>
                     </tr>
                   ))}
