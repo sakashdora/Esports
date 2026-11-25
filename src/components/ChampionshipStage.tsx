@@ -10,11 +10,9 @@ export function ChampionshipStage({ events, loading, onNavigate }: { events: Cam
   const primary = events[0];
   return <div className="championship-stage centered-championship">
     <section className="campus-hero" aria-labelledby="championship-title">
-      <img className="campus-arena" src="/assets/brand/srusti-student-arena.webp" alt="College players competing on mobile phones in a championship arena" fetchPriority="high" />
+      <img className="campus-arena" src="/assets/brand/srusti-student-arena.webp" width="1536" height="1024" alt="College players competing on mobile phones in a championship arena" fetchPriority="high" />
       <div className="arena-scrim" aria-hidden="true" />
-      <div className="energy-ribbon ribbon-blue" aria-hidden="true" />
-      <div className="energy-ribbon ribbon-red" aria-hidden="true" />
-      <EmberParticles density={32} />
+      <EmberParticles density={16} />
       <div className="stage-container hero-content">
         <div className="hero-identity animate-stage-enter">
           <h1 id="championship-title" className="srusti-title" aria-label="Srusti e-Sports">
@@ -29,14 +27,14 @@ export function ChampionshipStage({ events, loading, onNavigate }: { events: Cam
             <span><CalendarDays aria-hidden="true" /><time dateTime={EVENT_ENTRY_ISO}>13th December 2026</time></span>
             <span><Clock3 aria-hidden="true" />ENTRY 9:30 AM IST</span>
             <a className="campus-map-link" href={ACADEMY_MAP_URL} target="_blank" rel="noopener noreferrer">
-              <MapPin aria-hidden="true" />{ACADEMY_NAME}
+              <MapPin aria-hidden="true" /><span>{ACADEMY_NAME}</span>
             </a>
           </div>
           <div className="hero-actions">
             <a className="arena-button primary" href="#events">Register your squad <ArrowRight aria-hidden="true" /></a>
-            <a className="arena-button secondary" href="#events">Explore tournaments</a>
-            <div className="hero-price"><strong>₹{primary?.baseFee ?? 299}<small> / team</small></strong></div>
+            <a className="hero-explore" href="#events">Explore tournaments</a>
           </div>
+          <p className="hero-price"><strong>₹{primary?.baseFee ?? 299}</strong> per team</p>
         </div>
       </div>
     </section>
