@@ -1,13 +1,17 @@
 import { ACADEMY_NAME } from './academy';
+import type { ExtraCategoryCode } from './odishaCollegesExtra';
 
 /**
  * Searchable list of Odisha institutions for the registration college picker.
  *
- * This covers universities, engineering, MBA/MCA, degree (+3), +2 (11th–12th), medical,
- * pharmacy and law institutions. It is not every institution in the state (Odisha has
- * thousands of +2 and degree colleges), so the picker always accepts a typed name too.
- * Main sources: Wikipedia's "List of institutions of higher education in Odisha" plus
- * well-known autonomous colleges, +2 colleges and CBSE/ICSE schools.
+ * Two layers:
+ * - ROWS below: hand-checked universities, engineering, MBA/MCA, degree, +2, medical,
+ *   pharmacy and law institutions plus CBSE/ICSE schools (Wikipedia's "List of institutions
+ *   of higher education in Odisha" and well-known colleges). Always loaded.
+ * - odishaCollegesExtra.ts: about 1,700 more, generated from CHSE Odisha's district lists of
+ *   affiliated +2 colleges and the BPUT and Sambalpur University affiliated-college lists.
+ *   Loaded with loadAllColleges() when a student opens the college box.
+ * Neither is guaranteed complete, so the picker always accepts a typed name too.
  */
 
 export type CollegeCategory =
@@ -32,6 +36,9 @@ export interface CollegeOption {
   needsBranch: boolean;
   /** Lowercase text the search runs against. */
   haystack: string;
+  /** Normalized name and short forms, used to rank matches. */
+  nameKey: string;
+  aliasKey: string;
 }
 
 type Row = [name: string, city: string, category: CollegeCategory, aliases?: string];
@@ -161,7 +168,8 @@ const ROWS: Row[] = [
   ['KMBB College of Engineering and Technology', 'Bhubaneswar', E, 'kmbb btech'],
   ['Indus College of Engineering', 'Bhubaneswar', E, 'indus btech'],
   ['Mahavir Institute of Engineering and Technology', 'Bhubaneswar', E, 'miet btech'],
-  ['Modern Institute of Technology and Management', 'Bhubaneswar', E, 'mitm btech'],
+  ['Modern Institute of Technology and Management (MITM)', 'Bhubaneswar', E, 'mitm mit btech mba'],
+  ['Maharaja Institute of Technology (MIT)', 'Bhubaneswar', E, 'mit maharaja taraboi btech'],
   ['Ajay Binay Institute of Technology (ABIT)', 'Cuttack', E, 'abit btech mba mca'],
   ['Ghanashyam Hemalata Institute of Technology and Management (GHITM)', 'Puri', E, 'ghitm btech'],
   ['Synergy Institute of Engineering and Technology (SIET)', 'Dhenkanal', E, 'siet synergy btech'],
@@ -365,11 +373,11 @@ const BRANCH_ROWS: Row[] = [
 ];
 
 const LEVEL_WORDS: Record<CollegeCategory, string> = {
-  University: 'university graduation ug pg',
-  Engineering: 'engineering btech b.tech technology',
-  'Management (MBA/MCA)': 'management mba mca bba bca',
-  'Degree College': 'degree graduation plus three +3 ba bsc bcom ug',
-  '+2 Higher Secondary': 'plus two +2 higher secondary 11th 12th junior college chse',
+  University: 'university graduation ug pg imba integrated',
+  Engineering: 'engineering btech b.tech technology diploma',
+  'Management (MBA/MCA)': 'management mba mca bba bca imba integrated pgdm',
+  'Degree College': 'degree graduation plus three +3 ba bsc bcom ug arts science commerce bba bca',
+  '+2 Higher Secondary': 'plus two +2 higher secondary 11th 12th junior college chse arts science commerce',
   'School (+2)': 'school plus two +2 11th 12th',
   'Medical & Health': 'medical mbbs health nursing',
   Pharmacy: 'pharmacy bpharm',
@@ -395,13 +403,56 @@ function toOption([name, city, category, aliases = '']: Row, needsBranch: boolea
     category,
     needsBranch,
     haystack: normalizeForSearch(`${name} ${city} ${aliases} ${LEVEL_WORDS[category]}`),
+    nameKey: normalizeForSearch(name),
+    aliasKey: ` ${normalizeForSearch(aliases)} `,
   };
 }
 
+/** Hand-checked list, always available. */
 export const ODISHA_COLLEGES: CollegeOption[] = [
   ...ROWS.map((row) => toOption(row, false)),
   ...BRANCH_ROWS.map((row) => toOption(row, true)),
 ];
+
+const EXTRA_CATEGORY: Record<ExtraCategoryCode, CollegeCategory> = { H, D, E, M, MED, L };
+
+/** Same institution even when written slightly differently ("B J B (Autonomous) College"). */
+function duplicateKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, '') // short forms such as "(OEC)"
+    .replace(/&/g, 'and')
+    .replace(/autonomous|[^a-z0-9]/g, '');
+}
+
+/** Hand-checked list first, then the large generated list without duplicates. */
+export function mergeColleges(extraRows: [string, string, ExtraCategoryCode][]): CollegeOption[] {
+  const known = new Map<string, string[]>();
+  for (const option of ODISHA_COLLEGES) {
+    const key = duplicateKey(option.name);
+    known.set(key, [...(known.get(key) ?? []), option.city.toLowerCase()]);
+  }
+  const extras: CollegeOption[] = [];
+  for (const [name, city, code] of extraRows) {
+    const cities = known.get(duplicateKey(name));
+    if (cities && (!city || cities.some((c) => !c || c === city.toLowerCase() || name.toLowerCase().includes(c)))) continue;
+    extras.push(toOption([name, city, EXTRA_CATEGORY[code]], false));
+  }
+  return [...ODISHA_COLLEGES, ...extras];
+}
+
+let allColleges: Promise<CollegeOption[]> | null = null;
+
+/** Loads the full list (about 2,000 institutions) on first use and keeps it. */
+export function loadAllColleges(): Promise<CollegeOption[]> {
+  allColleges ??= import('./odishaCollegesExtra')
+    .then((module) => mergeColleges(module.EXTRA_COLLEGE_ROWS))
+    .catch(() => {
+      allColleges = null;
+      return ODISHA_COLLEGES;
+    });
+  return allColleges;
+}
 
 /**
  * Every word typed must appear somewhere in the option. Matches at the start of the name
@@ -414,11 +465,13 @@ export function searchColleges(query: string, limit = 40, options = ODISHA_COLLE
   const scored: { option: CollegeOption; score: number; index: number }[] = [];
   options.forEach((option, index) => {
     if (!words.every((word) => option.haystack.includes(word))) return;
-    const name = normalizeForSearch(option.name);
-    let score = 3;
+    const name = option.nameKey;
+    let score = 5;
     if (name.startsWith(q)) score = 0;
-    else if (` ${name}`.includes(` ${q}`)) score = 1;
-    else if (words.every((word) => ` ${name}`.includes(` ${word}`))) score = 2;
+    else if (` ${name} `.includes(` ${q} `)) score = 1; // whole word in the name, e.g. "(ITER)"
+    else if (option.aliasKey.includes(` ${q} `)) score = 2; // known short form, e.g. "cet"
+    else if (` ${name}`.includes(` ${q}`)) score = 3;
+    else if (words.every((word) => ` ${name}`.includes(` ${word}`) || option.aliasKey.includes(` ${word}`))) score = 4;
     scored.push({ option, score, index });
   });
   scored.sort((a, b) => a.score - b.score || a.index - b.index);

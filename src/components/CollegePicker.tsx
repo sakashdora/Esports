@@ -1,6 +1,6 @@
-import { useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Search } from 'lucide-react';
-import { searchColleges, type CollegeOption } from '../lib/odishaColleges';
+import { loadAllColleges, ODISHA_COLLEGES, searchColleges, type CollegeOption } from '../lib/odishaColleges';
 
 interface CollegePickerProps {
   id: string;
@@ -32,8 +32,22 @@ export function CollegePicker({
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
+  const [options, setOptions] = useState<CollegeOption[]>(ODISHA_COLLEGES);
+  const [wantFullList, setWantFullList] = useState(false);
 
-  const results = useMemo(() => searchColleges(value), [value]);
+  // The full list (~2,000 colleges) downloads the first time a student uses the box.
+  useEffect(() => {
+    if (!wantFullList) return;
+    let alive = true;
+    void loadAllColleges().then((all) => {
+      if (alive) setOptions(all);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [wantFullList]);
+
+  const results = useMemo(() => searchColleges(value, 40, options), [value, options]);
   const exactMatch = results.some((option) => option.value.trim().toLowerCase() === value.trim().toLowerCase());
   const showList = open && (results.length > 0 || value.trim().length > 0) && !exactMatch;
 
@@ -94,7 +108,10 @@ export function CollegePicker({
             setOpen(true);
             setActive(-1);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            setOpen(true);
+            setWantFullList(true);
+          }}
           onBlur={() => setOpen(false)}
           onKeyDown={onKeyDown}
           className={`${inputClassName} college-picker-input`}
@@ -119,9 +136,9 @@ export function CollegePicker({
               >
                 <span className="college-picker-name">{option.name}</span>
                 <span className="college-picker-meta">
-                  {option.needsBranch ? 'Add your branch / city after picking' : option.city}
-                  {' · '}
-                  {option.category}
+                  {[option.needsBranch ? 'Add your branch / city after picking' : option.city, option.category]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </span>
               </li>
             ))}
