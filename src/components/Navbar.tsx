@@ -21,7 +21,7 @@ interface NavbarProps {
 const navigationItems: { label: string; route: AppRoute }[] = [
   { label: 'Tournaments', route: { page: 'home' } },
   { label: 'Track Status', route: { page: 'track' } },
-  { label: 'Admin sign in', route: { page: 'admin' } },
+  { label: 'Admin desk', route: { page: 'admin' } },
 ];
 
 const focusStyle = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-crimson';

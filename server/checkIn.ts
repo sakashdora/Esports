@@ -2,7 +2,7 @@ import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import type { Express, Request, RequestHandler, Response } from 'express';
 import {
-  getCheckInSquad, getLocalAdminPasscode, getVolunteerCredentials, isSupabaseConfigured, listAttendance, listVolunteers,
+  deleteVolunteer, getCheckInSquad, getLocalAdminPasscode, getVolunteerCredentials, isSupabaseConfigured, listAttendance, listVolunteers,
   markParticipantPresent, saveVolunteer, verifyAdminToken,
 } from './store.js';
 
@@ -128,6 +128,19 @@ export function mountCheckInRoutes(app: Express, requireAdmin: RequestHandler, l
   });
   app.post('/api/admin/volunteers', requireAdmin, limitCredentials, saveVolunteerHandler(false));
   app.patch('/api/admin/volunteers/:loginId/password', requireAdmin, limitCredentials, saveVolunteerHandler(true));
+  app.delete('/api/admin/volunteers/:loginId', requireAdmin, limitCredentials, async (req, res) => {
+    const loginId = String(req.params.loginId || '').trim().toLowerCase();
+    if (!loginIdPattern.test(loginId)) return res.status(400).json({ error: 'Choose a volunteer account to remove.' });
+    try {
+      if (!(await deleteVolunteer(loginId))) return res.status(404).json({ error: 'Volunteer account not found.' });
+      return res.json({ ok: true, loginId });
+    } catch (error) {
+      if ((error as { code?: string })?.code === '42501') {
+        return res.status(500).json({ error: 'The database does not allow removing volunteers yet. Re-run supabase/check-in.sql once, then try again.' });
+      }
+      checkInFailure(res, error);
+    }
+  });
 
   app.post('/api/check-in/lookup', requireCheckInStaff(async (req, res) => {
     const code = readCheckInCode(req.body?.code);

@@ -20,7 +20,7 @@ export default function VolunteerDashboardView({ onNavigate }: { onNavigate: (ro
 
   if (!token) return null;
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
+    <main className="staff-desk min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <header className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-5">
           <div className="flex items-center gap-3">

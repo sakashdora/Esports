@@ -1,8 +1,8 @@
-import { KeyRound, UserPlus } from 'lucide-react';
+import { KeyRound, Trash2, UserPlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { adminRequest } from '../lib/adminRequest';
 import type { VolunteerAccount } from '../lib/checkIn';
-import { deskInput, deskPrimary, deskSecondary } from './CheckInScanner';
+import { deskButton, deskInput, deskPrimary, deskSecondary } from './CheckInScanner';
 
 export function VolunteerAccounts({ token, onSessionExpired }: { token: string; onSessionExpired: () => void }) {
   const [volunteers, setVolunteers] = useState<VolunteerAccount[]>([]);
@@ -62,6 +62,23 @@ export function VolunteerAccounts({ token, onSessionExpired }: { token: string; 
     }
   }
 
+  async function remove(id: string) {
+    if (!window.confirm(`Remove volunteer ${id}? They will be signed out and can no longer open check-in.`)) return;
+    setError('');
+    setNotice('');
+    setBusy(true);
+    try {
+      await adminRequest(`/api/admin/volunteers/${encodeURIComponent(id)}`, token, { method: 'DELETE' }, onSessionExpired);
+      setVolunteers((current) => current.filter((volunteer) => volunteer.loginId !== id));
+      if (editing === id) setEditing('');
+      setNotice(`Volunteer ${id} removed.`);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Unable to remove this volunteer.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function edit(next: string) {
     setEditing(next);
     setNewPassword('');
@@ -96,7 +113,12 @@ export function VolunteerAccounts({ token, onSessionExpired }: { token: string; 
                 <li key={loginId} className="px-3 py-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="break-all font-mono text-sm font-semibold text-slate-900">{loginId}</span>
-                    {editing !== loginId && <button type="button" className={deskSecondary} disabled={busy} onClick={() => edit(loginId)} aria-label={`Change password for ${loginId}`}><KeyRound className="h-4 w-4" aria-hidden="true" /> Change password</button>}
+                    {editing !== loginId && (
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" className={deskSecondary} disabled={busy} onClick={() => edit(loginId)} aria-label={`Change password for ${loginId}`}><KeyRound className="h-4 w-4" aria-hidden="true" /> Change password</button>
+                        <button type="button" className={`${deskButton} border border-red-200 bg-white text-red-700 hover:bg-red-50`} disabled={busy} onClick={() => void remove(loginId)} aria-label={`Remove volunteer ${loginId}`}><Trash2 className="h-4 w-4" aria-hidden="true" /> Remove</button>
+                      </div>
+                    )}
                   </div>
                   {editing === loginId && (
                     <form className="mt-2 space-y-2" onSubmit={(event) => void save(event, true)}>

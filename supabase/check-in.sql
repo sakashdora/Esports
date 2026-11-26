@@ -16,7 +16,7 @@ create index if not exists idx_check_in_attendance_time
 alter table public.check_in_volunteers enable row level security;
 alter table public.check_in_attendance enable row level security;
 revoke all on public.check_in_volunteers, public.check_in_attendance from public, anon, authenticated;
-grant select, insert, update on public.check_in_volunteers to service_role;
+grant select, insert, update, delete on public.check_in_volunteers to service_role;
 grant select, insert on public.check_in_attendance to service_role;
 
 create or replace function public.mark_check_in_present(p_team_code text, p_member_id uuid, p_actor text)

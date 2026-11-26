@@ -20,6 +20,7 @@ export function CheckInDesk({ token, onSessionExpired }: CheckInDeskProps) {
   const [squad, setSquad] = useState<CheckInSquad | null>(null);
   const [busy, setBusy] = useState('');
   const operation = useRef(false);
+  const rosterRef = useRef<HTMLElement>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [entries, setEntries] = useState<AttendanceEntry[]>([]);
@@ -62,6 +63,10 @@ export function CheckInDesk({ token, onSessionExpired }: CheckInDeskProps) {
       }, onSessionExpired);
       const result: { squad: CheckInSquad } = await response.json();
       setSquad(result.squad);
+      // On phones the roster is below the scanner: bring it into view.
+      if (window.matchMedia('(max-width: 1023px)').matches) {
+        requestAnimationFrame(() => rosterRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Unable to look up this pass.');
     } finally {
@@ -97,7 +102,7 @@ export function CheckInDesk({ token, onSessionExpired }: CheckInDeskProps) {
     <div className="space-y-5">
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(285px,360px)_minmax(0,1fr)]">
         <CheckInScanner busy={Boolean(busy)} onRead={lookup} />
-        <section aria-labelledby="squad-title" className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <section ref={rosterRef} aria-labelledby="squad-title" className="min-w-0 scroll-mt-20 overflow-hidden rounded-xl border border-slate-200 bg-white">
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-4 sm:p-5">
             <div className="min-w-0">
               {squad && <p className="mb-1 font-mono text-sm font-semibold text-[#233D8B]">{squad.teamCode}</p>}
@@ -156,7 +161,17 @@ export function CheckInDesk({ token, onSessionExpired }: CheckInDeskProps) {
         {attendanceError ? <p role="alert" className="p-5 text-sm text-red-800">{attendanceError}</p> : attendanceLoading ? (
           <p role="status" className="p-5 text-sm text-slate-600">Loading attendance…</p>
         ) : entries.length ? (
-          <div className="overflow-x-auto">
+          <>
+          <ul className="divide-y divide-slate-200 sm:hidden">
+            {entries.map((entry) => (
+              <li key={entry.memberId} className="px-4 py-3 text-sm">
+                <p className="font-semibold break-words text-slate-900">{entry.fullName}</p>
+                <p className="break-words text-slate-700">{entry.teamName} <span className="text-xs text-slate-500">· {entry.teamCode}</span></p>
+                <p className="text-xs text-slate-600">{formatCheckInTime(entry.checkedInAt)} · by <span className="break-all">{entry.checkedInBy}</span></p>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[540px] text-left text-sm">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>{['Participant', 'Team', 'Checked in (IST)', 'Marked by'].map((label) => <th key={label} scope="col" className="px-4 py-2.5 font-semibold sm:px-5">{label}</th>)}</tr>
@@ -173,6 +188,7 @@ export function CheckInDesk({ token, onSessionExpired }: CheckInDeskProps) {
               </tbody>
             </table>
           </div>
+          </>
         ) : <p className="p-5 text-sm text-slate-600">No participants have checked in yet.</p>}
         {(page > 1 || hasMore) && (
           <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-4 py-3 text-sm text-slate-600 sm:px-5">

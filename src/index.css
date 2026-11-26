@@ -614,3 +614,8 @@ button:disabled { cursor: not-allowed; }
  .welcome-announcement-actions .arena-button { width: 100%; justify-content: center; }
 }
 @media (prefers-reduced-motion: reduce) { .welcome-announcement[open] { animation: none; } }
+
+/* Staff pages (admin and volunteer): phones zoom the page into any form field under 16px. */
+@media (max-width: 639px) {
+  .staff-desk :is(input:not([type='checkbox']):not([type='radio']):not([type='file']), select, textarea) { font-size: 16px; }
+}

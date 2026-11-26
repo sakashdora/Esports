@@ -1312,17 +1312,19 @@ async function storeSupabaseReupload(
   return (await trackRegistration(bundle.registration.teamCode, bundle.registration.iglPhone))!;
 }
 
+/** Admin dashboard rows. Audit history stays in the database but is not sent to the dashboard. */
+export type AdminRegistrationBundle = Omit<RegistrationBundle, 'auditLogs'>;
+
 export async function listAdminDashboardData(): Promise<{
   events: CampusEvent[];
-  bundles: RegistrationBundle[];
-  auditLogs: StoredAuditLog[];
+  bundles: AdminRegistrationBundle[];
 }> {
   const sb = getSupabaseServiceClient();
   if (!sb) {
     const events = await listPublicEvents();
     const eventMap = new Map(events.map((e) => [e.id, e]));
     const store = readLocalStore();
-    const bundles: RegistrationBundle[] = store.registrations
+    const bundles: AdminRegistrationBundle[] = store.registrations
       .slice()
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((reg) => {
@@ -1335,36 +1337,25 @@ export async function listAdminDashboardData(): Promise<{
           event: eventMap.get(reg.eventId) || DEFAULT_EVENTS[0],
           members: store.members.filter((m) => m.registrationId === reg.id),
           proofs,
-          auditLogs: store.auditLogs
-            .filter((a) => a.registrationId === reg.id)
-            .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
           latestProofUrl: latest ? `/api/admin/proof-image/${latest.id}` : null,
         };
       });
 
-    return {
-      events,
-      bundles,
-      auditLogs: store.auditLogs
-        .slice()
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    };
+    return { events, bundles };
   }
 
-  const [events, regRes, memRes, proofRes, auditRes] = await Promise.all([
+  const [events, regRes, memRes, proofRes] = await Promise.all([
     listPublicEvents(),
     sb.from('registrations').select('*').order('created_at', { ascending: false }),
     sb.from('team_members').select('*'),
     sb.from('payment_proofs').select('*').order('created_at', { ascending: false }),
-    sb.from('payment_audit_logs').select('*').order('created_at', { ascending: false }).limit(2000),
   ]);
-  const loadErr = [regRes, memRes, proofRes, auditRes].map((r) => r.error).find(Boolean);
+  const loadErr = [regRes, memRes, proofRes].map((r) => r.error).find(Boolean);
   if (loadErr) throw new Error(`Admin dashboard load failed: ${loadErr.message}`);
   const eventMap = new Map(events.map((e) => [e.id, e]));
   const regRows = regRes.data;
   const memRows = memRes.data;
   const proofRows = proofRes.data;
-  const auditRows = auditRes.data;
 
   const membersByReg = new Map<string, StoredTeamMember[]>();
   for (const row of memRows || []) {
@@ -1382,17 +1373,7 @@ export async function listAdminDashboardData(): Promise<{
     proofsByReg.set(p.registrationId, list);
   }
 
-  const auditsByReg = new Map<string, StoredAuditLog[]>();
-  const allAudits: StoredAuditLog[] = [];
-  for (const row of auditRows || []) {
-    const a = mapSupabaseAudit(row as Record<string, unknown>);
-    allAudits.push(a);
-    const list = auditsByReg.get(a.registrationId) || [];
-    list.push(a);
-    auditsByReg.set(a.registrationId, list);
-  }
-
-  const bundles: RegistrationBundle[] = [];
+  const bundles: AdminRegistrationBundle[] = [];
   for (const row of regRows || []) {
     const reg = mapSupabaseRegistration(row as Record<string, unknown>);
     const proofs = proofsByReg.get(reg.id) || [];
@@ -1405,12 +1386,11 @@ export async function listAdminDashboardData(): Promise<{
       event: eventMap.get(reg.eventId) || DEFAULT_EVENTS[0],
       members: sortByRole(membersByReg.get(reg.id) || []),
       proofs,
-      auditLogs: auditsByReg.get(reg.id) || [],
       latestProofUrl,
     });
   }
 
-  return { events, bundles, auditLogs: allAudits };
+  return { events, bundles };
 }
 
 export async function getProofFile(proofId: string): Promise<{ buffer: Buffer; mime: string } | null> {
@@ -2169,6 +2149,22 @@ export async function saveVolunteer(credentials: VolunteerCredentials, resetPass
   if (!resetPassword && error?.code === '23505') return 'duplicate';
   if (error) throw error;
   return data ? 'saved' : 'missing';
+}
+
+/** Removes a volunteer account. Its sign-in token stops working at once (tokens are tied to the stored password). */
+export async function deleteVolunteer(loginId: string): Promise<boolean> {
+  const sb = getSupabaseServiceClient();
+  if (!sb) {
+    const store = readLocalStore();
+    const before = store.volunteers?.length ?? 0;
+    store.volunteers = (store.volunteers ?? []).filter((volunteer) => volunteer.loginId !== loginId);
+    if (store.volunteers.length === before) return false;
+    writeLocalStore(store);
+    return true;
+  }
+  const { data, error } = await sb.from('check_in_volunteers').delete().eq('login_id', loginId).select('login_id');
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
 }
 
 function checkInSquad(registration: StoredRegistration, event: CampusEvent, members: StoredTeamMember[], marks: AttendanceMark[]): CheckInSquad {

@@ -100,7 +100,7 @@ export default function App() {
       event: `${name ? name + ' Rulebook' : 'Tournament Rulebook'} | ${suffix}`,
       register: `Register Your Squad${name ? ' for ' + name : ''} | ${suffix}`,
       track: `Track Your Registration | ${suffix}`,
-      admin: `Admin Sign In | ${suffix}`,
+      admin: `Admin Desk | ${suffix}`,
       volunteer: `Event Check-in | ${suffix}`,
     };
     document.title = titles[route.page];

@@ -1,8 +1,6 @@
 import {
   CheckCircle2,
-  Copy,
   Download,
-  ExternalLink,
   LogOut,
   Mail,
   Plus,
@@ -144,15 +142,6 @@ interface AdminBundle {
   latestProofUrl: string | null;
 }
 
-interface AuditLog {
-  id: string;
-  registrationId: string;
-  actorLabel: string;
-  action: string;
-  notes: string;
-  createdAt: string;
-}
-
 interface AdminDashboardViewProps {
   onEventsUpdated: () => void;
   onNavigate: (route: AppRoute) => void;
@@ -173,8 +162,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
   const [qrNotice, setQrNotice] = useState<Record<string, { tone: 'ok' | 'error'; text: string }>>({});
   const [brokenQrPreview, setBrokenQrPreview] = useState<Record<string, string>>({});
   const [qrPreviewFor, setQrPreviewFor] = useState<string | null>(null);
-  const [systemMode, setSystemMode] = useState<'supabase' | 'local' | null>(null);
-  const [smtpConfigured, setSmtpConfigured] = useState(false);
+  const [smtpConfigured, setSmtpConfigured] = useState(true);
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');
@@ -183,10 +171,9 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
   const [loggingIn, setLoggingIn] = useState(false);
 
   // Dashboard data
-  const [tab, setTab] = useState<'queue' | 'rosters' | 'events' | 'audit' | 'check-in' | 'volunteers'>('queue');
+  const [tab, setTab] = useState<'queue' | 'rosters' | 'events' | 'check-in' | 'volunteers'>('queue');
   const [events, setEvents] = useState<CampusEvent[]>([]);
   const [bundles, setBundles] = useState<AdminBundle[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionMsg, setActionMsg] = useState('');
 
@@ -208,6 +195,9 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
   const [decisionNote, setDecisionNote] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [lastApproval, setLastApproval] = useState<{ id: string; text: string; nextTeamCode?: string; emailNote?: string } | null>(null);
   const approvalNotice = useRef<HTMLParagraphElement>(null);
+  const inspectorRef = useRef<HTMLDivElement>(null);
+  const queueRef = useRef<HTMLDivElement>(null);
+  const [showFilters, setShowFilters] = useState(false);
   const [zoomImage, setZoomImage] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
@@ -221,10 +211,6 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
   const [newEvtPrize, setNewEvtPrize] = useState(10000);
   const [newEvtVenue, setNewEvtVenue] = useState('SAMT Campus Arena');
   const [newEvtDate, setNewEvtDate] = useState('Dates to be announced');
-
-  // Schema SQL viewer
-  const [schemaSql, setSchemaSql] = useState('');
-  const [copiedSql, setCopiedSql] = useState(false);
 
   async function fetchAdmin(url: string, init: RequestInit = {}) {
     const requestToken = activeToken.current;
@@ -258,8 +244,6 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
           await Promise.allSettled(waiting.slice(i, i + 2).map((b) => loadProofImage(b.latestProofUrl!, requestToken)));
         }
       })();
-      setAuditLogs(json.auditLogs || []);
-      setSystemMode(json.mode === 'supabase' ? 'supabase' : 'local');
       setSmtpConfigured(Boolean(json.smtpConfigured));
     } catch (error) {
       if (activeToken.current === requestToken && sequence === overviewSequence.current) {
@@ -316,8 +300,8 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
     sessionStorage.removeItem(STORAGE_EMAIL_KEY);
     activeToken.current = '';
     overviewSequence.current += 1;
-    setBundles([]); setEvents([]); setAuditLogs([]); setSchemaSql('');
-    setRejectReason(''); setZoomImage(false); setActionMsg(''); setLoginPass('');
+    setBundles([]); setEvents([]);
+    setRejectReason(''); setZoomImage(false); setActionMsg(''); setLoginPass(''); setLoginEmail('');
     setLastApproval(null); setDecisionNote(null);
     setToken('');
     setAdminEmail('');
@@ -341,6 +325,14 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
     setRejectReason('');
     setZoomImage(false);
     setDecisionNote(null);
+  }
+
+  // On phones the inspector sits below the list, so bring it into view after a tap.
+  function openRegistration(id: string) {
+    selectRegistration(id);
+    if (window.matchMedia('(max-width: 1023px)').matches) {
+      requestAnimationFrame(() => inspectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    }
   }
 
   async function exportReport(format: 'xlsx' | 'pdf') {
@@ -418,8 +410,6 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
       overviewSequence.current += 1;
       setBundles((current) => current.map((item) => item.registration.id === json.registration.id
         ? { ...item, registration: json.registration, proofs: json.proofs } : item));
-      setAuditLogs((current) => [...(json.auditLogs || []), ...current]
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
       setRejectReason('');
       onEventsUpdated();
       if (decision === 'approve' && json.registration.status === 'verified') {
@@ -469,7 +459,6 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
       const json = await res.json();
       const gone = new Set(ids);
       setBundles((current) => current.filter((b) => !gone.has(b.registration.id)));
-      setAuditLogs((current) => current.filter((a) => !gone.has(a.registrationId)));
       setCheckedIds(new Set());
       if (selectedId && gone.has(selectedId)) setSelectedId(null);
       // Don't keep showing "approved" for a team that no longer exists.
@@ -683,24 +672,10 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  async function loadSchemaSql() {
-    try {
-    const res = await fetchAdmin('/api/admin/schema.sql', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const sql = await res.text();
-      if (activeToken.current) setSchemaSql(sql);
-    }
-    } catch (error) {
-      setActionMsg(error instanceof Error ? error.message : 'Unable to load schema.');
-    }
-  }
-
   // Unauthenticated Admin Login Screen
   if (!token) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-16 text-slate-900">
+      <main className="staff-desk min-h-screen bg-slate-50 px-4 py-16 text-slate-900">
         <div className="mx-auto max-w-md rounded-xl border border-slate-200 bg-white p-8">
           <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
             <img
@@ -774,14 +749,13 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
+    <main className="staff-desk min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         {/* Top Workspace Header */}
         <div className="no-print flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-5">
           <div>
-            <div className="text-xs font-medium text-slate-500">
-              SAMT Event Administration · {adminEmail} ·{' '}
-              {systemMode === 'supabase' ? 'Supabase Connected' : 'Local Preview Storage'}
+            <div className="break-all text-xs font-medium text-slate-500">
+              SAMT Event Administration · {adminEmail}
             </div>
             <h1 className="mt-1 text-2xl font-bold text-slate-900">
               Payment Verification &amp; Tournament Desk
@@ -824,23 +798,26 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
           </div>
         </div>
 
-        <div className="no-print mt-5 flex flex-wrap items-center gap-1 border-b border-slate-200">
+        {!smtpConfigured && (
+          <p role="status" className="no-print mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            Confirmation emails are not being sent: the college email (SMTP) settings are missing on the server.
+            Teams can still track their status on the website.
+          </p>
+        )}
+
+        <div className="no-print -mx-4 mt-5 flex items-center gap-1 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:flex-wrap sm:px-0">
           {([
             ['queue', 'Verification Queue'],
             ['check-in', 'Check-in'],
             ['volunteers', 'Volunteers'],
             ['rosters', 'Participant Rosters & Meals'],
             ['events', 'Events & UPI QR Setup'],
-            ['audit', 'Audit Logs & Supabase SQL'],
           ] as const).map(([key, label]) => (
             <button
               key={key}
               type="button"
               aria-pressed={tab === key}
-              onClick={() => {
-                setTab(key);
-                if (key === 'audit' && !schemaSql) loadSchemaSql();
-              }}
+              onClick={() => setTab(key)}
               className={`border-b-2 px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors ${
                 tab === key
                   ? 'border-[#233D8B] text-[#233D8B]'
@@ -859,32 +836,32 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
           <span className="text-xs text-slate-500">Exports use the filters below.</span>
         </div>
         {/* KPI Grid */}
-        <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:mt-6 sm:gap-4 lg:grid-cols-5">
+          <div className="rounded-lg border border-slate-200 bg-white p-3 sm:p-4">
             <div className="text-xs text-slate-500">Total Registrations</div>
-            <div className="mt-1 font-mono text-2xl font-bold text-slate-900 tabular-nums">
+            <div className="mt-1 font-mono text-xl font-bold sm:text-2xl text-slate-900 tabular-nums">
               {kpis.total}
             </div>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="rounded-lg border border-slate-200 bg-white p-3 sm:p-4">
             <div className="text-xs text-slate-500">Pending Review</div>
-            <div className="mt-1 font-mono text-2xl font-bold text-amber-600 tabular-nums">
+            <div className="mt-1 font-mono text-xl font-bold sm:text-2xl text-amber-600 tabular-nums">
               {kpis.pending}
             </div>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="rounded-lg border border-slate-200 bg-white p-3 sm:p-4">
             <div className="text-xs text-slate-500">Verified Squads</div>
-            <div className="mt-1 font-mono text-2xl font-bold text-emerald-600 tabular-nums">
+            <div className="mt-1 font-mono text-xl font-bold sm:text-2xl text-emerald-600 tabular-nums">
               {kpis.verified}
             </div>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="rounded-lg border border-slate-200 bg-white p-3 sm:p-4">
             <div className="text-xs text-slate-500">Verified Collections</div>
-            <div className="mt-1 font-mono text-2xl font-bold text-slate-900 tabular-nums">
+            <div className="mt-1 font-mono text-xl font-bold sm:text-2xl text-slate-900 tabular-nums">
               Rs. {kpis.verifiedRevenue.toLocaleString('en-IN')}
             </div>
           </div>
-          <div className="col-span-2 rounded-lg border border-slate-200 bg-white p-4 lg:col-span-1">
+          <div className="col-span-2 rounded-lg border border-slate-200 bg-white p-3 sm:p-4 lg:col-span-1">
             <div className="text-xs text-slate-500">Verified Meals (V / NV)</div>
             <div className="mt-1 font-mono text-xl font-bold text-slate-900 tabular-nums">
               {kpis.totalVeg} Veg · {kpis.totalNonVeg} NV
@@ -900,7 +877,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
 
         <fieldset aria-label="Registration filters" disabled={processingDecision} className="no-print mt-5 min-w-0 rounded-lg border border-slate-200 bg-white p-4">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="relative sm:col-span-2">
+            <div className="relative flex gap-2 sm:col-span-2">
               <Search className="pointer-events-none absolute top-2.5 left-3 h-3.5 w-3.5 text-slate-400" />
               <input
                 type="search"
@@ -908,16 +885,26 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                 onChange={(e) => setSearchQuery(e.target.value)}
                 aria-label="Search registrations"
                 placeholder="Search team, college, email, phone or UTR"
-                className="w-full rounded border border-slate-300 py-2 pr-3 pl-8 text-xs focus:border-[#233D8B] focus:outline-none"
+                className="min-h-10 w-full min-w-0 rounded border border-slate-300 py-2 pr-3 pl-8 text-sm focus:border-[#233D8B] focus:outline-none sm:text-xs"
               />
+              <button
+                type="button"
+                aria-expanded={showFilters}
+                aria-controls="admin-more-filters"
+                onClick={() => setShowFilters((open) => !open)}
+                className="min-h-10 shrink-0 rounded border border-slate-300 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:hidden"
+              >
+                {showFilters ? 'Hide filters' : 'Filters'}
+              </button>
             </div>
-            <select aria-label="Filter by event" value={eventFilter} onChange={(e) => setEventFilter(e.target.value)} className="rounded border border-slate-300 p-2 text-xs">
+            <div id="admin-more-filters" className={`${showFilters ? 'grid' : 'hidden'} gap-2 sm:contents`}>
+            <select aria-label="Filter by event" value={eventFilter} onChange={(e) => setEventFilter(e.target.value)} className="min-h-10 rounded border border-slate-300 p-2 text-xs">
               <option value="all">All Events</option>
               {events.map((e) => (
                 <option key={e.id} value={e.id}>{e.title}</option>
               ))}
             </select>
-            <select aria-label="Filter by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded border border-slate-300 p-2 text-xs">
+            <select aria-label="Filter by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="min-h-10 rounded border border-slate-300 p-2 text-xs">
               <option value="all">All Statuses</option>
               <option value="pending">Pending</option>
               <option value="verified">Approved</option>
@@ -925,7 +912,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
               <option value="waitlisted">Waitlisted</option>
               <option value="rejected">Rejected</option>
             </select>
-            <select aria-label="Filter by lunch" value={lunchFilter} onChange={(e) => setLunchFilter(e.target.value)} className="rounded border border-slate-300 p-2 text-xs">
+            <select aria-label="Filter by lunch" value={lunchFilter} onChange={(e) => setLunchFilter(e.target.value)} className="min-h-10 rounded border border-slate-300 p-2 text-xs">
               <option value="all">All lunch preferences</option>
               <option value="yes">Lunch opted in</option>
               <option value="no">No lunch</option>
@@ -938,11 +925,12 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
               To
               <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="min-h-10 min-w-0 flex-1 rounded border border-slate-300 p-2" />
             </label>
-            <select aria-label="Sort registrations" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="rounded border border-slate-300 p-2 text-xs">
+            <select aria-label="Sort registrations" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="min-h-10 rounded border border-slate-300 p-2 text-xs">
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
               <option value="team">Team name A–Z</option>
             </select>
+            </div>
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
             <span role="status">Showing {filteredBundles.length} of {bundles.length} teams · dates in IST</span>
@@ -963,7 +951,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
         {tab === 'queue' && (
           <div className="mt-6 grid gap-6 lg:grid-cols-12">
             {/* Queue List */}
-            <div className="min-w-0 rounded-lg border border-slate-200 bg-white lg:col-span-7">
+            <div ref={queueRef} className="min-w-0 scroll-mt-20 rounded-lg border border-slate-200 bg-white lg:col-span-7">
               <div className="no-print flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
                 <h2 className="text-sm font-semibold text-slate-900">Payment review</h2>
                 <div role="group" aria-label="Quick review filters" className="flex gap-1.5">
@@ -1038,7 +1026,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                           <tr
                             key={b.registration.id}
                             onClick={() => {
-                              if (!processingDecision) selectRegistration(b.registration.id);
+                              if (!processingDecision) openRegistration(b.registration.id);
                             }}
                             className={`cursor-pointer transition-colors ${
                               isSel ? 'bg-blue-50' : 'hover:bg-slate-50'
@@ -1059,7 +1047,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                                 aria-current={isSel ? 'true' : undefined}
                                 onClick={(event) => {
                                   event.stopPropagation();
-                                  selectRegistration(b.registration.id);
+                                  openRegistration(b.registration.id);
                                 }}
                                 className="text-[#233D8B] hover:underline"
                               >
@@ -1112,7 +1100,12 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
             </div>
 
             {/* Right: Side-by-Side Payment Proof Inspector */}
-            <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 lg:col-span-5">
+            <div
+              ref={inspectorRef}
+              className={`min-w-0 scroll-mt-20 rounded-lg border border-slate-200 bg-white p-4 sm:p-5 lg:col-span-5 ${
+                !selectedBundle && !lastApproval ? 'hidden lg:block' : ''
+              }`}
+            >
               {lastApproval && (
                 <div className="no-print mb-4 grid gap-2 rounded border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
                   <p ref={approvalNotice} tabIndex={-1} role="status" className="scroll-mt-24 font-semibold">
@@ -1140,16 +1133,23 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                 </div>
               ) : (
                 <div>
+                  <button
+                    type="button"
+                    onClick={() => queueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="no-print mb-3 inline-flex min-h-10 items-center text-xs font-semibold text-[#233D8B] hover:underline lg:hidden"
+                  >
+                    ← Back to team list
+                  </button>
                   <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200 pb-3">
-                    <div>
+                    <div className="min-w-0">
                       <div className="font-mono text-xs font-bold text-[#233D8B]">
                         {selectedBundle.registration.teamCode}
                       </div>
                       <h2 className="text-base font-bold text-slate-900">
                         {selectedBundle.registration.teamName}
                       </h2>
-                      <div className="text-xs text-slate-500">
-                        IGL: {selectedBundle.registration.iglPhone} ·{' '}
+                      <div className="break-all text-xs text-slate-500">
+                        IGL: <a href={`tel:${selectedBundle.registration.iglPhone}`} className="hover:underline">{selectedBundle.registration.iglPhone}</a> ·{' '}
                         {selectedBundle.registration.iglEmail}
                       </div>
                     </div>
@@ -1157,7 +1157,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                     <button
                       type="button"
                       onClick={() => handleResendEmail(selectedBundle.registration.id)}
-                      className="inline-flex items-center gap-1 rounded border border-slate-300 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                      className="inline-flex min-h-9 items-center gap-1 rounded border border-slate-300 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
                     >
                       <Mail className="h-3 w-3" />
                       Resend Email
@@ -1166,7 +1166,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                       type="button"
                       disabled={deleting}
                       onClick={() => void deleteRecords([selectedBundle.registration.id])}
-                      className="inline-flex items-center gap-1 rounded border border-red-300 px-2.5 py-1.5 text-[11px] font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                      className="inline-flex min-h-9 items-center gap-1 rounded border border-red-300 px-2.5 py-1.5 text-[11px] font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
                     >
                       <Trash2 className="h-3 w-3" />
                       Delete record
@@ -1184,7 +1184,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                     </div>
                     <div>
                       <div className="text-[11px] text-slate-500">UTR Reference</div>
-                      <div className="font-mono font-semibold text-slate-900">
+                      <div className="font-mono font-semibold break-all text-slate-900">
                         {selectedBundle.proofs[0]?.utrNumber || '—'}
                       </div>
                     </div>
@@ -1263,8 +1263,9 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                       type="text"
                       value={rejectReason}
                       onChange={(e) => setRejectReason(e.target.value)}
+                      aria-label="Reason or note for the team"
                       placeholder="Reason / Note (required if rejecting or requesting re-upload)"
-                      className="w-full rounded border border-slate-300 px-3 py-2 text-xs focus:border-[#233D8B] focus:outline-none"
+                      className="min-h-11 w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-[#233D8B] focus:outline-none sm:text-xs"
                     />
                     {decisionNote && (
                       <p
@@ -1283,7 +1284,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                         type="button"
                         disabled={processingDecision}
                         onClick={() => handleDecision('approve')}
-                        className="inline-flex items-center justify-center gap-1 rounded bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                        className="inline-flex min-h-11 items-center justify-center gap-1 rounded bg-emerald-600 px-2 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         {processingDecision ? 'Saving…' : 'Approve'}
@@ -1292,7 +1293,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                         type="button"
                         disabled={processingDecision}
                         onClick={() => handleDecision('reupload_required')}
-                        className="rounded border border-amber-500 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                        className="min-h-11 rounded border border-amber-500 bg-amber-50 px-2 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
                       >
                         Re-upload
                       </button>
@@ -1300,7 +1301,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                         type="button"
                         disabled={processingDecision}
                         onClick={() => handleDecision('reject')}
-                        className="inline-flex items-center justify-center gap-1 rounded bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                        className="inline-flex min-h-11 items-center justify-center gap-1 rounded bg-red-600 px-2 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
                       >
                         <XCircle className="h-3.5 w-3.5" />
                         Reject
@@ -1316,7 +1317,53 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
         {/* TAB 2: Participant Rosters & Meal Breakdown */}
         {tab === 'rosters' && (
           <div className="mt-6 rounded-lg border border-slate-200 bg-white">
-            <div className="overflow-x-auto">
+            {filteredBundles.length === 0 && (
+              <p className="p-10 text-center text-xs text-slate-500">No registrations match the current filters.</p>
+            )}
+            {/* Phones: one card per team instead of a wide table. */}
+            <ul className="divide-y divide-slate-100 md:hidden">
+              {filteredBundles.map((b) => (
+                <li key={b.registration.id} className="p-4 text-xs">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-mono font-bold text-slate-900">{b.registration.teamCode}</div>
+                      <div className="text-[11px] text-slate-500">
+                        {b.registration.slotNumber
+                          ? `${b.registration.groupName} · ${b.registration.slotNumber}`
+                          : b.registration.status.replace(/_/g, ' ')}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={deleting}
+                      onClick={() => void deleteRecords([b.registration.id])}
+                      aria-label={`Delete ${b.registration.teamCode} ${b.registration.teamName}`}
+                      className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded border border-red-200 px-2.5 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <Trash2 className="size-3.5" aria-hidden="true" /> Delete
+                    </button>
+                  </div>
+                  <div className="mt-2 font-semibold break-words text-slate-900">{b.registration.teamName}</div>
+                  <div className="text-[11px] break-words text-slate-500">{b.event.gameTitle} · {b.registration.collegeName}</div>
+                  <div className="mt-1 text-[11px] break-all text-slate-600">
+                    <a href={`tel:${b.registration.iglPhone}`} className="font-mono hover:underline">{b.registration.iglPhone}</a> · {b.registration.iglEmail}
+                  </div>
+                  <ul className="mt-2 space-y-1 rounded bg-slate-50 p-2 text-[11px]">
+                    {b.members.map((m) => (
+                      <li key={m.id} className="break-words">
+                        <span className="font-mono font-semibold text-slate-700">[{m.slotRole}]</span> {m.fullName} · <strong>{m.inGameName}</strong> ·{' '}
+                        <span className="font-mono">{m.characterId}</span>
+                        <div className="text-slate-500">{[m.collegeOverride, m.academicLevel].filter(Boolean).join(' · ')}</div>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-2 font-mono text-[11px] text-slate-700 tabular-nums">
+                    Meals: {b.registration.vegCount} Veg / {b.registration.nonVegCount} NV
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className={`hidden overflow-x-auto ${filteredBundles.length ? 'md:block' : ''}`}>
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-slate-600">
@@ -1703,105 +1750,6 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
           </div>
         )}
 
-        {/* TAB 4: Audit Logs & Supabase / SMTP Setup */}
-        {tab === 'audit' && (
-          <div className="mt-6 grid gap-6 lg:grid-cols-12">
-            <div className="min-w-0 rounded-lg border border-slate-200 bg-white lg:col-span-7">
-              <div className="border-b border-slate-200 px-4 py-3 text-xs font-bold text-slate-900">
-                Immutable Payment &amp; Email Audit Trail
-              </div>
-              <div className="max-h-[480px] overflow-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                      <th className="px-3 py-2 font-medium">Timestamp</th>
-                      <th className="px-3 py-2 font-medium">Action</th>
-                      <th className="px-3 py-2 font-medium">Actor</th>
-                      <th className="px-3 py-2 font-medium">Details</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {auditLogs.map((log) => (
-                      <tr key={log.id}>
-                        <td className="px-3 py-2 font-mono text-[11px] text-slate-500">
-                          {new Date(log.createdAt).toLocaleString()}
-                        </td>
-                        <td className="px-3 py-2 font-mono text-[11px] font-semibold">
-                          {log.action}
-                        </td>
-                        <td className="px-3 py-2 text-[11px] text-slate-700">{log.actorLabel}</td>
-                        <td className="px-3 py-2 text-[11px] text-slate-600">{log.notes}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 lg:col-span-5">
-              <h3 className="text-sm font-bold text-slate-900">
-                Supabase Free &amp; College SMTP Integration Status
-              </h3>
-              <div className="mt-3 space-y-2 text-xs">
-                <div className="flex justify-between rounded bg-slate-50 px-3 py-2">
-                  <span>Supabase Database &amp; Storage</span>
-                  <span
-                    className={`font-semibold ${
-                      systemMode === 'supabase' ? 'text-emerald-700' : 'text-amber-700'
-                    }`}
-                  >
-                    {systemMode === 'supabase' ? 'Connected' : 'Local Preview Fallback'}
-                  </span>
-                </div>
-                <div className="flex justify-between rounded bg-slate-50 px-3 py-2">
-                  <span>Official College Email (SMTP)</span>
-                  <span
-                    className={`font-semibold ${
-                      smtpConfigured ? 'text-emerald-700' : 'text-amber-700'
-                    }`}
-                  >
-                    {smtpConfigured ? 'Configured' : 'Pending SMTP Credentials'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-700">
-                  Supabase SQL Migration Script
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!schemaSql) return;
-                    navigator.clipboard
-                      .writeText(schemaSql)
-                      .then(() => {
-                        setCopiedSql(true);
-                        setTimeout(() => setCopiedSql(false), 2000);
-                      })
-                      .catch(() => setActionMsg('Copy failed. Select the SQL below and copy it manually.'));
-                  }}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-[#233D8B] hover:underline"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  {copiedSql ? 'Copied!' : 'Copy schema.sql'}
-                </button>
-              </div>
-              <pre className="mt-2 max-h-64 overflow-auto rounded border border-slate-200 bg-slate-950 p-3 font-mono text-[10px] text-slate-200">
-                {schemaSql || 'Loading supabase/schema.sql...'}
-              </pre>
-              <a
-                href="https://supabase.com/dashboard"
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[#233D8B] hover:underline"
-              >
-                Open Supabase Dashboard
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
-          </div>
-        )}
       </div>
     </main>
   );

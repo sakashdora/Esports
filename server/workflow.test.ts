@@ -62,6 +62,11 @@ test('local registration, review, reupload, privacy and admin authorization', as
       const overview = await allowed.json();
       assert.equal(overview.bundles.length,1);
       assert.equal(overview.bundles[0].registration.status,'verified');
+      // The dashboard gets no audit history or database details, and the schema download is gone.
+      assert.equal('auditLogs' in overview,false);
+      assert.equal('auditLogs' in overview.bundles[0],false);
+      assert.equal('mode' in overview,false);
+      assert.equal((await fetch(base+'/api/admin/schema.sql',{headers:{Authorization:'Bearer '+token}})).status,404);
       const badLogin = await fetch(base+'/api/admin/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email:'admin@example.test',password:'wrong-password'})});
       assert.equal(badLogin.status,401);
       const login = await fetch(base+'/api/admin/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email:'admin@example.test',password:'isolated-test-password'})});
@@ -135,7 +140,17 @@ test('local registration, review, reupload, privacy and admin authorization', as
       assert.equal((await post(resetUrl,reset,adminHeaders,'PATCH')).status,200);
       assert.equal((await fetch(base+'/api/check-in/attendance',{headers:volunteerHeaders})).status,401);
       assert.equal((await volunteerSignIn(volunteerPassword)).status,401);
-      assert.equal((await volunteerSignIn(reset.password)).status,200);
+      const freshVolunteer = await (await volunteerSignIn(reset.password)).json();
+      const freshHeaders = {...jsonHeaders,Authorization:'Bearer '+freshVolunteer.token};
+      assert.equal((await fetch(base+'/api/check-in/attendance',{headers:freshHeaders})).status,200);
+      // Removing a volunteer ends their session straight away.
+      const removeUrl = base+'/api/admin/volunteers/front-desk';
+      assert.equal((await fetch(removeUrl,{method:'DELETE',headers:freshHeaders})).status,401);
+      assert.equal((await fetch(removeUrl,{method:'DELETE',headers:adminHeaders})).status,200);
+      assert.equal((await fetch(removeUrl,{method:'DELETE',headers:adminHeaders})).status,404);
+      assert.equal((await fetch(base+'/api/check-in/attendance',{headers:freshHeaders})).status,401);
+      assert.equal((await volunteerSignIn(reset.password)).status,401);
+      assert.deepEqual(await (await fetch(base+'/api/admin/volunteers',{headers:adminHeaders})).json(),{volunteers:[]});
       for (const format of ['xlsx','pdf']) {
         const denied = await fetch(base+'/api/admin/export/'+format,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
         assert.equal(denied.status,401);

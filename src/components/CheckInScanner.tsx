@@ -145,8 +145,8 @@ export function CheckInScanner({ busy, onRead }: { busy: boolean; onRead: (value
       }}>
         <label htmlFor="manual-team-id" className="text-sm font-semibold text-slate-700">Team ID</label>
         <div className="mt-1 flex gap-2">
-          <input id="manual-team-id" placeholder="KW26-001" autoComplete="off" autoCapitalize="characters" spellCheck={false} className={deskInput} value={code} onChange={(event) => setCode(event.target.value)} />
-          <button className={deskSecondary} disabled={!code.trim() || unavailable} type="submit">Look up</button>
+          <input id="manual-team-id" placeholder="KW26-001" autoComplete="off" autoCapitalize="characters" spellCheck={false} className={`${deskInput} min-w-0`} value={code} onChange={(event) => setCode(event.target.value)} />
+          <button className={`${deskSecondary} shrink-0 whitespace-nowrap`} disabled={!code.trim() || unavailable} type="submit">Look up</button>
         </div>
       </form>
       {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}

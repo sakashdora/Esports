@@ -4,8 +4,6 @@ import { filterAdminRegistrations, type AdminFilters } from '../src/lib/adminFil
 import { exportAdminPdf, exportAdminWorkbook } from './adminExports.js';
 import 'dotenv/config';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
-import fs from 'node:fs';
-import path from 'node:path';
 import multer from 'multer';
 import { createCheckInQr, isSmtpConfigured, resolveAppUrl, sendTeamConfirmationEmail } from './email.js';
 import { mountCheckInRoutes, signInVolunteer } from './checkIn.js';
@@ -192,7 +190,9 @@ export function createApiApp(): Express {
           members: bundle.members,
           emailDispatched: false,
           emailDelivery: 'background',
-          emailNote: 'Registration saved. Email delivery is in progress; keep your Team Registration ID safe.',
+          emailNote: isSmtpConfigured()
+            ? 'Registration saved. Email delivery is in progress; keep your Team Registration ID safe.'
+            : 'Registration saved. Keep your Team Registration ID safe and use Track Status for updates.',
         });
       } catch (err) {
         const message = clientErrorMessage(err, 'Registration submission failed.');
@@ -324,14 +324,13 @@ export function createApiApp(): Express {
           token: issueLocalAdminToken(adminEmail),
           email: adminEmail,
           role: 'admin',
-          mode: 'local',
         });
       }
 
       const anon = getSupabaseAnonClient();
       const svc = getSupabaseServiceClient();
       if (!anon || !svc) {
-        return res.status(500).json({ error: 'Supabase client unavailable.' });
+        return res.status(503).json({ error: 'Sign-in is temporarily unavailable. Please try again.' });
       }
       const { data, error } = await anon.auth.signInWithPassword({ email, password });
       if (error || !data.session || !data.user) {
@@ -345,7 +344,7 @@ export function createApiApp(): Express {
 
       if (!allowRow) {
         return res.status(403).json({
-          error: 'Account authenticated, but not listed in public.admin_users allowlist.',
+          error: 'This account is not an administrator.',
         });
       }
 
@@ -353,7 +352,6 @@ export function createApiApp(): Express {
         token: data.session.access_token,
         email: String(allowRow.email),
         role: 'admin',
-        mode: 'supabase',
       });
     } catch (err) {
       const message = 'Login failed.';
@@ -367,11 +365,8 @@ export function createApiApp(): Express {
   app.get('/api/admin/overview', requireAdmin, async (_req: AdminRequest, res) => {
     try {
       const data = await listAdminDashboardData();
-      res.json({
-        ...data,
-        mode: isSupabaseConfigured() ? 'supabase' : 'local',
-        smtpConfigured: isSmtpConfigured(),
-      });
+      // Only what the dashboard needs: database details stay on the server.
+      res.json({ ...data, smtpConfigured: isSmtpConfigured() });
     } catch (err) {
       const message = 'Failed to load admin overview.';
       res.status(500).json({ error: message });
@@ -443,10 +438,11 @@ export function createApiApp(): Express {
         ok: true,
         registration: bundle.registration,
         proofs: bundle.proofs,
-        auditLogs: bundle.auditLogs,
         emailSent: false,
         emailDelivery: 'background',
-        emailNote: 'Decision saved. Email delivery is in progress.',
+        emailNote: isSmtpConfigured()
+          ? 'Decision saved. Email delivery is in progress.'
+          : 'Decision saved. No email was sent because college email (SMTP) is not set up.',
       });
     } catch (err) {
       const message = clientErrorMessage(err, 'Decision update failed.');
@@ -512,12 +508,6 @@ export function createApiApp(): Express {
       const message = clientErrorMessage(err, 'QR upload failed.');
       return res.status(400).json({ error: message });
     }
-  });
-
-  app.get('/api/admin/schema.sql', requireAdmin, (_req, res) => {
-    const sqlPath = path.resolve(process.cwd(), 'supabase', 'schema.sql');
-    if (!fs.existsSync(sqlPath)) return res.status(404).send('Schema not found');
-    return res.type('text/plain').send(fs.readFileSync(sqlPath, 'utf-8'));
   });
 
   // Unknown API routes must answer with JSON, not the SPA's index.html.
