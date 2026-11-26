@@ -52,12 +52,28 @@ test('participant messages use bracket-free Srusti Esports subjects and the full
       assert.ok(version.includes('Srusti Academy of Management and Technology (Autonomous)'));
       assert.ok(version.includes('https://esports.example.test/track?code=KW26-003'));
       assert.ok(version.includes(action));
+      assert.match(version, /info\.esport@srustiacademy\.ac\.in/);
+      assert.match(version, /BGMI coordinator.*Sai.*82605 55312/);
       assert.equal(version.includes('Group A · Seat A1'), status === 'verified');
     }
     assert.ok(email.html.includes('Arena &amp; Squad'));
+    assert.ok(email.html.includes('href="mailto:info.esport@srustiacademy.ac.in"'));
+    assert.ok(email.html.includes('href="tel:+918260555312"'));
+    assert.ok(!email.text.includes('97776 40295'));
     assert.equal(email.html.includes('<unreadable>'), false);
     assert.equal(email.html.includes('&lt;unreadable&gt;'), status === 'rejected' || status === 'reupload_required');
   }
+});
+
+test('participant email shows the coordinator for its tournament when available', () => {
+  const freeFire = buildTeamConfirmationEmail({ ...input, gameTitle: 'Free Fire', eventTitle: 'Kurukshetra' }, appUrl, '');
+  assert.match(freeFire.text, /Free Fire coordinator: Aditya · 97776 40295/);
+  assert.ok(freeFire.html.includes('href="tel:+919777640295"'));
+  assert.ok(!freeFire.html.includes('82605 55312'));
+
+  const other = buildTeamConfirmationEmail({ ...input, gameTitle: 'Other game' }, appUrl, '');
+  assert.ok(other.text.includes('info.esport@srustiacademy.ac.in'));
+  assert.ok(!other.html.includes('href="tel:'));
 });
 
 test('confirmed seat generates a PNG with the full check-in roster and entry details', async () => {

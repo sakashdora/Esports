@@ -3,6 +3,7 @@ import path from 'node:path';
 import nodemailer from 'nodemailer';
 import type { Attachment } from 'nodemailer/lib/mailer/index.js';
 import { renderBrandedQr } from './qrPass.js';
+import { ACADEMY_NAME, ESPORTS_CONTACT_EMAIL, TOURNAMENT_CONTACTS } from '../src/lib/academy.js';
 import { confirmedSeat, isWaitlistSlot } from '../src/lib/checkIn.js';
 import { escapeHtml, type PlayerInput } from '../src/lib/tournamentRules.js';
 
@@ -91,8 +92,6 @@ export interface TeamConfirmationEmailParams {
 }
 
 const BRAND = 'Srusti Esports 2026';
-const ACADEMY = 'Srusti Academy of Management and Technology (Autonomous)';
-const SUPPORT_EMAIL = 'mail@srustiacademy.ac.in';
 const LOGO_PATH = 'assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.png';
 const CHECK_IN_QR_CID = 'srusti-team-check-in';
 type CheckInQrContents = 'roster' | 'status';
@@ -257,6 +256,7 @@ export function buildTeamConfirmationEmail(
   const message = registrationMessage(params, slot);
   const subject = `${BRAND} — ${message.title} — ${params.teamCode}`;
   const trackUrl = statusUrl(params, appUrl);
+  const coordinator = TOURNAMENT_CONTACTS.find(({ game }) => game.toLowerCase() === params.gameTitle.trim().toLowerCase());
   const mealSummary = params.lunchCount > 0
     ? `${params.lunchCount} (${params.vegCount} veg · ${params.nonVegCount} non-veg)`
     : 'None selected';
@@ -287,7 +287,7 @@ export function buildTeamConfirmationEmail(
         <tr><td bgcolor="#231716" style="padding:22px 20px;border-bottom:4px solid #eec36c;background-color:#231716;color:#fff8ed;">
           <img src="${escapeHtml(logoSrc)}" alt="Srusti e-Sports logo" width="146" style="display:block;width:146px;max-width:100%;height:auto;color:#fff8ed;font-size:13px;">
           <p style="margin:8px 0 0;font-size:17px;line-height:1.35;font-weight:bold;color:#fff8ed;">${BRAND}</p>
-          <p style="margin:4px 0 0;font-size:13px;line-height:1.5;color:#f3d6a1;">${ACADEMY}</p>
+          <p style="margin:4px 0 0;font-size:13px;line-height:1.5;color:#f3d6a1;">${ACADEMY_NAME}</p>
         </td></tr>
         <tr><td style="padding:24px 20px 20px;">
           <p style="margin:0 0 6px;color:${message.accent};font-size:13px;font-weight:bold;line-height:1.4;">${message.status}</p>
@@ -319,9 +319,9 @@ export function buildTeamConfirmationEmail(
           <ul style="margin:0;padding-left:20px;color:#51453e;font-size:14px;line-height:1.55;">${CHECK_IN.map(item => `<li>${item}</li>`).join('')}</ul>` : ''}
         </td></tr>
         <tr><td bgcolor="#f5f0e9" style="padding:16px 20px;background-color:#f5f0e9;border-top:1px solid #e3d8cb;font-size:13px;line-height:1.55;color:#57493f;">
-          <strong style="color:#241b19;">Srusti Esports Tournament Desk</strong><br>
-          For help, email <a href="mailto:${SUPPORT_EMAIL}" style="color:#962518;overflow-wrap:anywhere;">${SUPPORT_EMAIL}</a>.<br>
-          Replies to this automated notification are unmonitored.
+          <h2 style="margin:0 0 6px;font-size:15px;color:#241b19;">Srusti Esports Tournament Desk</h2>
+          <p style="margin:0;">Email <a href="mailto:${ESPORTS_CONTACT_EMAIL}" style="color:#962518;overflow-wrap:anywhere;">${ESPORTS_CONTACT_EMAIL}</a></p>
+          ${coordinator ? `<p style="margin:4px 0 0;">${coordinator.game} coordinator · ${coordinator.coordinator} · <a href="${coordinator.href}" style="color:#962518;white-space:nowrap;">${coordinator.phone}</a></p>` : ''}
         </td></tr>
       </table>
       <!--[if mso]></td></tr></table><![endif]-->
@@ -332,7 +332,7 @@ export function buildTeamConfirmationEmail(
 
   const text = [
     BRAND,
-    ACADEMY,
+    ACADEMY_NAME,
     '',
     `${message.title} · ${message.status}`,
     `Hello, team leader of ${params.teamName}.`,
@@ -355,7 +355,9 @@ export function buildTeamConfirmationEmail(
     `${checkIn ? 'Open pass and download QR' : message.action}: ${trackUrl}`,
     ...(slot ? ['', 'Match-day check-in', ...CHECK_IN.map(item => `- ${item}`)] : []),
     '',
-    `For help, email ${SUPPORT_EMAIL}. Replies to this automated notification are unmonitored.`,
+    'Srusti Esports Tournament Desk',
+    `Email: ${ESPORTS_CONTACT_EMAIL}`,
+    ...(coordinator ? [`${coordinator.game} coordinator: ${coordinator.coordinator} · ${coordinator.phone}`] : []),
   ].join('\n');
 
   return { subject, html, text };
@@ -391,8 +393,8 @@ export async function sendTeamConfirmationEmail(params: TeamConfirmationEmailPar
     const transporter = createTransporter();
     const info = await transporter.sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      replyTo: process.env.SMTP_REPLY_TO || 'noreply@srustiacademy.ac.in',
-      // Tell mail servers and mailbox auto-responders this is an automated, no-reply message.
+      replyTo: process.env.SMTP_REPLY_TO || ESPORTS_CONTACT_EMAIL,
+      // Identify automated email so mailbox responders can avoid reply loops.
       headers: {
         'Auto-Submitted': 'auto-generated',
         'X-Auto-Response-Suppress': 'All',
