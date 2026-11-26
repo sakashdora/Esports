@@ -50,6 +50,20 @@ const O: CollegeCategory = 'Other';
 const ROWS: Row[] = [
   // Host institution first so it shows at the top of an empty search.
   [ACADEMY_NAME, 'Bhubaneswar', M, 'samt srusti academy mba mca bba bca'],
+  ['Srusti Academy of Graduate Studies (SAGS)', 'Bhubaneswar', D, 'sags srusti academy graduate bba bca bcom bsc ba plus three'],
+
+  // Private colleges added on request (management, degree and technical)
+  ['United School of Business Management (USBM)', 'Bhubaneswar', M, 'usbm united business mba bba'],
+  ['DAV School of Business Management', 'Bhubaneswar', M, 'dav sbm mba bba'],
+  ['NIIS Institute of Business Administration', 'Bhubaneswar', M, 'niis mba bba'],
+  ['Madhusudan Institute of Co-operative Management (MICM)', 'Bhubaneswar', M, 'micm cooperative mba'],
+  ['Dr. Ambedkar Memorial Institute of IT and Management Science (DAMITS)', 'Rourkela', M, 'damits ambedkar mba mca bba bca'],
+  ['Regional Institute of Education (RIE)', 'Bhubaneswar', D, 'rie ncert bed bsc bed ba bed'],
+  ['College of Basic Science and Humanities, OUAT', 'Bhubaneswar', D, 'cbsh ouat bsc'],
+  ['Saraswati Degree Vidya Mandir', 'Berhampur', D, 'sdvm saraswati'],
+  ['KIIT Polytechnic', 'Bhubaneswar', E, 'kiit polytechnic diploma'],
+  ['Sophitorium Group of Institutions', 'Jatni', E, 'sophitorium btech diploma'],
+  ['Gandhi Academy of Technology and Engineering (GATE)', 'Berhampur', E, 'gate gandhi btech'],
 
   // Institutes of national importance and central universities
   ['Indian Institute of Technology Bhubaneswar', 'Bhubaneswar', E, 'iit iitbbs btech'],

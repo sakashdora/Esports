@@ -21,6 +21,10 @@ test('searchColleges finds colleges by short form, city and level', () => {
   assert.ok(searchColleges('mba rourkela').every((o) => /rourkela/i.test(o.haystack)));
   assert.ok(searchColleges('12th bhubaneswar').length > 3);
   assert.equal(searchColleges('zzz no such college').length, 0);
+  assert.equal(searchColleges('sags')[0].value, 'Srusti Academy of Graduate Studies (SAGS), Bhubaneswar');
+  assert.equal(searchColleges('srusti graduate')[0].name, 'Srusti Academy of Graduate Studies (SAGS)');
+  assert.equal(searchColleges('usbm')[0].value, 'United School of Business Management (USBM), Bhubaneswar');
+  assert.equal(searchColleges('united school')[0].name, 'United School of Business Management (USBM)');
 });
 
 test('empty search starts with the host academy, and branch groups end with a comma', () => {
