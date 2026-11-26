@@ -1,30 +1,30 @@
 .arena-scoring {
-  --score-gold: #f3c462;
-  margin-top: 24px;
-  border: 1px solid #936637;
-  border-radius: 14px 3px;
-  background: #100e0e;
+  --score-gold: #edcb82;
+  margin-top: 16px;
+  border: 1px solid var(--home-border);
+  border-radius: 10px;
+  background: var(--home-panel);
 }
 
 .scoring-toggle {
   display: flex;
   align-items: center;
-  gap: clamp(12px, 2vw, 24px);
-  padding: 16px clamp(14px, 3vw, 36px);
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 16px;
   border-radius: inherit;
-  background: linear-gradient(95deg, #350e0bf2, #100c10be 60%, #27101266),
-    url('/src/assets/images/hero_fire_esports_arena_1794848520848.jpg') center 45% / cover;
-  color: #fff4d9;
+  color: var(--home-text);
   cursor: pointer;
 }
 .scoring-toggle::-webkit-details-marker { display: none; }
-.scoring-toggle strong { font: italic 800 clamp(23px, 3vw, 38px)/1.05 var(--font-display); text-transform: uppercase; }
+.scoring-toggle strong { font: 650 15px/1.25 var(--font-sans); }
 .scoring-emblem, .scoring-chevron { color: var(--score-gold); flex-shrink: 0; }
-.scoring-emblem { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid #bd8748; border-radius: 9px 2px; background: #190d09; }
+.scoring-emblem { display: grid; place-items: center; width: 28px; height: 28px; }
+.scoring-emblem svg, .scoring-chevron { width: 18px; height: 18px; }
 .scoring-chevron { margin-left: auto; }
 .scoring-toggle:hover strong { color: var(--score-gold); }
 .arena-scoring[open] .scoring-chevron { transform: rotate(180deg); }
-.arena-scoring[open] .scoring-toggle { border-bottom: 1px solid #936637; border-bottom-right-radius: 0; }
+.arena-scoring[open] .scoring-toggle { border-bottom: 1px solid var(--home-border); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .scoring-body { padding: clamp(14px, 2.4vw, 28px); }
 .scoring-intro { max-width: 76ch; color: #e2d6c9; font-size: 14px; line-height: 1.6; }
 .scoring-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 20px; margin-block: 20px; }

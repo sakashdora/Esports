@@ -1,8 +1,10 @@
 import { ArrowUp, Facebook, Instagram, Linkedin, Mail, MapPin, Phone, Youtube } from 'lucide-react';
-import { ACADEMY_ADDRESS, ACADEMY_MAP_URL } from '../lib/academy';
+import { ACADEMY_ADDRESS, ACADEMY_MAP_URL, TOURNAMENT_CONTACTS } from '../lib/academy';
 import { EVENT_DATE_LABEL, EVENT_ENTRY_ISO } from '../lib/defaultEvents';
 import { AcademyLogo } from './AcademyLogo';
 import type { AppRoute } from './Navbar';
+
+const contactEmail = 'info.esport@srustiacademy.ac.in';
 
 const socialLinks = [
   { name: 'Facebook', Icon: Facebook, href: 'https://www.facebook.com/srustiacademyofmanagementandtechnology', className: 'social-facebook' },
@@ -53,13 +55,16 @@ export function ChampionshipFooter({ onNavigate }: { onNavigate: (next: AppRoute
                 <li>
                   <Phone aria-hidden="true" />
                   <div className="footer-phones">
-                    <a href="tel:+919439015757">9439015757</a>
-                    <a href="tel:+917749813707">7749813707</a>
+                    {TOURNAMENT_CONTACTS.map(({ game, phone, href }) => (
+                      <a key={game} href={href}>
+                        <span>{game}</span> <span className="contact-number">{phone}</span>
+                      </a>
+                    ))}
                   </div>
                 </li>
                 <li>
                   <Mail aria-hidden="true" />
-                  <a href="mailto:mail@srustiacademy.ac.in">mail@srustiacademy.ac.in</a>
+                  <a href={`mailto:${contactEmail}`}>{contactEmail}</a>
                 </li>
               </ul>
             </address>

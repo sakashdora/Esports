@@ -5,32 +5,32 @@ import type { AppRoute } from './Navbar';
 export function TournamentOverview({ events, onNavigate }: { events: CampusEvent[]; onNavigate: (route: AppRoute) => void }) {
   return <>
     <section className="stage-container overview-section" aria-labelledby="prizes-title">
-      <div className="section-kicker">PLAY FOR THE PODIUM</div>
-      <div className="battleground-heading"><span aria-hidden="true" /><h2 id="prizes-title">The championship rewards</h2><span aria-hidden="true" /></div>
-      <p className="section-intro">₹{events.reduce((total, event) => total + event.prizePoolTotal, 0).toLocaleString('en-IN')} combined prize pool. A separate podium for each game.</p>
+      <h2 className="home-section-heading" id="prizes-title">Championship prizes</h2>
+      <p className="section-intro">₹{events.reduce((total, event) => total + event.prizePoolTotal, 0).toLocaleString('en-IN')} combined prize pool</p>
       <div className="overview-grid">{events.map(event => <article className="overview-panel" key={event.id}>
         <div className="overview-panel-heading"><Trophy aria-hidden="true" /><h3>{event.gameTitle}</h3><span>₹{event.prizePoolTotal.toLocaleString('en-IN')}</span></div>
         <ol className="prize-list">{event.prizeBreakdown.map(prize => <li key={prize.position}><div><strong>{prize.position}</strong><small>{prize.award}</small></div><b>₹{prize.cashPrize.toLocaleString('en-IN')}</b></li>)}</ol>
       </article>)}</div>
     </section>
     <section className="stage-container overview-section" aria-labelledby="format-title">
-      <div className="section-kicker">KNOW YOUR ROUTE TO THE FINAL</div>
-      <div className="battleground-heading"><span aria-hidden="true" /><h2 id="format-title">Tournament format</h2><span aria-hidden="true" /></div>
+      <h2 className="home-section-heading" id="format-title">Tournament format</h2>
       <div className="overview-grid">{events.map(event => <article className="overview-panel" key={event.id}>
         <div className="overview-panel-heading"><h3>{event.gameTitle}</h3><span>{event.maxTeams} teams</span></div>
-        <ol className="format-list">{event.rulesJson.stages.map(stage => <li key={stage.stageNumber}><b>{stage.stageNumber}</b><div><h4>{stage.name}</h4><p>{stage.formatAndTeams}</p><p>{stage.advancement}</p></div></li>)}</ol>
+        <ol className="format-list">{event.rulesJson.stages.map(stage => <li key={stage.stageNumber}><b aria-hidden="true">{stage.stageNumber}</b><div><h4>{stage.name}</h4><p>{stage.formatAndTeams}</p><p>{stage.advancement}</p></div></li>)}</ol>
         <button type="button" className="arena-button secondary" onClick={() => onNavigate({page:'event',slug:event.slug})}>Full rulebook <ArrowRight aria-hidden="true" /></button>
       </article>)}</div>
     </section>
     <section className="stage-container overview-section" aria-labelledby="fair-play-title">
       <div className="overview-panel fair-play-panel">
         <div className="overview-panel-heading"><ShieldCheck aria-hidden="true" /><h2 id="fair-play-title">Eligibility &amp; fair play</h2></div>
-        <p>{events[0]?.rulesJson.eligibilitySummary}</p>
-        <ul><li>4 active players and 1 optional substitute; Player 1 is your IGL.</li><li>Mobile devices only. No emulators, scripts, cheats or unauthorized peripherals.</li><li>Use registered Character IDs and in-game names for every match.</li><li>Free Fire: each squad member must equip a different active skill.</li></ul>
+        <div className="fair-play-content">
+          <p>{events[0]?.rulesJson.eligibilitySummary}</p>
+          <ul><li>4 active players and 1 optional substitute; Player 1 is your IGL.</li><li>Mobile devices only. No emulators, scripts, cheats or unauthorized peripherals.</li><li>Use registered Character IDs and in-game names for every match.</li><li>Free Fire: each squad member must equip a different active skill.</li></ul>
+        </div>
       </div>
     </section>
     <section className="stage-container overview-section faq-section" aria-labelledby="faq-title">
-      <div className="battleground-heading"><span aria-hidden="true" /><h2 id="faq-title">Before you register</h2><span aria-hidden="true" /></div>
+      <h2 className="home-section-heading" id="faq-title">Before you register</h2>
       {[
         ['How much does a team pay?', 'The entry fee is ₹299 per team. Lunch is optional and adds ₹100 once per team, for a total of ₹399. Choosing meals for more players does not increase the team lunch charge.'],
         ['Can our team skip lunch?', 'Yes. Leave all meal options unselected to pay only the ₹299 entry fee. If you choose lunch, record each participating player’s vegetarian or non-vegetarian preference.'],
