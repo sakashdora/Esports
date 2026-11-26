@@ -99,7 +99,7 @@ export function Navbar({ route, onNavigate, defaultEventSlug }: NavbarProps) {
       <nav
         id="mobile-navigation"
         aria-label="Mobile navigation"
-        className={`border-t lg:hidden ${mobileOpen ? 'block' : 'hidden'} ${
+        className={`max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain border-t lg:hidden ${mobileOpen ? 'block' : 'hidden'} ${
           isDarkShell ? 'border-white/10 bg-charcoal' : 'border-slate-200 bg-slate-50'
         }`}
       >

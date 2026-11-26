@@ -758,7 +758,7 @@ export function RegisterView({
             {step === 3 && (
               <form
                 onSubmit={handleSubmitRegistration}
-                className="grid items-start gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
+                className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
               >
                 {/* Left: Official College QR Display */}
                 <PaymentQrPanel
@@ -839,7 +839,7 @@ export function RegisterView({
                                 className="max-h-44 rounded object-contain"
                               />
                             </div>
-                            <span className="font-mono text-[11px] text-emerald-400">
+                            <span className="max-w-full font-mono text-[11px] wrap-anywhere text-emerald-400">
                               Attached: {screenshotFile.name} ({Math.round(screenshotFile.size / 1024)} KB) — Click to replace
                             </span>
                           </div>
@@ -907,7 +907,7 @@ export function RegisterView({
 
             {/* Step 4: Instant Confirmation Receipt */}
             {step === 4 && receipt && (
-              <section className="mx-auto mt-8 max-w-2xl rounded-xl border border-white/10 bg-[#1A1716] p-8 text-center">
+              <section className="mx-auto mt-8 max-w-2xl rounded-xl border border-white/10 bg-[#1A1716] p-4 text-center sm:p-8">
                 <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500" />
                 <h2 ref={stepHeading} tabIndex={-1} className="mt-4 font-display text-3xl font-bold text-white">
                   Registration Submitted
@@ -919,13 +919,13 @@ export function RegisterView({
                 </p>
 
                 <div className="mt-6 rounded-lg border border-white/10 bg-[#110D0C] p-5 text-left text-xs">
-                  <div className="flex justify-between border-b border-white/10 pb-2.5">
+                  <div className="flex flex-wrap justify-between gap-2 border-b border-white/10 pb-2.5">
                     <span className="text-neutral-400">Unique Team Registration ID</span>
                     <span className="font-mono text-base font-bold text-[#E5C736]">
                       {receipt.teamCode}
                     </span>
                   </div>
-                  <div className="flex justify-between border-b border-white/10 py-2.5">
+                  <div className="flex flex-wrap justify-between gap-2 border-b border-white/10 py-2.5">
                     <span className="text-neutral-400">Current Status</span>
                     <span className="font-semibold text-amber-400 uppercase">{receipt.status}</span>
                   </div>

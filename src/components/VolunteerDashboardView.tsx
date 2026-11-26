@@ -23,9 +23,9 @@ export default function VolunteerDashboardView({ onNavigate }: { onNavigate: (ro
     <main className="staff-desk min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <header className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-5">
-          <div className="flex items-center gap-3">
-            <img alt="" src="/assets/brand/srusti-academy-crest.png" width="44" height="46" className="object-contain" />
-            <div>
+          <div className="flex min-w-0 items-center gap-3">
+            <img alt="" src="/assets/brand/srusti-academy-crest.png" width="44" height="46" className="shrink-0 object-contain" />
+            <div className="min-w-0 wrap-anywhere">
               <h1 className="text-2xl font-bold text-slate-950">Event check-in</h1>
               <p className="mt-0.5 text-sm text-slate-600">Signed in as {loginId}</p>
             </div>

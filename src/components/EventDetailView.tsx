@@ -28,7 +28,7 @@ export function EventDetailView({ event, allEvents, onNavigate }: EventDetailVie
             Back to All Events
           </button>
 
-          <div className="flex flex-wrap items-center gap-1 rounded-lg border border-white/10 bg-[#141110] p-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-1 rounded-lg border border-white/10 bg-[#141110] p-1">
             {allEvents.map((item) => (
               <button
                 key={item.id}
@@ -37,7 +37,7 @@ export function EventDetailView({ event, allEvents, onNavigate }: EventDetailVie
                   setImgFailed(false);
                   onNavigate({ page: 'event', slug: item.slug });
                 }}
-                className={`min-h-10 rounded-md px-4 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
+                className={`min-h-11 max-w-full rounded-md px-4 py-2 text-xs font-medium wrap-anywhere transition-colors ${
                   item.slug === event.slug
                     ? 'bg-[#D41B14] text-white'
                     : 'text-neutral-300 hover:text-white'
@@ -55,17 +55,17 @@ export function EventDetailView({ event, allEvents, onNavigate }: EventDetailVie
           className="animate-panel-enter mt-8 grid items-stretch gap-8 lg:grid-cols-12"
         >
           <div className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-white/12 bg-[#141110] lg:col-span-8">
-            <div className="relative aspect-[16/8] w-full overflow-hidden border-b border-white/10 bg-gradient-to-br from-[#233D8B]/30 via-[#141110] to-[#D41B14]/25">
+            <div className="relative flex min-h-44 w-full items-end overflow-hidden border-b border-white/10 bg-gradient-to-br from-[#233D8B]/30 via-[#141110] to-[#D41B14]/25 sm:aspect-[16/8]">
               {bannerUrl && !imgFailed ? (
                 <img
                   src={bannerUrl}
                   alt={`${event.title.replace(/2k26/gi, '2026')} — ${event.gameTitle} Promotional Key Art`}
                   referrerPolicy="no-referrer"
                   onError={() => setImgFailed(true)}
-                  className="h-full w-full object-cover object-center transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.03]"
+                  className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.03]"
                 />
               ) : (
-                <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center">
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
                   <Trophy className="h-10 w-10 text-[#E5C736]" />
                   <span className="mt-2 font-display text-2xl font-bold text-white uppercase">
                     {event.gameTitle}
@@ -76,17 +76,17 @@ export function EventDetailView({ event, allEvents, onNavigate }: EventDetailVie
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#141110] via-[#141110]/40 to-transparent"
               />
-              <div className="absolute inset-x-0 bottom-0 px-6 pb-5 sm:px-8">
+              <div className="relative min-w-0 px-4 pt-12 pb-4 wrap-anywhere sm:px-8 sm:pb-5">
                 <p className="text-xs font-semibold tracking-wide text-[#E5C736] uppercase">
                   Official Rulebook &amp; Fixtures · {event.gameTitle}
                 </p>
-                <h1 className="mt-1 font-display text-4xl font-extrabold tracking-tight text-white uppercase sm:text-5xl">
+                <h1 className="mt-1 font-display text-3xl leading-none font-extrabold tracking-tight text-white uppercase sm:text-5xl">
                   {event.title.replace(/2k26/gi, '2026')}
                 </h1>
               </div>
             </div>
 
-            <div className="flex flex-1 flex-col justify-center px-6 py-5 sm:px-8">
+            <div className="flex flex-1 flex-col justify-center px-4 py-5 wrap-anywhere sm:px-8">
               <p className="text-sm font-medium text-neutral-200">{event.subtitle}</p>
               <p className="mt-2 max-w-2xl text-xs leading-relaxed text-neutral-400">
                 {event.rulesJson.eligibilitySummary}
@@ -94,7 +94,7 @@ export function EventDetailView({ event, allEvents, onNavigate }: EventDetailVie
             </div>
           </div>
 
-          <div className="flex min-w-0 flex-col justify-between rounded-xl border border-white/12 bg-[#141110] p-6 lg:col-span-4">
+          <div className="flex min-w-0 flex-col justify-between rounded-xl border border-white/12 bg-[#141110] p-4 wrap-anywhere sm:p-6 lg:col-span-4">
             <div className="space-y-3 text-xs">
               <div className="border-b border-white/10 pb-3">
                 <div className="text-xs text-neutral-400">Event Prize Pool</div>
@@ -116,7 +116,7 @@ export function EventDetailView({ event, allEvents, onNavigate }: EventDetailVie
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-neutral-400">Lunch Add-On</span>
-                <span className="font-mono font-semibold text-white whitespace-nowrap tabular-nums">
+                <span className="text-right font-mono font-semibold text-white tabular-nums">
                   +Rs. {event.lunchFee} / Team (optional)
                 </span>
               </div>
@@ -171,7 +171,7 @@ export function EventDetailView({ event, allEvents, onNavigate }: EventDetailVie
               ))}
             </div>
 
-            <div className="mt-6 overflow-x-auto rounded-xl border border-white/10 bg-[#1A1716]">
+            <div role="region" aria-label="Match fixtures" tabIndex={0} className="mt-6 overflow-x-auto rounded-xl border border-white/10 bg-[#1A1716]">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-white/10 text-neutral-400">

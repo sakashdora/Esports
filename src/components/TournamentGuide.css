@@ -16,6 +16,7 @@
 .guide-cover svg { width: 16px; }
 .guide-chapter { padding-block: 12px 20px; scroll-margin-top: 84px; }
 .guide-transcript { margin-top: 8px; padding: 0 14px; border: 1px solid #705134; }
+.guide-transcript, .guide-cover nav a { overflow-wrap: anywhere; }
 .guide-transcript > summary { padding-block: 14px; cursor: pointer; color: var(--score-gold); font-weight: 700; }
 .guide-transcript[open] { padding-bottom: 16px; }
 .guide-maps { margin-bottom: 16px; }
@@ -27,6 +28,7 @@
 .guide-stages li { position: relative; display: flex; align-items: flex-start; gap: 14px; padding-bottom: 24px; }
 .guide-stages li:not(:last-child)::before { content: ''; position: absolute; top: 32px; left: 17px; bottom: 0; border-left: 1px solid #8d683f; }
 .guide-stage-number { display: grid; place-items: center; flex: 0 0 35px; height: 32px; border-radius: 7px 1px; background: #efbc61; color: #281707; font: bold 16px var(--font-mono); }
+.guide-stages li > div { min-width: 0; }
 .guide-stages h4 { font: 700 22px/1.2 var(--font-display); }
 .guide-stages strong { display: block; margin-block: 5px; font-size: 14px; color: #f1d6aa; }
 .guide-stages p, .guide-details li { font-size: 14px; line-height: 1.6; color: #d6c9ba; }
@@ -44,4 +46,8 @@
 .guide-podium small { color: #d6c9ba; }
 @media (max-width: 760px) {
   .guide-columns, .guide-podium ul { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 480px) {
+  .guide-cover nav { width: 100%; }
+  .guide-cover nav a { flex: 1 1 85px; justify-content: space-between; gap: 8px; padding-inline: 12px; }
 }

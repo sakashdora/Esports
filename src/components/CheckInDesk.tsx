@@ -100,10 +100,10 @@ export function CheckInDesk({ token, onSessionExpired }: CheckInDeskProps) {
 
   return (
     <div className="space-y-5">
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(285px,360px)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(285px,360px)_minmax(0,1fr)]">
         <CheckInScanner busy={Boolean(busy)} onRead={lookup} />
         <section ref={rosterRef} aria-labelledby="squad-title" className="min-w-0 scroll-mt-20 overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-4 wrap-anywhere sm:p-5">
             <div className="min-w-0">
               {squad && <p className="mb-1 font-mono text-sm font-semibold text-[#233D8B]">{squad.teamCode}</p>}
               <h2 id="squad-title" className="break-words text-xl font-bold text-slate-950">{squad?.teamName || 'Team roster'}</h2>
@@ -127,7 +127,7 @@ export function CheckInDesk({ token, onSessionExpired }: CheckInDeskProps) {
               <ul className="divide-y divide-slate-200">
                 {squad.players.map((player) => (
                   <li key={player.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
-                    <div className="min-w-0 break-words">
+                    <div className="min-w-0 wrap-anywhere">
                       <p className="text-xs font-semibold text-[#233D8B]">{slotLabels[player.slotRole] || player.slotRole}</p>
                       <p className="text-base font-semibold text-slate-950">{player.fullName}</p>
                       <p className="text-sm text-slate-700">{player.inGameName} · ID {player.characterId}</p>
@@ -171,7 +171,7 @@ export function CheckInDesk({ token, onSessionExpired }: CheckInDeskProps) {
               </li>
             ))}
           </ul>
-          <div className="hidden overflow-x-auto sm:block">
+          <div role="region" aria-label="Attendance records" tabIndex={0} className="hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[540px] text-left text-sm">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>{['Participant', 'Team', 'Checked in (IST)', 'Marked by'].map((label) => <th key={label} scope="col" className="px-4 py-2.5 font-semibold sm:px-5">{label}</th>)}</tr>
@@ -191,7 +191,7 @@ export function CheckInDesk({ token, onSessionExpired }: CheckInDeskProps) {
           </>
         ) : <p className="p-5 text-sm text-slate-600">No participants have checked in yet.</p>}
         {(page > 1 || hasMore) && (
-          <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-4 py-3 text-sm text-slate-600 sm:px-5">
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-200 px-4 py-3 text-sm text-slate-600 sm:px-5">
             <button type="button" className={deskSecondary} disabled={attendanceLoading || page <= 1} onClick={() => setPage((current) => current - 1)}>Previous</button>
             <span>Page {page}</span>
             <button type="button" className={deskSecondary} disabled={attendanceLoading || !hasMore} onClick={() => setPage((current) => current + 1)}>Next</button>

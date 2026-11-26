@@ -675,8 +675,8 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
   // Unauthenticated Admin Login Screen
   if (!token) {
     return (
-      <main className="staff-desk min-h-screen bg-slate-50 px-4 py-16 text-slate-900">
-        <div className="mx-auto max-w-md rounded-xl border border-slate-200 bg-white p-8">
+      <main className="staff-desk min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:py-16">
+        <div className="mx-auto max-w-md rounded-xl border border-slate-200 bg-white p-5 sm:p-8">
           <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
             <img
               src="/assets/brand/srusti-academy-crest.png"
@@ -709,7 +709,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                 onChange={(e) => setLoginEmail(e.target.value)}
                 placeholder="Email or volunteer ID"
                 required
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-[#233D8B] focus:outline-none"
+                className="mt-1 min-h-11 w-full rounded-md border border-slate-300 px-3 py-2 text-base text-slate-900 focus:border-[#233D8B] focus:outline-none sm:text-sm"
               />
             </div>
 
@@ -725,7 +725,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                 onChange={(e) => setLoginPass(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-[#233D8B] focus:outline-none"
+                className="mt-1 min-h-11 w-full rounded-md border border-slate-300 px-3 py-2 text-base text-slate-900 focus:border-[#233D8B] focus:outline-none sm:text-sm"
               />
             </div>
 
@@ -738,7 +738,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
             <button
               type="submit"
               disabled={loggingIn}
-              className="w-full rounded-md bg-[#233D8B] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1a2f6e] disabled:opacity-50"
+              className="min-h-11 w-full rounded-md bg-[#233D8B] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1a2f6e] disabled:opacity-50"
             >
               {loggingIn ? 'Signing in…' : 'Sign in'}
             </button>
@@ -805,7 +805,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
           </p>
         )}
 
-        <div className="no-print -mx-4 mt-5 flex items-center gap-1 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:flex-wrap sm:px-0">
+        <div className="no-print mt-5 flex flex-wrap items-center gap-x-1 border-b border-slate-200">
           {([
             ['queue', 'Verification Queue'],
             ['check-in', 'Check-in'],
@@ -818,9 +818,9 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
               type="button"
               aria-pressed={tab === key}
               onClick={() => setTab(key)}
-              className={`border-b-2 px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors ${
+              className={`min-h-11 rounded-t-md border-b-2 px-2.5 py-2.5 text-xs font-semibold transition-colors sm:px-4 ${
                 tab === key
-                  ? 'border-[#233D8B] text-[#233D8B]'
+                  ? 'border-[#233D8B] bg-blue-50 text-[#233D8B]'
                   : 'border-transparent text-slate-500 hover:text-slate-900'
               }`}
             >
@@ -997,7 +997,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                   No registrations match the current filters.
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div role="region" aria-label="Registration queue" tabIndex={0} className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
@@ -1054,7 +1054,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                                 {b.registration.teamCode}
                               </button>
                             </td>
-                            <td className="px-3 py-2.5">
+                            <td className="px-2 py-2.5 wrap-anywhere sm:px-3">
                               <div className="font-medium text-slate-900">
                                 {b.registration.teamName}
                               </div>
@@ -1140,7 +1140,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                   >
                     ← Back to team list
                   </button>
-                  <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200 pb-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200 pb-3 wrap-anywhere">
                     <div className="min-w-0">
                       <div className="font-mono text-xs font-bold text-[#233D8B]">
                         {selectedBundle.registration.teamCode}
@@ -1198,7 +1198,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                   </div>
 
                   {/* Squad roster for cross-checking before a decision */}
-                  <div className="mt-3 rounded border border-slate-200 p-3 text-[11px]">
+                  <div className="mt-3 rounded border border-slate-200 p-3 text-[11px] wrap-anywhere">
                     <div className="flex flex-wrap justify-between gap-1 text-slate-500">
                       <span>{selectedBundle.event.title} · {selectedBundle.registration.collegeName}</span>
                       <span>
@@ -1363,7 +1363,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                 </li>
               ))}
             </ul>
-            <div className={`hidden overflow-x-auto ${filteredBundles.length ? 'md:block' : ''}`}>
+            <div role="region" aria-label="Participant rosters" tabIndex={0} className={`hidden overflow-x-auto ${filteredBundles.length ? 'md:block' : ''}`}>
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-slate-600">
@@ -1681,7 +1681,7 @@ export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboa
                 <Plus className="h-4 w-4 text-[#233D8B]" />
                 Add New College Event (Extensible Portal)
               </h3>
-              <div className="mt-4 grid gap-3 sm:grid-cols-4">
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <input
                   type="text"
                   value={newEvtTitle}

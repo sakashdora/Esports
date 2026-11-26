@@ -36,7 +36,7 @@ export function TeamCheckInPass({ teamCode, iglPhone }: { teamCode: string; iglP
   }, [teamCode, iglPhone, attempt]);
 
   return (
-    <section aria-labelledby="team-check-in" className="mt-6 grid items-center gap-5 rounded-lg border border-white/15 bg-[#11192d] p-4 sm:grid-cols-[minmax(0,1fr)_minmax(245px,320px)] sm:p-6 print:border-slate-300 print:bg-white">
+    <section aria-labelledby="team-check-in" className="mt-6 grid grid-cols-1 items-center gap-5 rounded-lg border border-white/15 bg-[#11192d] p-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:p-6 print:border-slate-300 print:bg-white">
       <div>
         <div className="mb-3 inline-flex rounded-md border border-[#eec36c]/35 p-2 text-[#eec36c] print:hidden">
           <ScanLine className="h-5 w-5" aria-hidden="true" />

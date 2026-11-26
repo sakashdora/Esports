@@ -55,6 +55,7 @@
   display: grid;
   place-items: center;
   flex: 0 0 24px;
+  width: 24px;
   height: 24px;
   border: 1px solid var(--registration-border);
   border-radius: 4px;
@@ -64,7 +65,7 @@
 .registration-steps li[aria-current='step'] { border-color: var(--registration-gold); color: var(--registration-gold); font-weight: 700; }
 .registration-steps li[aria-current='step'] .registration-step-number { border-color: var(--registration-gold); color: #22170c; background: var(--registration-gold); }
 
-.registration-layout { display: grid; align-items: start; gap: 16px; margin-top: 20px; }
+.registration-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 16px; margin-top: 20px; }
 .registration-panel, .registration-fees { border: 1px solid var(--registration-border); border-radius: 10px; background: var(--registration-surface); }
 .registration-panel { padding: clamp(16px, 3vw, 28px); }
 .registration-fees { padding: 16px; }
@@ -139,10 +140,10 @@
 }
 .college-picker-option { display: grid; gap: 2px; border-radius: 4px; padding: 8px 10px; cursor: pointer; }
 .college-picker-option[aria-selected='true'] { background: #292524; outline: 1px solid #a77c49; }
-.college-picker-name { color: #fafaf9; font-size: 14px; line-height: 1.3; }
+.college-picker-name { color: #fafaf9; font-size: 14px; line-height: 1.3; overflow-wrap: anywhere; }
 .college-picker-meta { color: #a8a29e; font-size: 12px; }
 .college-picker-manual { margin-top: 4px; border-top: 1px solid #44403c; padding: 10px; color: #d6d3d1; font-size: 13px; cursor: pointer; }
 .college-picker-manual strong { color: #F5D985; font-weight: 600; }
 .college-picker-hint { margin-top: 4px; color: #a8a29e; font-size: 12px; }
-.college-picker-same { margin-top: 6px; border: 1px dashed #57534e; border-radius: 4px; padding: 4px 8px; color: #F5D985; font-size: 12px; }
+.college-picker-same { margin-top: 6px; border: 1px dashed #57534e; border-radius: 4px; padding: 4px 8px; color: #F5D985; font-size: 12px; overflow-wrap: anywhere; }
 .college-picker-same:hover { border-color: #a77c49; }

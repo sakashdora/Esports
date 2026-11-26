@@ -160,7 +160,7 @@ export function TrackStatusView({ prefillCode, onNavigate }: TrackStatusViewProp
 
           <form
             onSubmit={handleLookup}
-            className="mt-6 grid gap-3 rounded-xl border border-white/10 bg-[#1A1716] p-5 sm:grid-cols-12"
+            className="mt-6 grid grid-cols-1 gap-3 rounded-xl border border-white/10 bg-[#1A1716] p-4 sm:grid-cols-12 sm:p-5"
           >
             <div className="sm:col-span-5">
               <label htmlFor="track-code" className="block text-[11px] text-neutral-400">
@@ -173,7 +173,7 @@ export function TrackStatusView({ prefillCode, onNavigate }: TrackStatusViewProp
                 value={teamCode}
                 onChange={(e) => { setTeamCode(e.target.value); setData(null); setMatches([]); }}
                 placeholder="e.g. KW26-001"
-                className="mt-1 w-full rounded-md border border-white/15 bg-[#110D0C] px-3 py-2 font-mono text-sm text-white uppercase focus:border-[#D41B14] focus:outline-none"
+                className="mt-1 min-h-11 w-full rounded-md border border-white/15 bg-[#110D0C] px-3 py-2 font-mono text-base text-white uppercase focus:border-[#D41B14] focus:outline-none sm:text-sm"
               />
             </div>
 
@@ -192,7 +192,7 @@ export function TrackStatusView({ prefillCode, onNavigate }: TrackStatusViewProp
                 aria-describedby="track-phone-hint"
                 aria-invalid={phoneState.tone === 'error'}
                 placeholder="9876543210"
-                className={`mt-1 w-full rounded-md border bg-[#110D0C] px-3 py-2 font-mono text-sm text-white focus:outline-none ${digitBorderClass(phoneState.tone)}`}
+                className={`mt-1 min-h-11 w-full rounded-md border bg-[#110D0C] px-3 py-2 font-mono text-base text-white focus:outline-none sm:text-sm ${digitBorderClass(phoneState.tone)}`}
               />
               <DigitHint id="track-phone-hint" status={phoneState} />
             </div>
@@ -201,7 +201,7 @@ export function TrackStatusView({ prefillCode, onNavigate }: TrackStatusViewProp
               <button
                 type="submit"
                 disabled={loading}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#D41B14] px-4 py-2 text-sm font-semibold text-white hover:bg-[#B41510] disabled:opacity-50"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#D41B14] px-4 py-2 text-sm font-semibold text-white hover:bg-[#B41510] disabled:opacity-50"
               >
                 <Search className="h-4 w-4" />
                 {loading ? 'Checking...' : 'Check Status'}
@@ -259,7 +259,7 @@ export function TrackStatusView({ prefillCode, onNavigate }: TrackStatusViewProp
           <section aria-live="polite" className="mt-8 space-y-4">
             <h2 className="font-display text-xl text-white">Registration Status</h2>
             {matches.map((match, index) => (
-              <article key={index} className="rounded-xl border border-white/15 bg-[#1A1716] p-5">
+              <article key={index} className="rounded-xl border border-white/15 bg-[#1A1716] p-4 wrap-anywhere sm:p-5">
                 <p className="text-xs text-[#E5C736]">{match.eventTitle.replace(/2k26/gi, '2026')}</p>
                 <h3 className="mt-2 break-words text-xl font-semibold">{match.teamName}</h3>
                 <p className="mt-3 font-semibold text-white">
@@ -280,13 +280,13 @@ export function TrackStatusView({ prefillCode, onNavigate }: TrackStatusViewProp
 
         {/* Lookup Result Card / Printable Pass */}
         {data && (
-          <section className="mt-8 rounded-xl border border-white/15 bg-[#1A1716] p-6 sm:p-8 print:border-slate-300 print:bg-white print:text-slate-900">
+          <section className="mt-8 rounded-xl border border-white/15 bg-[#1A1716] p-4 wrap-anywhere sm:p-8 print:border-slate-300 print:bg-white print:text-slate-900">
             <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-5 print:border-slate-200">
               <div>
                 <div className="text-xs text-[#E5C736] print:text-slate-600">
                   {data.event.title.replace(/2k26/gi, '2026')} · {data.event.gameTitle}
                 </div>
-                <h2 className="mt-1 font-display text-3xl font-bold text-white uppercase print:text-slate-900">
+                <h2 className="mt-1 font-display text-2xl font-bold text-white uppercase sm:text-3xl print:text-slate-900">
                   {data.registration.teamName}
                 </h2>
                 <div className="mt-1 text-xs text-neutral-400 print:text-slate-600">
@@ -351,7 +351,7 @@ export function TrackStatusView({ prefillCode, onNavigate }: TrackStatusViewProp
             {/* Squad Roster Table */}
             {confirmedSeat(data.registration) && <TeamCheckInPass teamCode={data.registration.teamCode} iglPhone={data.registration.iglPhone} />}
 
-            <div className="mt-6 overflow-x-auto rounded-lg border border-white/10 print:border-slate-200">
+            <div role="region" aria-label="Registered players" tabIndex={0} className="mt-6 overflow-x-auto rounded-lg border border-white/10 print:border-slate-200">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-white/10 text-neutral-400 print:border-slate-200 print:text-slate-600">

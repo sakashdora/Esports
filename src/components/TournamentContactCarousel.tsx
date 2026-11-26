@@ -9,12 +9,12 @@ export function TournamentContactCarousel() {
           {[false, true].map((repeated) => (
             <ul key={String(repeated)} className="contact-carousel-group" role="list" aria-hidden={repeated || undefined}>
               <li className="contact-carousel-label">If you have any query</li>
-              {TOURNAMENT_CONTACTS.map(({ game, phone, href }) => (
+              {TOURNAMENT_CONTACTS.map(({ game, coordinator, phone, href }) => (
                 <li key={game}>
                   <a
                     className="contact-call"
                     href={href}
-                    aria-label={`Call for ${game} queries at ${phone}`}
+                    aria-label={`Call ${game} coordinator ${coordinator} at ${phone}`}
                     tabIndex={repeated ? -1 : undefined}
                     onFocus={({ currentTarget }) => {
                       if (currentTarget.matches(':focus-visible')) {
@@ -23,7 +23,8 @@ export function TournamentContactCarousel() {
                     }}
                   >
                     <Phone aria-hidden="true" />
-                    <strong>{game}</strong>
+                    <strong>{game} coordinator</strong>
+                    <span>{coordinator}</span>
                     <span className="contact-number">{phone}</span>
                   </a>
                 </li>

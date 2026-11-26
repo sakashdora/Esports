@@ -69,7 +69,7 @@ export function PaymentQrPanel({ event, feeSummary, upiIntentUri, className = ''
   ) : null;
 
   return (
-    <div className={`rounded-xl border border-white/10 bg-[#1A1716] p-6 ${className}`}>
+    <div className={`min-w-0 rounded-xl border border-white/10 bg-[#1A1716] p-4 sm:p-6 ${className}`}>
       <h2 className="font-display text-2xl font-bold text-white uppercase">
         Scan Official College QR
       </h2>
@@ -91,7 +91,7 @@ export function PaymentQrPanel({ event, feeSummary, upiIntentUri, className = ''
         </a>
       )}
 
-      <div className="mt-5 flex flex-col items-center justify-center rounded-lg border border-white/10 bg-white p-5 text-slate-900">
+      <div className="mt-5 flex flex-col items-center justify-center rounded-lg border border-white/10 bg-white p-3 text-slate-900 sm:p-5">
         {showStaticQr ? (
           <>
             <a
@@ -124,7 +124,7 @@ export function PaymentQrPanel({ event, feeSummary, upiIntentUri, className = ''
           </>
         ) : upiIntentUri ? (
           <>
-            <QRCodeSVG value={upiIntentUri} size={200} />
+            <QRCodeSVG value={upiIntentUri} size={200} className="h-auto max-w-full" />
             {vpaLine}
           </>
         ) : (

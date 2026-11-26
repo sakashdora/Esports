@@ -1,7 +1,7 @@
 import { Camera, ImageUp, ScanLine } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-export const deskButton = 'inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-semibold transition-colors disabled:opacity-50';
+export const deskButton = 'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-semibold transition-colors disabled:opacity-50 sm:gap-2 sm:px-3.5 [&>svg]:shrink-0';
 export const deskPrimary = `${deskButton} bg-[#233D8B] text-white hover:bg-[#192e70]`;
 export const deskSecondary = `${deskButton} border border-slate-300 bg-white text-slate-800 hover:bg-slate-50`;
 export const deskInput = 'min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-[#233D8B] focus:outline-none focus:ring-1 focus:ring-[#233D8B]';
