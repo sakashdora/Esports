@@ -1,4 +1,4 @@
-import { ArrowRight, Trophy, ShieldCheck, Radio } from 'lucide-react';
+import { ArrowRight, Trophy, ShieldCheck } from 'lucide-react';
 import type { CampusEvent } from '../lib/defaultEvents';
 import type { AppRoute } from './Navbar';
 
@@ -23,12 +23,10 @@ export function TournamentOverview({ events, onNavigate }: { events: CampusEvent
       </article>)}</div>
     </section>
     <section className="stage-container overview-section" aria-labelledby="fair-play-title">
-      <div className="overview-grid">
-        <article className="overview-panel fair-play-panel"><div className="overview-panel-heading"><ShieldCheck aria-hidden="true" /><h2 id="fair-play-title">Eligibility &amp; fair play</h2></div>
-          <p>{events[0]?.rulesJson.eligibilitySummary}</p>
-          <ul><li>4 active players and 1 optional substitute; Player 1 is your IGL.</li><li>Mobile devices only. No emulators, scripts, cheats or unauthorized peripherals.</li><li>Use registered Character IDs and in-game names for every match.</li><li>Free Fire: each squad member must equip a different active skill.</li></ul>
-        </article>
-        <article className="overview-panel live-teams-panel"><Radio aria-hidden="true" /><h2>Registration counts</h2><p>See how many squads have registered and how many slots are available in each tournament.</p><button type="button" className="arena-button primary" onClick={() => onNavigate({page:'live'})}>View registration counts <ArrowRight aria-hidden="true" /></button></article>
+      <div className="overview-panel fair-play-panel">
+        <div className="overview-panel-heading"><ShieldCheck aria-hidden="true" /><h2 id="fair-play-title">Eligibility &amp; fair play</h2></div>
+        <p>{events[0]?.rulesJson.eligibilitySummary}</p>
+        <ul><li>4 active players and 1 optional substitute; Player 1 is your IGL.</li><li>Mobile devices only. No emulators, scripts, cheats or unauthorized peripherals.</li><li>Use registered Character IDs and in-game names for every match.</li><li>Free Fire: each squad member must equip a different active skill.</li></ul>
       </div>
     </section>
     <section className="stage-container overview-section faq-section" aria-labelledby="faq-title">

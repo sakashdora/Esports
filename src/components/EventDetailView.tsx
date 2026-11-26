@@ -12,8 +12,6 @@ interface EventDetailViewProps {
 }
 
 export function EventDetailView({ event, allEvents, onNavigate }: EventDetailViewProps) {
-  const filled = event.registeredCount || 0;
-  const remaining = Math.max(0, event.maxTeams - filled);
   const bannerUrl = getEventBannerUrl(event.slug, event.gameTitle);
   const [imgFailed, setImgFailed] = useState(false);
 
@@ -105,9 +103,9 @@ export function EventDetailView({ event, allEvents, onNavigate }: EventDetailVie
                 </div>
               </div>
               <div className="flex justify-between gap-4 pt-1">
-                <span className="text-neutral-400">Slots Available</span>
+                <span className="text-neutral-400">Squad Capacity</span>
                 <span className="font-mono font-semibold text-white whitespace-nowrap tabular-nums">
-                  {remaining} of {event.maxTeams} Left
+                  {event.maxTeams} teams
                 </span>
               </div>
               <div className="flex justify-between gap-4">

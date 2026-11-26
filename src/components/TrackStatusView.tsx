@@ -7,6 +7,8 @@ import { isStrict12DigitUtr } from '../lib/tournamentRules';
 import { DigitHint } from './DigitHint';
 import { cleanPhoneInput, cleanUtrInput, digitBorderClass, phoneStatus, utrStatus } from '../lib/numericInput';
 import type { StatusSummary } from '../lib/tracking';
+import { confirmedSeat } from '../lib/checkIn';
+import { TeamCheckInPass } from './TeamCheckInPass';
 
 interface TrackedData {
   registration: {
@@ -347,6 +349,8 @@ export function TrackStatusView({ prefillCode, onNavigate }: TrackStatusViewProp
             </div>
 
             {/* Squad Roster Table */}
+            {confirmedSeat(data.registration) && <TeamCheckInPass teamCode={data.registration.teamCode} iglPhone={data.registration.iglPhone} />}
+
             <div className="mt-6 overflow-x-auto rounded-lg border border-white/10 print:border-slate-200">
               <table className="w-full text-left text-xs">
                 <thead>

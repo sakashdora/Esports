@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deliverConfirmation, scheduleConfirmation } from './notifications.js';
+import { deliverConfirmation, registrationEmailParams, scheduleConfirmation } from './notifications.js';
 import type { RegistrationBundle } from './store.js';
 
 const bundle = {
   registration: { id: 'test-id', status: 'verified', iglEmail: 'test@example.test' },
-  event: {}, proofs: [],
+  event: { eventDateLabel: '13 December 2026 · Entry 9:30 AM IST' },
+  members: [{ slotRole: 'IGL', fullName: 'Demo Captain' }],
+  proofs: [],
 } as unknown as RegistrationBundle;
 
 test('slow delivery does not block scheduling and is registered with the Vercel lifecycle', async () => {
@@ -34,7 +36,12 @@ test('slow delivery does not block scheduling and is registered with the Vercel 
 test('email success and failure are audited without recording raw SMTP errors', async () => {
   const entries: unknown[][] = [];
   const audit = async (...args: Parameters<typeof import('./store.js').recordEmailAudit>) => { entries.push(args); };
-  await deliverConfirmation(bundle, async () => ({ sent: true, mode: 'smtp' }), audit);
+  await deliverConfirmation(bundle, async (params) => {
+    assert.deepEqual(params, registrationEmailParams(bundle));
+    assert.equal(params.members?.[0].fullName, 'Demo Captain');
+    assert.equal(params.eventDateLabel, bundle.event.eventDateLabel);
+    return { sent: true, mode: 'smtp' };
+  }, audit);
   assert.equal(entries[0][1], true);
   await deliverConfirmation(bundle, async () => ({ sent: false, mode: 'smtp', error: 'sensitive SMTP response' }), audit);
   assert.equal(entries[1][1], false);

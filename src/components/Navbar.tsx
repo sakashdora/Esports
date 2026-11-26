@@ -6,11 +6,11 @@ import { AcademyLogo } from './AcademyLogo';
 export type AppRoute =
   | { page: 'home' }
   | { page: 'guide' }
-  | { page: 'live' }
   | { page: 'event'; slug: string }
   | { page: 'register'; slug: string }
   | { page: 'track'; prefillCode?: string }
-  | { page: 'admin' };
+  | { page: 'admin' }
+  | { page: 'volunteer' };
 
 interface NavbarProps {
   route: AppRoute;
@@ -20,7 +20,6 @@ interface NavbarProps {
 
 const navigationItems: { label: string; route: AppRoute }[] = [
   { label: 'Tournaments', route: { page: 'home' } },
-  { label: 'Live Counts', route: { page: 'live' } },
   { label: 'Track Status', route: { page: 'track' } },
   { label: 'Admin sign in', route: { page: 'admin' } },
 ];

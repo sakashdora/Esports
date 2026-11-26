@@ -6,6 +6,8 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    // The browser uses the API for configuration and never needs deployment environment variables.
+    envPrefix: [],
     plugins: [
       react(),
       tailwindcss(),
@@ -32,6 +34,9 @@ export default defineConfig(() => {
       alias: {
         '@': path.resolve(import.meta.dirname, '.'),
       },
+    },
+    optimizeDeps: {
+      include: ['jsqr'],
     },
     server: {
       host: '127.0.0.1',

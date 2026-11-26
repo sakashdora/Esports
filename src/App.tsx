@@ -7,9 +7,9 @@ import { DEFAULT_EVENTS, type CampusEvent } from './lib/defaultEvents';
 import { dismissAnnouncement, shouldShowAnnouncement, WelcomeAnnouncement } from './components/WelcomeAnnouncement';
 
 const AdminDashboardView = lazy(() => import('./components/AdminDashboardView').then(module => ({ default: module.AdminDashboardView })));
+const VolunteerDashboardView = lazy(() => import('./components/VolunteerDashboardView'));
 const TournamentGuide = lazy(() => import('./components/TournamentGuide'));
 const EventDetailView = lazy(() => import('./components/EventDetailView').then(module => ({ default: module.EventDetailView })));
-const LiveDashboardView = lazy(() => import('./components/LiveDashboardView').then(module => ({ default: module.LiveDashboardView })));
 const RegisterView = lazy(() => import('./components/RegisterView').then(module => ({ default: module.RegisterView })));
 const TrackStatusView = lazy(() => import('./components/TrackStatusView').then(module => ({ default: module.TrackStatusView })));
 
@@ -18,9 +18,6 @@ function parseLocationRoute(): AppRoute {
   const search = new URLSearchParams(window.location.search);
   if (path === '/tournament-guide' || path === '/tournament-guide/') return { page: 'guide' };
 
-  if (path === '/live') {
-    return { page: 'live' };
-  }
   if (path.startsWith('/events/')) {
     return { page: 'event', slug: path.replace('/events/', '').split('/')[0] };
   }
@@ -33,6 +30,7 @@ function parseLocationRoute(): AppRoute {
   if (path === '/admin') {
     return { page: 'admin' };
   }
+  if (path === '/volunteer' || path === '/volunteer/') return { page: 'volunteer' };
   return { page: 'home' };
 }
 
@@ -40,8 +38,6 @@ function routeToPath(route: AppRoute): string {
   switch (route.page) {
     case 'guide':
       return '/tournament-guide';
-    case 'live':
-      return '/live';
     case 'event':
       return `/events/${route.slug}`;
     case 'register':
@@ -50,6 +46,8 @@ function routeToPath(route: AppRoute): string {
       return route.prefillCode ? `/track?code=${encodeURIComponent(route.prefillCode)}` : '/track';
     case 'admin':
       return '/admin';
+    case 'volunteer':
+      return '/volunteer';
     default:
       return '/';
   }
@@ -99,15 +97,15 @@ export default function App() {
     const titles: Record<AppRoute['page'], string> = {
       home: 'Srusti Campus Event & Esports Championship 2026 | SAMT',
       guide: `Tournament Guide | ${suffix}`,
-      live: `Live Registration Counts | ${suffix}`,
       event: `${name ? name + ' Rulebook' : 'Tournament Rulebook'} | ${suffix}`,
       register: `Register Your Squad${name ? ' for ' + name : ''} | ${suffix}`,
       track: `Track Your Registration | ${suffix}`,
       admin: `Admin Sign In | ${suffix}`,
+      volunteer: `Event Check-in | ${suffix}`,
     };
     document.title = titles[route.page];
     let robots = document.head.querySelector<HTMLMetaElement>('meta[name="robots"]');
-    if (route.page === 'admin') {
+    if (route.page === 'admin' || route.page === 'volunteer') {
       if (!robots) {
         robots = document.createElement('meta');
         robots.name = 'robots';
@@ -127,13 +125,12 @@ export default function App() {
       void import('./components/RegisterView');
       void import('./components/TrackStatusView');
       void import('./components/EventDetailView');
-      void import('./components/LiveDashboardView');
     };
     const timer = window.setTimeout(warm, 1200);
     return () => window.clearTimeout(timer);
   }, [showIntro]);
 
-  function navigate(next: AppRoute) {
+  const navigate = useCallback((next: AppRoute) => {
     const nextPath = routeToPath(next);
     if (window.location.pathname + window.location.search !== nextPath) {
       window.history.pushState({}, '', nextPath);
@@ -142,7 +139,7 @@ export default function App() {
     // between pages never flashes a loading screen.
     startTransition(() => setRoute(next));
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
-  }
+  }, []);
 
   const defaultSlug = events[0]?.slug || 'kalinga-warriors-bgmi';
   function closeAnnouncement() {
@@ -165,6 +162,7 @@ export default function App() {
     route.page === 'event'
       ? events.find((e) => e.slug === route.slug) || events[0]
       : events[0];
+  const registrationEvent = route.page === 'register' ? events.find((event) => event.slug === route.slug) : undefined;
 
   // Keep the homepage and navigation out of the DOM until the intro finishes.
   // Event data still loads above, while the intro owns the first screen.
@@ -172,36 +170,39 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      <Navbar route={route} onNavigate={navigate} defaultEventSlug={defaultSlug} />
+      {route.page !== 'volunteer' && <Navbar route={route} onNavigate={navigate} defaultEventSlug={defaultSlug} />}
 
       {/* Keyed by page so moving to another page clears a previous error. */}
       <ErrorBoundary key={route.page}>
       <Suspense fallback={<PageLoading />}>
-      {route.page === 'guide' && <TournamentGuide events={events} onNavigate={navigate} />}
+      {route.page === 'guide' && <TournamentGuide events={events} />}
       {route.page === 'home' && (
         <HomeView events={events} loading={loadingEvents} onNavigate={navigate} />
-      )}
-
-      {route.page === 'live' && (
-        <LiveDashboardView initialEvents={events} onNavigate={navigate} />
       )}
 
       {route.page === 'event' && activeEvent && (
         <EventDetailView event={activeEvent} allEvents={events} onNavigate={navigate} />
       )}
 
-      {route.page === 'register' && (
+      {route.page === 'register' && (registrationEvent ? (
         <RegisterView
           events={events}
-          initialSlug={route.slug}
+          event={registrationEvent}
           onNavigate={navigate}
           onRefreshEvents={refreshEvents}
         />
-      )}
+      ) : loadingEvents ? <PageLoading /> : (
+        <main className="mx-auto max-w-3xl px-4 py-12 text-white">
+          <h1 className="text-2xl font-bold">Tournament unavailable</h1>
+          <p className="mt-2 text-neutral-300">Choose a tournament from the homepage to register.</p>
+          <button type="button" className="arena-button primary mt-5" onClick={() => navigate({ page: 'home' })}>View tournaments</button>
+        </main>
+      ))}
 
       {route.page === 'track' && <TrackStatusView prefillCode={route.prefillCode} onNavigate={navigate} />}
 
-      {route.page === 'admin' && <AdminDashboardView onEventsUpdated={refreshEvents} />}
+      {route.page === 'admin' && <AdminDashboardView onEventsUpdated={refreshEvents} onNavigate={navigate} />}
+      {route.page === 'volunteer' && <VolunteerDashboardView onNavigate={navigate} />}
       </Suspense>
       </ErrorBoundary>
       {route.page === 'home' && showAnnouncement && (

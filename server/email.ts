@@ -1,7 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import nodemailer from 'nodemailer';
-import { escapeHtml } from '../src/lib/tournamentRules.js';
+import type { Attachment } from 'nodemailer/lib/mailer/index.js';
+import { renderBrandedQr } from './qrPass.js';
+import { confirmedSeat, isWaitlistSlot } from '../src/lib/checkIn.js';
+import { escapeHtml, type PlayerInput } from '../src/lib/tournamentRules.js';
 
 export interface EmailSendResult {
   sent: boolean;
@@ -55,7 +58,7 @@ function buildTransporter() {
 }
 
 /** Public site address for links in emails (APP_URL, else the Vercel production domain). */
-function resolveAppUrl(): string {
+export function resolveAppUrl(): string {
   const configured = process.env.APP_URL?.trim();
   if (configured && /^https?:\/\//i.test(configured)) return configured.replace(/\/$/, '');
   const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
@@ -63,7 +66,11 @@ function resolveAppUrl(): string {
   return 'http://localhost:3000';
 }
 
-interface TeamConfirmationEmailParams {
+type CheckInPlayer = Pick<PlayerInput,
+  'slotRole' | 'fullName' | 'inGameName' | 'characterId' | 'collegeOverride' | 'academicLevel' | 'wantsLunch' | 'dietType'
+>;
+
+export interface TeamConfirmationEmailParams {
   toEmail: string;
   teamCode: string;
   teamName: string;
@@ -80,12 +87,23 @@ interface TeamConfirmationEmailParams {
   rejectionReason?: string | null;
   venueLabel?: string;
   eventDateLabel?: string;
+  members?: readonly CheckInPlayer[];
 }
 
 const BRAND = 'Srusti Esports 2026';
 const ACADEMY = 'Srusti Academy of Management and Technology (Autonomous)';
-const SUPPORT_EMAIL = 'info.esport@srustiacademy.ac.in';
+const SUPPORT_EMAIL = 'mail@srustiacademy.ac.in';
 const LOGO_PATH = 'assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.png';
+const CHECK_IN_QR_CID = 'srusti-team-check-in';
+type CheckInQrContents = 'roster' | 'status';
+
+const PLAYER_ROLES: Record<CheckInPlayer['slotRole'], string> = {
+  IGL: 'Team leader',
+  P2: 'Player 2',
+  P3: 'Player 3',
+  P4: 'Player 4',
+  SUB: 'Substitute',
+};
 
 const CHECK_IN = [
   'Bring your original college or institution photo ID to check-in.',
@@ -93,17 +111,76 @@ const CHECK_IN = [
   'Verified team leaders receive room credentials 15 minutes before their match wave.',
 ];
 
-function registrationMessage(params: TeamConfirmationEmailParams) {
+function eventDetails(params: TeamConfirmationEmailParams): [string, string][] {
+  const event = params.eventTitle.toLowerCase().includes(params.gameTitle.toLowerCase())
+    ? params.eventTitle
+    : `${params.eventTitle} · ${params.gameTitle}`;
+  return [
+    ['Tournament', event],
+    ['Campus entry', params.eventDateLabel || 'Dates to be announced'],
+    ['Venue', params.venueLabel || 'SAMT Campus LAN Arena'],
+  ];
+}
+
+function rosterDetails(member: CheckInPlayer, compact = false): string[] {
+  return [
+    compact ? member.inGameName : `IGN ${member.inGameName}`,
+    compact ? member.characterId : `Character ID ${member.characterId}`,
+    member.collegeOverride || (compact ? '—' : ''),
+    member.academicLevel,
+    member.wantsLunch ? (member.dietType === 'VEG' ? 'Veg lunch' : 'Non-veg lunch') : 'No lunch',
+  ].filter(Boolean);
+}
+
+function statusUrl(params: TeamConfirmationEmailParams, appUrl: string): string {
+  return `${appUrl}/track?code=${encodeURIComponent(params.teamCode)}`;
+}
+
+export async function createCheckInQr(params: TeamConfirmationEmailParams, appUrl: string) {
+  const seat = confirmedSeat(params);
+  if (!seat || !params.members?.length) return null;
+
+  const oneLine = (value: string) => value.replace(/\s+/g, ' ').trim();
+  const roster = params.members.map(member =>
+    `${PLAYER_ROLES[member.slotRole]}: ${oneLine(member.fullName)} | ${rosterDetails(member, true).map(oneLine).join(' | ')}`,
+  );
+  const payload = [
+    `${BRAND} | Team check-in`,
+    `Team code: ${oneLine(params.teamCode)}`,
+    `Team: ${oneLine(params.teamName)}`,
+    ...eventDetails(params).map(([label, value]) => `${label}: ${oneLine(value)}`),
+    oneLine(seat),
+    'Roster (name | IGN | Character ID | College | Course | Lunch)',
+    ...roster,
+  ].join('\n');
+
+  // Keep on-screen modules large enough to scan. Dense rosters open the same private details by link.
+  const contents: CheckInQrContents = Buffer.byteLength(payload) <= 750 ? 'roster' : 'status';
+  const encoded = contents === 'roster' ? payload : statusUrl(params, appUrl);
+  const png = await renderBrandedQr(encoded, contents === 'roster' ? 'M' : 'H');
+  return { contents, png, encoded };
+}
+
+function registrationMessage(params: TeamConfirmationEmailParams, slot: string) {
   const reason = params.rejectionReason?.trim();
   switch (params.status) {
     case 'verified':
+      if (isWaitlistSlot(params)) {
+        return {
+          title: 'Payment Verified — Waitlisted',
+          status: 'Waitlisted',
+          message: 'The tournament desk verified your payment. Check Team Status for your waitlist position and updates.',
+          action: 'Check team status',
+          accent: '#805009',
+        };
+      }
       return {
-        title: params.slotNumber ? 'Slot Confirmed' : 'Registration Verified',
+        title: slot ? 'Slot Confirmed' : 'Registration Verified',
         status: 'Verified',
-        message: params.slotNumber
+        message: slot
           ? 'The tournament desk has verified your registration and assigned your LAN seat. Open your team pass before match day.'
           : 'The tournament desk has verified your registration. Check Team Status for your LAN seat.',
-        action: params.slotNumber ? 'Open team pass' : 'Check team status',
+        action: slot ? 'Open team pass' : 'Check team status',
         accent: '#116149',
       };
     case 'reupload_required':
@@ -135,28 +212,61 @@ function registrationMessage(params: TeamConfirmationEmailParams) {
   }
 }
 
-export function buildTeamConfirmationEmail(params: TeamConfirmationEmailParams, appUrl: string, logoSrc: string) {
-  const message = registrationMessage(params);
+function checkInInstructions(contents: CheckInQrContents): string {
+  return contents === 'roster'
+    ? 'Show this QR at campus check-in. It contains your squad roster and entry details. Staff will verify the roster and college IDs.'
+    : 'Scan the QR and enter the team leader’s phone number to open the private roster. Show this email at campus check-in.';
+}
+
+function renderCheckInPass(params: TeamConfirmationEmailParams, slot: string, contents: CheckInQrContents) {
+  const players = (params.members || []).map(member => `
+    <tr><td style="padding:10px 14px;border-bottom:1px solid #e5ded1;line-height:1.5;">
+      <span style="font-size:12px;color:#61554d;">${PLAYER_ROLES[member.slotRole]}</span><br>
+      <strong style="font-size:15px;color:#211e23;">${escapeHtml(member.fullName)}</strong><br>
+      <span style="font-size:13px;color:#51453e;overflow-wrap:anywhere;">${escapeHtml(rosterDetails(member).join(' · '))}</span>
+    </td></tr>`).join('');
+  return `
+    <tr><td style="padding:0 20px 20px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #d8cbb7;">
+        <tr><td bgcolor="#172249" style="padding:22px 20px;background-color:#172249;border-top:4px solid #eec36c;color:#ffffff;">
+          <h2 style="margin:0 0 10px;font-size:21px;line-height:1.3;color:#ffffff;">Team check-in pass</h2>
+          <p style="margin:0 0 8px;font-family:Consolas,'Courier New',monospace;font-size:24px;font-weight:bold;color:#f5d18a;overflow-wrap:anywhere;">${escapeHtml(params.teamCode)}</p>
+          <p style="margin:0 0 12px;font-size:14px;font-weight:bold;color:#ffffff;">${escapeHtml(slot)}</p>
+          ${eventDetails(params).map(([, value]) => `<p style="margin:0 0 4px;font-size:14px;line-height:1.45;color:#f2efe9;overflow-wrap:anywhere;">${escapeHtml(value)}</p>`).join('')}
+        </td></tr>
+        <tr><td align="center" bgcolor="#ffffff" style="padding:12px 14px 16px;background-color:#ffffff;">
+          <img src="cid:${CHECK_IN_QR_CID}" width="380" alt="Team check-in QR code with the Srusti crest" style="display:block;width:380px;max-width:100%;height:auto;margin:0 auto;color:#211e23;">
+          <p style="margin:8px 0 0;font-size:13px;line-height:1.5;color:#51453e;">${checkInInstructions(contents)}</p>
+        </td></tr>
+        <tr><td bgcolor="#f8f4ed" style="padding:12px 14px;background-color:#f8f4ed;border-top:1px dashed #d8cbb7;">
+          <h3 style="margin:0;font-size:15px;color:#211e23;">Registered squad</h3>
+        </td></tr>
+        ${players}
+      </table>
+    </td></tr>`;
+}
+
+export function buildTeamConfirmationEmail(
+  params: TeamConfirmationEmailParams,
+  appUrl: string,
+  logoSrc: string,
+  qrContents?: CheckInQrContents,
+) {
+  const slot = confirmedSeat(params);
+  const checkIn = slot && params.members?.length ? qrContents : undefined;
+  const message = registrationMessage(params, slot);
   const subject = `${BRAND} — ${message.title} — ${params.teamCode}`;
-  const trackUrl = `${appUrl}/track?code=${encodeURIComponent(params.teamCode)}`;
-  const slot = params.status === 'verified' && params.slotNumber
-    ? `${params.groupName || 'Main Bracket'} · Seat ${params.slotNumber}`
-    : '';
+  const trackUrl = statusUrl(params, appUrl);
   const mealSummary = params.lunchCount > 0
     ? `${params.lunchCount} (${params.vegCount} veg · ${params.nonVegCount} non-veg)`
     : 'None selected';
-  const event = params.eventTitle.toLowerCase().includes(params.gameTitle.toLowerCase())
-    ? params.eventTitle
-    : `${params.eventTitle} · ${params.gameTitle}`;
   const details = [
-    ['Tournament', event],
-    ['Entry date', params.eventDateLabel || 'Dates to be announced'],
-    ['Venue', params.venueLabel || 'SAMT Campus LAN Arena'],
+    ...eventDetails(params),
     ['Submitted fee', `₹${params.totalFee.toLocaleString('en-IN')}`],
     ['UPI reference (UTR)', params.utrNumber || '—'],
     ['Optional meals', mealSummary],
   ];
-  const rows = details.map(([label, value]) => `
+  const rows = (checkIn ? details.slice(3) : details).map(([label, value]) => `
     <tr>
       <th scope="row" align="left" valign="top" width="39%" style="padding:10px 10px;border-bottom:1px solid #eae2d6;font-size:13px;line-height:1.4;color:#61554d;font-weight:normal;">${label}</th>
       <td valign="top" style="padding:10px 10px;border-bottom:1px solid #eae2d6;font-size:14px;line-height:1.4;color:#241b19;font-weight:bold;overflow-wrap:anywhere;">${escapeHtml(value)}</td>
@@ -186,7 +296,7 @@ export function buildTeamConfirmationEmail(params: TeamConfirmationEmailParams, 
           <p style="margin:0;font-size:15px;line-height:1.5;color:#51453e;">${message.message}</p>
           ${message.reason ? `<p style="margin:14px 0 0;padding:10px 12px;background-color:#fff3eb;border-left:3px solid ${message.accent};font-size:14px;line-height:1.5;"><strong>Review note</strong><br>${escapeHtml(message.reason)}</p>` : ''}
         </td></tr>
-        <tr><td style="padding:0 20px 20px;">
+        ${checkIn ? renderCheckInPass(params, slot, checkIn) : `<tr><td style="padding:0 20px 20px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f8ebd1" style="background-color:#f8ebd1;border-left:4px solid #ad2d21;">
             <tr><td style="padding:12px 14px;">
               <p style="margin:0 0 4px;font-size:12px;color:#6a5140;">Team registration ID</p>
@@ -194,15 +304,15 @@ export function buildTeamConfirmationEmail(params: TeamConfirmationEmailParams, 
               ${slot ? `<p style="margin:8px 0 0;font-size:14px;font-weight:bold;color:#116149;">${escapeHtml(slot)}</p>` : ''}
             </td></tr>
           </table>
-        </td></tr>
+        </td></tr>`}
         <tr><td style="padding:0 20px 20px;">
-          <h2 style="margin:0 0 6px;font-size:17px;color:#241b19;">Registration details</h2>
+          <h2 style="margin:0 0 6px;font-size:17px;color:#241b19;">${checkIn ? 'Payment details' : 'Registration details'}</h2>
           <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#faf8f4" style="background-color:#faf8f4;">${rows}</table>
         </td></tr>
         <tr><td style="padding:0 20px 24px;">
           <table role="presentation" cellpadding="0" cellspacing="0" border="0">
             <tr><td bgcolor="#a6281d" style="background-color:#a6281d;mso-padding-alt:12px 18px;border-radius:4px;">
-              <a href="${escapeHtml(trackUrl)}" style="display:inline-block;padding:12px 18px;color:#ffffff;font-size:15px;line-height:1.4;font-weight:bold;text-decoration:none;">${message.action}</a>
+              <a href="${escapeHtml(trackUrl)}" style="display:inline-block;padding:12px 18px;color:#ffffff;font-size:15px;line-height:1.4;font-weight:bold;text-decoration:none;">${checkIn ? 'Open pass &amp; download QR' : message.action}</a>
             </td></tr>
           </table>
           ${slot ? `<h2 style="margin:18px 0 6px;font-size:17px;color:#241b19;">Match-day check-in</h2>
@@ -232,8 +342,17 @@ export function buildTeamConfirmationEmail(params: TeamConfirmationEmailParams, 
     `Team registration ID: ${params.teamCode}`,
     ...(slot ? [slot] : []),
     ...details.map(([label, value]) => `${label}: ${value}`),
+    ...(checkIn ? [
+      '',
+      'Team check-in pass',
+      checkInInstructions(checkIn),
+      'Registered squad',
+      ...(params.members || []).map(member =>
+        `${PLAYER_ROLES[member.slotRole]}: ${member.fullName} — ${rosterDetails(member).join(' · ')}`,
+      ),
+    ] : []),
     '',
-    `${message.action}: ${trackUrl}`,
+    `${checkIn ? 'Open pass and download QR' : message.action}: ${trackUrl}`,
     ...(slot ? ['', 'Match-day check-in', ...CHECK_IN.map(item => `- ${item}`)] : []),
     '',
     `For help, email ${SUPPORT_EMAIL}. Replies to this automated notification are unmonitored.`,
@@ -253,13 +372,22 @@ export async function sendTeamConfirmationEmail(params: TeamConfirmationEmailPar
 
   const appUrl = resolveAppUrl();
   const logoPath = path.resolve(process.cwd(), 'public', LOGO_PATH);
-  const attachments = fs.existsSync(logoPath)
+  const attachments: Attachment[] = fs.existsSync(logoPath)
     ? [{ filename: 'srusti-esports-logo.png', path: logoPath, cid: 'srusti-esports-logo' }]
     : [];
   const logoSrc = attachments.length ? 'cid:srusti-esports-logo' : `${appUrl}/${LOGO_PATH}`;
-  const { subject, html, text } = buildTeamConfirmationEmail(params, appUrl, logoSrc);
 
   try {
+    const checkIn = await createCheckInQr(params, appUrl);
+    if (checkIn) {
+      attachments.push({
+        filename: 'srusti-team-check-in.png',
+        content: checkIn.png,
+        contentType: 'image/png',
+        cid: CHECK_IN_QR_CID,
+      });
+    }
+    const { subject, html, text } = buildTeamConfirmationEmail(params, appUrl, logoSrc, checkIn?.contents);
     const transporter = createTransporter();
     const info = await transporter.sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER,

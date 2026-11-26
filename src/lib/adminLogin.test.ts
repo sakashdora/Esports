@@ -9,5 +9,6 @@ test('plain-text hosting failures show a safe availability error, not a JSON par
 test('login rejects malformed successes and preserves normal authentication errors', async () => {
   await assert.rejects(readAdminLoginResponse(Response.json({})), /invalid sign-in response/);
   await assert.rejects(readAdminLoginResponse(Response.json({ error: 'Invalid credentials.' }, { status: 401 })), /Invalid credentials/);
-  assert.deepEqual(await readAdminLoginResponse(Response.json({ token: 'test-session', email: 'test@example.test' })), { token: 'test-session', email: 'test@example.test' });
+  assert.deepEqual(await readAdminLoginResponse(Response.json({ token: 'test-session', email: 'test@example.test' })), { token: 'test-session', email: 'test@example.test', role: 'admin' });
+  assert.equal((await readAdminLoginResponse(Response.json({ token: 'test-session', email: 'desk-01', role: 'volunteer' }))).role, 'volunteer');
 });

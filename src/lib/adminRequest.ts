@@ -15,7 +15,7 @@ export async function adminRequest(
   }
   if (response.status === 401 || response.status === 403) {
     onUnauthorized();
-    throw new Error('Your admin session is no longer authorized. Please sign in again.');
+    throw new Error('Your session is no longer authorized. Please sign in again.');
   }
   if (!response.ok) {
     const body = await response.json().catch(() => null);

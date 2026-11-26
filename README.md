@@ -1,6 +1,6 @@
 # Srusti Campus Esports
 
-React + Vite frontend with an Express API. BGMI and Free Fire squads register, submit UPI payment proof, track applications, and receive a slot after administrator verification. The public board shows aggregate registration counts and available capacity by game.
+React + Vite frontend with an Express API. BGMI and Free Fire squads register, submit UPI payment proof, track applications, and receive a slot after administrator verification.
 
 ## Event and fees
 
@@ -33,13 +33,17 @@ Configure official UPI details, SMTP delivery, and Supabase before launch. Local
 
 - Track Status accepts a team leader mobile number **or** registration ID. Single-identifier responses contain only team/event/status/slot information. Private details, printing passes, and changing payment proof still require both matching identifiers. Mobile lookup supports multiple registrations.
 - Registration and admin decisions return after persistence without waiting for SMTP. Vercel `waitUntil` keeps delivery running after the response, within the function's 30-second limit. This is best-effort delivery, not a durable retry queue. Admins can refresh email status and use Resend Email if delivery fails or remains pending after a timeout. No schema migration or R2 bucket is needed for these changes.
-- Approval updates the affected admin row directly. The public board polls every five seconds while visible when SSE is unavailable; CDN responses expire after two seconds without serving stale content during revalidation.
+- Teams assigned a confirmed seat receive a check-in QR with their roster, assigned seat, and campus entry schedule. Resend Email includes the pass. Large rosters that exceed QR capacity appear in the email, and their QR opens Team Status for private lookup.
+- Team leaders can preview and download the Srusti-branded QR in **Track Status** after entering their Team ID and registered phone number.
+- In **Admin → Volunteers**, create a volunteer ID and password or reset an existing password. Volunteers sign in from the same page as admins and open the check-in dashboard. Admins also have a **Check-in** tab. Use a camera or upload a QR image, then mark each checked-in participant present. Both dashboards display saved attendance.
+- For a Supabase deployment, run [supabase/check-in.sql](supabase/check-in.sql) after the base schema to create the volunteer accounts and attendance tables. Camera access requires HTTPS or localhost and browser permission.
+- Approval updates the affected admin row directly.
 - API JSON responses expose total handler duration in `Server-Timing`. POST logs contain the route template, duration and status, not input identifiers. Email logs contain duration and delivery outcome. Compare these timings with Vercel/DB regions and upload timing before changing infrastructure.
 - Tests include stalled local SMTP, OR lookup, multiple matches, mismatched identifiers, private response filtering and protected proof changes. Run `npm test`, `npm run lint`, `npm run build`, and `npm run check:api`.
 
 ## Design direction
 
-College esports broadcast style: oversized condensed headlines, charcoal backgrounds, crimson actions, gold timing accents, existing game artwork and a prominent match-day ticket. Short entrances and poster hover effects respect reduced-motion preferences. Registration, rulebooks, tracking and the live board retain their navigation.
+College esports broadcast style: oversized condensed headlines, charcoal backgrounds, crimson actions, gold timing accents, existing game artwork and a prominent match-day ticket. Short entrances and poster hover effects respect reduced-motion preferences.
 
 ## Approved homepage artwork
 

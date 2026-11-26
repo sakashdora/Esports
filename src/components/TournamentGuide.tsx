@@ -1,16 +1,10 @@
-import { ArrowDown, ArrowRight, Trophy } from 'lucide-react';
+import { ArrowDown, Trophy } from 'lucide-react';
 import type { CampusEvent } from '../lib/defaultEvents';
-import type { AppRoute } from './Navbar';
 import { EventScorecard } from './PointsGuide';
 import { RulebookPoster, rulebookPosters } from './RulebookPoster';
 import './TournamentGuide.css';
 
-interface GuideProps {
-  events: CampusEvent[];
-  onNavigate: (route: AppRoute) => void;
-}
-
-export default function TournamentGuide({ events, onNavigate }: GuideProps) {
+export default function TournamentGuide({ events }: { events: CampusEvent[] }) {
   return (
     <main className="tournament-guide">
       <header className="guide-cover">
@@ -82,9 +76,6 @@ export default function TournamentGuide({ events, onNavigate }: GuideProps) {
             </section>
           );
         })}
-        <button type="button" className="arena-button primary mb-10" onClick={() => onNavigate({ page: 'live' })}>
-          View registration counts <ArrowRight aria-hidden="true" />
-        </button>
       </div>
     </main>
   );

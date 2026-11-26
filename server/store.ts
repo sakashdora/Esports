@@ -3,8 +3,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { CHECK_IN_PAGE_SIZE, confirmedSeat, isWaitlistSlot, type AttendanceEntry, type AttendanceMark, type CheckInSquad, type VolunteerAccount } from '../src/lib/checkIn.js';
 import { DEFAULT_EVENTS, EVENT_DATE_LABEL, type CampusEvent } from '../src/lib/defaultEvents.js';
-import { computeLiveBoardSummary, type LiveBoardSnapshot } from '../src/lib/liveBoard.js';
 import {
   assignFirstFreeTournamentSlot,
   calculateRegistrationFee,
@@ -103,6 +103,8 @@ interface LocalStoreData {
   proofs: StoredPaymentProof[];
   auditLogs: StoredAuditLog[];
   eventSequences: Record<string, number>;
+  volunteers?: VolunteerCredentials[];
+  attendance?: AttendanceMark[];
 }
 
 // EFEST_DATA_DIR lets tests and local previews use a throwaway store.
@@ -149,6 +151,20 @@ export function getSupabaseAnonClient(): SupabaseClient | null {
     );
   }
   return cachedAnonClient;
+}
+
+function teamCodePrefix(event: CampusEvent): string {
+  return formatTeamCode(event.rulesJson.codePrefix || 'SAMT26', 1).split('-')[0];
+}
+
+function highestTeamSequence(teamCodes: Iterable<string>, prefix: string): number {
+  let highest = 0;
+  for (const code of teamCodes) {
+    if (!code.startsWith(`${prefix}-`)) continue;
+    const sequence = Number(code.slice(prefix.length + 1));
+    if (Number.isSafeInteger(sequence)) highest = Math.max(highest, sequence);
+  }
+  return highest;
 }
 
 function ensureLocalDirs() {
@@ -220,7 +236,7 @@ function extFromMime(mime: 'image/jpeg' | 'image/png' | 'image/webp'): string {
   return 'jpg';
 }
 
-function mapSupabaseEvent(row: Record<string, unknown>, stats?: { verified: number; pending: number; total: number }): CampusEvent {
+function mapSupabaseEvent(row: Record<string, unknown>): CampusEvent {
   return {
     id: String(row.id),
     slug: String(row.slug),
@@ -229,9 +245,9 @@ function mapSupabaseEvent(row: Record<string, unknown>, stats?: { verified: numb
     gameTitle: String(row.game_title),
     eventType: (row.event_type as CampusEvent['eventType']) || 'esports_squad',
     maxTeams: Number(row.max_teams || 24),
-    baseFee: Number(row.base_fee || 299),
-    lunchFee: Number(row.lunch_fee || 100),
-    prizePoolTotal: Number(row.prize_pool_total || 10000),
+    baseFee: Number(row.base_fee ?? 299),
+    lunchFee: Number(row.lunch_fee ?? 100),
+    prizePoolTotal: Number(row.prize_pool_total ?? 10000),
     prizeBreakdown: (row.prize_breakdown as CampusEvent['prizeBreakdown']) || [],
     qrImageUrl: String(row.qr_image_url || ''),
     upiVpa: String(row.upi_vpa || ''),
@@ -241,9 +257,6 @@ function mapSupabaseEvent(row: Record<string, unknown>, stats?: { verified: numb
     venueLabel: String(row.venue_label || 'SAMT Campus LAN Arena'),
     isOpen: Boolean(row.is_open),
     rulesJson: row.rules_json as CampusEvent['rulesJson'],
-    registeredCount: stats?.total ?? 0,
-    verifiedCount: stats?.verified ?? 0,
-    pendingCount: stats?.pending ?? 0,
   };
 }
 
@@ -260,9 +273,9 @@ function mapSupabaseRegistration(row: Record<string, unknown>): StoredRegistrati
     lunchCount: Number(row.lunch_count || 0),
     vegCount: Number(row.veg_count || 0),
     nonVegCount: Number(row.non_veg_count || 0),
-    baseFee: Number(row.base_fee || 299),
+    baseFee: Number(row.base_fee ?? 299),
     lunchTotal: Number(row.lunch_total || 0),
-    totalFee: Number(row.total_fee || 299),
+    totalFee: Number(row.total_fee ?? 299),
     status: row.status as RegistrationStatus,
     slotNumber: row.slot_number ? String(row.slot_number) : null,
     groupName: row.group_name ? String(row.group_name) : null,
@@ -395,32 +408,14 @@ async function seedEventsInSupabase(): Promise<void> {
 export async function listPublicEvents(): Promise<CampusEvent[]> {
   const sb = getSupabaseServiceClient();
   if (!sb) {
-    const store = readLocalStore();
-    return store.events.map((evt) => {
-      const eventRegs = store.registrations.filter(
-        (r) => r.eventId === evt.id && r.status !== 'rejected'
-      );
-      return {
-        ...evt,
-        registeredCount: eventRegs.length,
-        verifiedCount: eventRegs.filter((r) => r.status === 'verified').length,
-        pendingCount: eventRegs.filter(
-          (r) => r.status === 'pending' || r.status === 'reupload_required'
-        ).length,
-      };
-    });
+    return readLocalStore().events;
   }
 
   // The seed check only matters on a brand-new database, so it runs alongside the reads
   // instead of in front of them (it used to add a full round trip to every cold start).
   const seeded = ensureSeedEventsInSupabase();
-  const [eventsRes, statsRes] = await Promise.all([
-    sb.from('events').select('*').order('created_at', { ascending: true }),
-    sb.from('registrations').select('event_id, status').neq('status', 'rejected'),
-  ]);
-  let eventsData = eventsRes.data;
-  const error = eventsRes.error;
-  const regStats = statsRes.data;
+  const { data, error } = await sb.from('events').select('*').order('created_at', { ascending: true });
+  let eventsData = data;
   if (error) throw new ClientInputError('Unable to complete the database request. Please try again.');
   if (!DEFAULT_EVENTS.every((d) => (eventsData || []).some((e) => e.slug === d.slug))) {
     await seeded;
@@ -428,22 +423,10 @@ export async function listPublicEvents(): Promise<CampusEvent[]> {
     if (!retry.error) eventsData = retry.data;
   }
 
-  const countMap = new Map<string, { verified: number; pending: number; total: number }>();
-  for (const row of regStats || []) {
-    const eventId = String(row.event_id);
-    const cur = countMap.get(eventId) || { verified: 0, pending: 0, total: 0 };
-    cur.total += 1;
-    if (row.status === 'verified') cur.verified += 1;
-    else if (row.status === 'pending' || row.status === 'reupload_required') cur.pending += 1;
-    countMap.set(eventId, cur);
-  }
-
-  return (eventsData || []).map((row) =>
-    mapSupabaseEvent(row as Record<string, unknown>, countMap.get(String(row.id)))
-  );
+  return (eventsData || []).map(mapSupabaseEvent);
 }
 
-/** One-row event lookup for registration (no per-event counts, one request). */
+/** One-row event lookup for registration. */
 async function getEventForRegistration(slug: string): Promise<CampusEvent | null> {
   const sb = getSupabaseServiceClient();
   if (!sb) return getEventBySlug(slug);
@@ -573,9 +556,14 @@ export async function createRegistrationWithProof(input: {
       throw new ClientInputError('This exact payment screenshot file has already been submitted.');
     }
 
-    const nextSeq = (store.eventSequences[event.id] || 0) + 1;
+    const prefix = teamCodePrefix(event);
+    // Older stores count by event. Use every counter for this prefix so codes stay
+    // unique even when two events share a game or saved registrations are deleted.
+    const priorSequences = store.events.filter((item) => teamCodePrefix(item) === prefix)
+      .map((item) => store.eventSequences[item.id] || 0);
+    const lastIssued = highestTeamSequence(store.registrations.map((registration) => registration.teamCode), prefix);
+    const nextSeq = Math.max(lastIssued, ...priorSequences) + 1;
     store.eventSequences[event.id] = nextSeq;
-    const prefix = event.rulesJson.codePrefix || 'SAMT26';
     const teamCode = formatTeamCode(prefix, nextSeq);
     const now = new Date().toISOString();
     const regId = crypto.randomUUID();
@@ -663,8 +651,9 @@ export async function createRegistrationWithProof(input: {
 
   // Supabase Free production path. Independent pre-checks run in parallel so a submission
   // costs one round trip instead of five before anything is written.
+  const prefix = teamCodePrefix(event);
   const characterIds = activeMembers.map((m) => m.characterId.trim());
-  const [activeCountRes, dupUtrRes, dupHashRes, eventTotalRes, activeTeamsRes, dupMembersRes] =
+  const [activeCountRes, dupUtrRes, dupHashRes, recentCodesRes, activeTeamsRes, dupMembersRes] =
     await Promise.all([
       sb
         .from('registrations')
@@ -683,7 +672,8 @@ export async function createRegistrationWithProof(input: {
         .eq('file_sha256', fileSha256)
         .neq('review_status', 'rejected')
         .limit(1),
-      sb.from('registrations').select('team_code').eq('event_id', event.id),
+      sb.from('registrations').select('team_code').like('team_code', `${prefix}-%`)
+        .order('created_at', { ascending: false }).limit(12),
       sb
         .from('registrations')
         .select('id')
@@ -698,7 +688,7 @@ export async function createRegistrationWithProof(input: {
         .in('character_id', characterIds),
     ]);
 
-  const firstError = [activeCountRes, dupUtrRes, dupHashRes, eventTotalRes, activeTeamsRes, dupMembersRes]
+  const firstError = [activeCountRes, dupUtrRes, dupHashRes, recentCodesRes, activeTeamsRes, dupMembersRes]
     .map((r) => r.error)
     .find(Boolean);
   if (firstError) {
@@ -707,10 +697,7 @@ export async function createRegistrationWithProof(input: {
   }
 
   const isWaitlisted = (activeCountRes.count || 0) >= event.maxTeams;
-  const highestTeamNumber = (eventTotalRes.data || []).reduce((max, row) => {
-    const n = Number(String(row.team_code).split('-').pop());
-    return Number.isFinite(n) && n > max ? n : max;
-  }, 0);
+  const highestTeamNumber = highestTeamSequence((recentCodesRes.data || []).map((row) => row.team_code), prefix);
   if (dupUtrRes.data && dupUtrRes.data.length > 0) {
     throw new ClientInputError(`UTR / Reference "${normalizedUtr}" has already been submitted.`);
   }
@@ -727,7 +714,6 @@ export async function createRegistrationWithProof(input: {
     );
   }
 
-  const prefix = event.rulesJson.codePrefix || 'SAMT26';
   const ext = extFromMime(mime);
   const storagePath = `${event.slug}/${crypto.randomUUID()}.${ext}`;
 
@@ -737,7 +723,9 @@ export async function createRegistrationWithProof(input: {
     let row: Record<string, unknown> | null = null;
     let err: { code?: string; message: string } | null = null;
     for (let attempt = 1; attempt <= 6; attempt += 1) {
-      const teamCode = formatTeamCode(prefix, highestTeamNumber + attempt);
+      // The unique database constraint resolves concurrent claims and protects older codes.
+      const sequence = attempt < 6 ? highestTeamNumber + attempt : crypto.randomInt(100_000_000, 1_000_000_000);
+      const teamCode = formatTeamCode(prefix, sequence);
       const result = await sb
         .from('registrations')
         .insert({
@@ -952,20 +940,10 @@ export async function trackRegistration(
   const sb = getSupabaseServiceClient();
   if (!sb) {
     const store = readLocalStore();
-    const reg = store.registrations.find(
+    const matches = store.registrations.filter(
       (r) => r.teamCode.toUpperCase() === cleanCode && r.iglPhone === cleanPhone
     );
-    if (!reg) return null;
-    const event = store.events.find((e) => e.id === reg.eventId) || DEFAULT_EVENTS[0];
-    const members = store.members.filter((m) => m.registrationId === reg.id);
-    // Newest first, matching the Supabase path: callers treat proofs[0] as the latest proof.
-    const proofs = store.proofs
-      .filter((p) => p.registrationId === reg.id)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    const auditLogs = store.auditLogs
-      .filter((a) => a.registrationId === reg.id)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    return { registration: reg, event, members, proofs, auditLogs };
+    return matches.length === 1 ? loadLocalBundle(store, matches[0]) : null;
   }
 
   const { data: regRow, error: regErr } = await sb
@@ -977,6 +955,16 @@ export async function trackRegistration(
   if (regErr) throw new Error(`Registration lookup failed: ${regErr.message}`);
   if (!regRow) return null;
   return loadSupabaseBundle(sb, regRow as Record<string, unknown>);
+}
+
+function loadLocalBundle(store: LocalStoreData, registration: StoredRegistration): RegistrationBundle {
+  const event = store.events.find((e) => e.id === registration.eventId) || DEFAULT_EVENTS[0];
+  const members = store.members.filter((m) => m.registrationId === registration.id);
+  const proofs = store.proofs.filter((p) => p.registrationId === registration.id)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const auditLogs = store.auditLogs.filter((a) => a.registrationId === registration.id)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return { registration, event, members, proofs, auditLogs };
 }
 
 async function loadSupabaseBundle(
@@ -1015,7 +1003,7 @@ export async function getRegistrationBundleById(registrationId: string): Promise
   if (!sb) {
     const store = readLocalStore();
     const reg = store.registrations.find((r) => r.id === registrationId);
-    return reg ? trackRegistration(reg.teamCode, reg.iglPhone) : null;
+    return reg ? loadLocalBundle(store, reg) : null;
   }
   if (!/^[0-9a-f-]{36}$/i.test(registrationId)) return null;
   const { data: regRow, error } = await sb
@@ -1492,10 +1480,7 @@ export async function decideRegistrationPayment(input: {
       const takenSlots = store.registrations
         .filter((r) => r.eventId === reg.eventId && r.status === 'verified' && r.id !== reg.id)
         .map((r) => r.slotNumber);
-      const slot =
-        reg.status === 'verified' && reg.slotNumber && reg.groupName
-          ? { slotNumber: reg.slotNumber, groupName: reg.groupName }
-          : assignFirstFreeTournamentSlot(takenSlots, event.maxTeams);
+      const slot = chooseApprovalSlot(reg, takenSlots, event.maxTeams);
 
       reg.status = 'verified';
       reg.slotNumber = slot.slotNumber;
@@ -1547,10 +1532,18 @@ export async function decideRegistrationPayment(input: {
     reg.lastEmailStatus = 'pending_send';
     reg.lastEmailAt = null;
     writeLocalStore(store);
-    return (await trackRegistration(reg.teamCode, reg.iglPhone))!;
+    return loadLocalBundle(store, reg);
   }
 
   throw new ClientInputError('Registration not found.');
+}
+
+function chooseApprovalSlot(registration: StoredRegistration, takenSlots: Iterable<string | null>, capacity: number) {
+  const { status, slotNumber, groupName } = registration;
+  const existing = status === 'verified' && slotNumber && groupName ? { slotNumber, groupName } : null;
+  if (existing && confirmedSeat(registration)) return existing;
+  const available = assignFirstFreeTournamentSlot(takenSlots, capacity);
+  return existing && isWaitlistSlot({ ...available, status }) ? existing : available;
 }
 
 /**
@@ -1574,7 +1567,7 @@ async function decideInSupabase(
   const approve = input.decision === 'approve';
 
   const [regRes, proofRes, slotRes] = await Promise.all([
-    sb.from('registrations').select('*, events(*)').eq('id', id).maybeSingle(),
+    sb.from('registrations').select('*, events(*), team_members(*)').eq('id', id).maybeSingle(),
     sb.from('payment_proofs').select('*').eq('registration_id', id).order('created_at', { ascending: false }),
     approve
       ? sb.from('registrations').select('event_id, slot_number').eq('status', 'verified').neq('id', id)
@@ -1587,11 +1580,12 @@ async function decideInSupabase(
   }
   if (!regRes.data) throw new ClientInputError('Registration not found.');
 
-  const { events: eventRaw, ...regRow } = regRes.data as Record<string, unknown>;
+  const { events: eventRaw, team_members: rosterRows, ...regRow } = regRes.data as Record<string, unknown>;
   const reg = mapSupabaseRegistration(regRow);
   const eventRow = (Array.isArray(eventRaw) ? eventRaw[0] : eventRaw) as Record<string, unknown> | undefined;
   const event = eventRow ? mapSupabaseEvent(eventRow) : DEFAULT_EVENTS[0];
   const proofs = (proofRes.data || []).map((row) => mapSupabaseProof(row as Record<string, unknown>));
+  const members = sortByRole((Array.isArray(rosterRows) ? rosterRows : []).map(mapSupabaseMember));
   const latest = proofs[0];
 
   // A rejected squad released its team name and players; check nobody else took them.
@@ -1609,20 +1603,15 @@ async function decideInSupabase(
 
   let slot: { slotNumber: string; groupName: string } | null = null;
   if (approve) {
-    slot =
-      reg.status === 'verified' && reg.slotNumber && reg.groupName
-        ? { slotNumber: reg.slotNumber, groupName: reg.groupName }
-        : assignFirstFreeTournamentSlot(
-            (slotRes.data || [])
-              .filter((row) => String(row.event_id) === reg.eventId)
-              .map((row) => (row.slot_number ? String(row.slot_number) : null)),
-            event.maxTeams
-          );
+    const takenSlots = (slotRes.data || []).filter((row) => String(row.event_id) === reg.eventId)
+      .map((row) => (row.slot_number ? String(row.slot_number) : null));
+    slot = chooseApprovalSlot(reg, takenSlots, event.maxTeams);
   }
 
-  const regPatch = approve
+  const statusPatch = approve
     ? { status: 'verified', slot_number: slot!.slotNumber, group_name: slot!.groupName, rejection_reason: null, updated_at: now }
     : { status: nextStatus, rejection_reason: reasonText, slot_number: null, group_name: null, updated_at: now };
+  const regPatch = { ...statusPatch, last_email_status: 'pending_send', last_email_at: null };
   const proofPatch = {
     review_status: approve ? 'approved' : nextStatus,
     rejection_reason: approve ? null : reasonText,
@@ -1664,6 +1653,8 @@ async function decideInSupabase(
             group_name: reg.groupName,
             rejection_reason: reg.rejectionReason,
             updated_at: reg.updatedAt,
+            last_email_status: reg.lastEmailStatus,
+            last_email_at: reg.lastEmailAt,
           })
           .eq('id', id)
       );
@@ -1695,7 +1686,7 @@ async function decideInSupabase(
   return {
     registration: mapSupabaseRegistration(regUpd.data as Record<string, unknown>),
     event,
-    members: [],
+    members,
     proofs: proofUpd.data
       ? [mapSupabaseProof(proofUpd.data as Record<string, unknown>), ...proofs.slice(1)]
       : proofs,
@@ -2000,6 +1991,16 @@ function jwtSubject(token: string): string | null {
 const ADMIN_SESSION_TTL_MS = 60_000;
 const adminSessionCache = new Map<string, { email: string; userId: string; expiresAt: number }>();
 
+const RETIRED_LOCAL_PASSCODE_SHA256 = '3780a4f068b414a818b5633834632987c9e550b313136b008deeb19441a3f8f5';
+
+export function getLocalAdminPasscode(): string | undefined {
+  const passcode = process.env.VERCEL ? undefined : process.env.ADMIN_DEMO_PASSCODE;
+  if (!passcode) return undefined;
+  // The former demo passcode appeared in published history. Never accept it again.
+  if (crypto.createHash('sha256').update(passcode).digest('hex') === RETIRED_LOCAL_PASSCODE_SHA256) return undefined;
+  return passcode;
+}
+
 export async function verifyAdminToken(authHeader: string | undefined): Promise<{
   ok: boolean;
   email: string;
@@ -2013,7 +2014,7 @@ export async function verifyAdminToken(authHeader: string | undefined): Promise<
 
   if (!sb) {
     // Local preview token HMAC validation (development only; never accepted on Vercel).
-    const secret = process.env.VERCEL ? '' : process.env.ADMIN_DEMO_PASSCODE;
+    const secret = getLocalAdminPasscode();
     if (!secret) return { ok: false, email: '', userId: null };
     const [payloadB64, sig] = token.split('.');
     if (!payloadB64 || !sig) return { ok: false, email: '', userId: null };
@@ -2095,6 +2096,10 @@ export async function deleteRegistrations(ids: unknown): Promise<{ deleted: numb
     }
     store.registrations = store.registrations.filter((r) => !targets.has(r.id));
     store.members = store.members.filter((m) => !targets.has(m.registrationId));
+    if (store.attendance) {
+      const remainingMembers = new Set(store.members.map((member) => member.id));
+      store.attendance = store.attendance.filter((mark) => remainingMembers.has(mark.memberId));
+    }
     store.proofs = store.proofs.filter((p) => !targets.has(p.registrationId));
     store.auditLogs = store.auditLogs.filter((a) => !targets.has(a.registrationId));
     writeLocalStore(store);
@@ -2122,16 +2127,156 @@ export async function deleteRegistrations(ids: unknown): Promise<{ deleted: numb
   return { deleted: (deletedRows || []).length };
 }
 
-export async function listPublicLiveBoard(): Promise<LiveBoardSnapshot> {
-  const events = await listPublicEvents();
+interface VolunteerCredentials extends VolunteerAccount {
+  passwordHash: string;
+}
+
+export async function getVolunteerCredentials(loginId: string): Promise<VolunteerCredentials | null> {
+  const sb = getSupabaseServiceClient();
+  if (!sb) return readLocalStore().volunteers?.find((volunteer) => volunteer.loginId === loginId) ?? null;
+  const { data, error } = await sb.from('check_in_volunteers').select('login_id,password_hash').eq('login_id', loginId).maybeSingle();
+  if (error) throw error;
+  return data ? { loginId: data.login_id, passwordHash: data.password_hash } : null;
+}
+
+export async function listVolunteers(): Promise<VolunteerAccount[]> {
+  const sb = getSupabaseServiceClient();
+  if (!sb) return (readLocalStore().volunteers ?? []).map(({ loginId }) => ({ loginId })).sort((a, b) => a.loginId.localeCompare(b.loginId));
+  const { data, error } = await sb.from('check_in_volunteers').select('login_id').order('login_id');
+  if (error) throw error;
+  return data.map((row) => ({ loginId: row.login_id }));
+}
+
+export async function saveVolunteer(credentials: VolunteerCredentials, resetPassword: boolean): Promise<'saved' | 'missing' | 'duplicate'> {
+  const { loginId, passwordHash } = credentials;
+  const sb = getSupabaseServiceClient();
+  if (!sb) {
+    const store = readLocalStore();
+    const volunteers = store.volunteers ??= [];
+    const index = volunteers.findIndex((volunteer) => volunteer.loginId === loginId);
+    if (resetPassword && index < 0) return 'missing';
+    if (!resetPassword && index >= 0) return 'duplicate';
+    if (resetPassword) volunteers[index] = credentials;
+    else volunteers.push(credentials);
+    writeLocalStore(store);
+    return 'saved';
+  }
+  const table = sb.from('check_in_volunteers');
+  const query = resetPassword
+    ? table.update({ password_hash: passwordHash }).eq('login_id', loginId)
+    : table.insert({ login_id: loginId, password_hash: passwordHash });
+  const { data, error } = await query.select('login_id').maybeSingle();
+  if (!resetPassword && error?.code === '23505') return 'duplicate';
+  if (error) throw error;
+  return data ? 'saved' : 'missing';
+}
+
+function checkInSquad(registration: StoredRegistration, event: CampusEvent, members: StoredTeamMember[], marks: AttendanceMark[]): CheckInSquad {
+  const attendance = new Map(marks.map((mark) => [mark.memberId, mark]));
   return {
-    summary: computeLiveBoardSummary(events),
-    generatedAt: new Date().toISOString(),
+    teamCode: registration.teamCode,
+    teamName: registration.teamName,
+    eventTitle: event.title,
+    eventDate: event.eventDateLabel,
+    venue: event.venueLabel,
+    seat: confirmedSeat(registration),
+    players: sortByRole(members).map((member) => ({
+      id: member.id, fullName: member.fullName, slotRole: member.slotRole, inGameName: member.inGameName,
+      characterId: member.characterId, college: member.collegeOverride || registration.collegeName,
+      academicLevel: member.academicLevel, wantsLunch: member.wantsLunch, dietType: member.dietType,
+      attendance: attendance.get(member.id) ?? null,
+    })),
+  };
+}
+
+function mapAttendance(row: { member_id: string; checked_in_at: string; checked_in_by: string }): AttendanceMark {
+  return { memberId: row.member_id, checkedInAt: row.checked_in_at, checkedInBy: row.checked_in_by };
+}
+
+function findLocalCheckInRegistration(store: LocalStoreData, teamCode: string): StoredRegistration | null {
+  const matches = store.registrations.filter((row) => row.teamCode === teamCode);
+  return matches.length === 1 && confirmedSeat(matches[0]) ? matches[0] : null;
+}
+
+export async function getCheckInSquad(teamCode: string): Promise<CheckInSquad | null> {
+  const sb = getSupabaseServiceClient();
+  if (!sb) {
+    const store = readLocalStore();
+    const registration = findLocalCheckInRegistration(store, teamCode);
+    if (!registration) return null;
+    const members = store.members.filter((row) => row.registrationId === registration.id);
+    return checkInSquad(registration, store.events.find((event) => event.id === registration.eventId) || DEFAULT_EVENTS[0], members, store.attendance ?? []);
+  }
+  const { data: row, error } = await sb.from('registrations').select('id,team_code,team_name,college_name,event_id,status,slot_number,group_name').eq('team_code', teamCode).maybeSingle();
+  if (error) throw error;
+  if (!row) return null;
+  const registration = mapSupabaseRegistration(row);
+  if (!confirmedSeat(registration)) return null;
+  const [eventResult, roster] = await Promise.all([
+    sb.from('events').select('*').eq('id', registration.eventId).single(),
+    sb.from('team_members').select('*,check_in_attendance(member_id,checked_in_at,checked_in_by)').eq('registration_id', registration.id),
+  ]);
+  if (eventResult.error || roster.error) throw eventResult.error || roster.error;
+  const marks = roster.data.flatMap((member) => {
+    const mark = member.check_in_attendance;
+    return mark ? (Array.isArray(mark) ? mark : [mark]).map(mapAttendance) : [];
+  });
+  return checkInSquad(registration, mapSupabaseEvent(eventResult.data), roster.data.map(mapSupabaseMember), marks);
+}
+
+export async function markParticipantPresent(teamCode: string, memberId: string, actor: string): Promise<AttendanceMark | null> {
+  const sb = getSupabaseServiceClient();
+  if (!sb) {
+    const store = readLocalStore();
+    const registration = findLocalCheckInRegistration(store, teamCode);
+    if (!registration || !store.members.some((member) => member.id === memberId && member.registrationId === registration.id)) return null;
+    const marks = store.attendance ??= [];
+    const existing = marks.find((mark) => mark.memberId === memberId);
+    if (existing) return existing;
+    const mark = { memberId, checkedInAt: new Date().toISOString(), checkedInBy: actor };
+    marks.push(mark);
+    writeLocalStore(store);
+    return mark;
+  }
+  const { data, error } = await sb.rpc('mark_check_in_present', { p_team_code: teamCode, p_member_id: memberId, p_actor: actor });
+  if (error) throw error;
+  return data?.member_id ? mapAttendance(data) : null;
+}
+
+export async function listAttendance(page: number): Promise<{ entries: AttendanceEntry[]; hasMore: boolean }> {
+  const start = (page - 1) * CHECK_IN_PAGE_SIZE;
+  const sb = getSupabaseServiceClient();
+  if (!sb) {
+    const store = readLocalStore();
+    const members = new Map(store.members.map((member) => [member.id, member]));
+    const registrations = new Map(store.registrations.map((registration) => [registration.id, registration]));
+    const marks = [...(store.attendance ?? [])].sort((a, b) => b.checkedInAt.localeCompare(a.checkedInAt) || a.memberId.localeCompare(b.memberId));
+    const records = marks.slice(start, start + CHECK_IN_PAGE_SIZE);
+    return {
+      entries: records.flatMap((mark) => {
+        const member = members.get(mark.memberId);
+        const registration = member && registrations.get(member.registrationId);
+        return member && registration ? [{ ...mark, fullName: member.fullName, teamName: registration.teamName, teamCode: registration.teamCode }] : [];
+      }),
+      hasMore: marks.length > start + CHECK_IN_PAGE_SIZE,
+    };
+  }
+  const { data, error } = await sb.from('check_in_attendance')
+    .select('member_id,checked_in_at,checked_in_by,team_members!inner(full_name,registrations!inner(team_name,team_code))')
+    .order('checked_in_at', { ascending: false }).order('member_id').range(start, start + CHECK_IN_PAGE_SIZE)
+    .returns<Array<Parameters<typeof mapAttendance>[0] & { team_members: { full_name: string; registrations: { team_name: string; team_code: string } } }>>();
+  if (error) throw error;
+  return {
+    entries: data.slice(0, CHECK_IN_PAGE_SIZE).map((row) => ({
+      ...mapAttendance(row), fullName: row.team_members.full_name,
+      teamName: row.team_members.registrations.team_name, teamCode: row.team_members.registrations.team_code,
+    })),
+    hasMore: data.length > CHECK_IN_PAGE_SIZE,
   };
 }
 
 export function issueLocalAdminToken(email: string): string {
-  const secret = process.env.ADMIN_DEMO_PASSCODE;
+  const secret = getLocalAdminPasscode();
   if (!secret) throw new ClientInputError('Administrator login is not configured.');
   const payload = Buffer.from(
     JSON.stringify({ email, exp: Date.now() + 12 * 60 * 60 * 1000 })

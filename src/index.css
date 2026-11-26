@@ -511,10 +511,6 @@ button:disabled { cursor: not-allowed; }
 .format-list h4 { font: 600 21px var(--font-display); }
 .format-list p,.fair-play-panel p,.fair-play-panel li { font-size: 12px; line-height: 1.8; color: #bbb; margin-top: 7px; }
 .fair-play-panel ul { padding-left: 18px; margin-top: 14px; }
-.live-teams-panel { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; border-top-color: #d41b14; }
-.live-teams-panel > svg { color: #e5c736; margin-bottom: 16px; }
-.live-teams-panel h2 { font: 700 32px/1.1 var(--font-display); max-width: 360px; }
-.live-teams-panel p { font-size: 13px; line-height: 1.8; color: #ccc; margin: 16px 0 20px; }
 .faq-section { max-width: 960px; }
 .faq-section details { border-bottom: 1px solid #ffffff18; }
 .faq-section summary { cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 20px 0; font-size: 14px; font-weight: 600; list-style: none; }

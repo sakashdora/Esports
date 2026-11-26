@@ -5,7 +5,7 @@
   "functions": {
     "api/index.ts": {
       "maxDuration": 30,
-      "includeFiles": "{supabase/schema.sql,public/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.png}"
+      "includeFiles": "{supabase/schema.sql,public/assets/aistudio/SRUSTI_ESPORTS_f3d0bc97.png,public/assets/brand/srusti-academy-crest.png}"
     }
   },
   "headers": [
@@ -15,11 +15,12 @@
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "X-Frame-Options", "value": "DENY" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        { "key": "Permissions-Policy", "value": "camera=(self), microphone=(), geolocation=()" },
         { "key": "Content-Security-Policy", "value": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'" }
       ]
     }
   ],
+  "redirects": [{ "source": "/live", "destination": "/", "permanent": true }],
   "rewrites": [
     {
       "source": "/api/(.*)",

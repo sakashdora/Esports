@@ -135,9 +135,8 @@ alter table public.payment_audit_logs enable row level security;
 
 -- Grant schema and table permissions
 grant usage on schema public to anon, authenticated, service_role;
-grant all on all tables in schema public to anon, authenticated, service_role;
-grant all on all routines in schema public to anon, authenticated, service_role;
-grant all on all sequences in schema public to anon, authenticated, service_role;
+grant all on public.events, public.admin_users, public.registrations, public.team_members,
+  public.payment_proofs, public.payment_audit_logs to anon, authenticated, service_role;
 
 alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
 alter default privileges in schema public grant all on routines to anon, authenticated, service_role;

@@ -1,5 +1,5 @@
 import { waitUntil } from '@vercel/functions';
-import { sendTeamConfirmationEmail } from './email.js';
+import { sendTeamConfirmationEmail, type TeamConfirmationEmailParams } from './email.js';
 import { recordEmailAudit, type RegistrationBundle } from './store.js';
 
 /** Keep mail alive after the response on Vercel. Delivery is best effort, not a durable queue.
@@ -12,6 +12,21 @@ export function scheduleConfirmation(bundle: RegistrationBundle, deliver = deliv
   }));
 }
 
+export function registrationEmailParams(bundle: RegistrationBundle): TeamConfirmationEmailParams {
+  const r = bundle.registration;
+  const status = r.status === 'verified' || r.status === 'rejected' || r.status === 'reupload_required'
+    ? r.status : 'pending';
+  return {
+    toEmail: r.iglEmail, teamCode: r.teamCode, teamName: r.teamName,
+    eventTitle: bundle.event.title, gameTitle: bundle.event.gameTitle, status,
+    totalFee: r.totalFee, lunchCount: r.lunchCount, vegCount: r.vegCount,
+    nonVegCount: r.nonVegCount, utrNumber: bundle.proofs[0]?.utrNumber || '',
+    slotNumber: r.slotNumber, groupName: r.groupName, rejectionReason: r.rejectionReason,
+    venueLabel: bundle.event.venueLabel, eventDateLabel: bundle.event.eventDateLabel,
+    members: bundle.members,
+  };
+}
+
 export async function deliverConfirmation(
   bundle: RegistrationBundle,
   send = sendTeamConfirmationEmail,
@@ -19,21 +34,13 @@ export async function deliverConfirmation(
 ) {
   const r = bundle.registration;
   const started = performance.now();
-  const status = r.status === 'verified' || r.status === 'rejected' || r.status === 'reupload_required'
-    ? r.status : 'pending';
+  const params = registrationEmailParams(bundle);
   let sent = false;
   try {
-    const result = await send({
-      toEmail: r.iglEmail, teamCode: r.teamCode, teamName: r.teamName,
-      eventTitle: bundle.event.title, gameTitle: bundle.event.gameTitle, status,
-      totalFee: r.totalFee, lunchCount: r.lunchCount, vegCount: r.vegCount,
-      nonVegCount: r.nonVegCount, utrNumber: bundle.proofs[0]?.utrNumber || '',
-      slotNumber: r.slotNumber, groupName: r.groupName, rejectionReason: r.rejectionReason,
-      venueLabel: bundle.event.venueLabel, eventDateLabel: bundle.event.eventDateLabel,
-    });
+    const result = await send(params);
     sent = result.sent;
   } finally {
-    await audit(r.id, sent, sent ? `Sent ${status} notification` : `${status} notification failed or SMTP unavailable; admin can resend`, r.status);
+    await audit(r.id, sent, sent ? `Sent ${params.status} notification` : `${params.status} notification failed or SMTP unavailable; admin can resend`, r.status);
     console.info(JSON.stringify({ operation: 'notification', durationMs: Math.round(performance.now() - started), sent }));
   }
 }

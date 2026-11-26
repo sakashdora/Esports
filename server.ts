@@ -5,6 +5,7 @@ import { createApiApp } from './server/app.js';
 
 async function startServer() {
   const app = createApiApp();
+  app.get('/live', (_req, res) => res.redirect(308, '/'));
 
   // Frontend Vite middleware (dev) or static dist serving (production)
   if (process.env.NODE_ENV !== 'production') {

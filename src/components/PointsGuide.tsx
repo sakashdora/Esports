@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronDown, Crosshair, Trophy } from 'lucide-react';
+import { ChevronDown, Crosshair, Trophy } from 'lucide-react';
 import type { CampusEvent } from '../lib/defaultEvents';
 import { getEventBannerUrl } from '../lib/eventArtwork';
 import './PointsGuide.css';
@@ -8,12 +8,7 @@ const scoreBanners: Record<string, string> = {
   'kurukshetra-free-fire': '/assets/brand/kurukshetra-scoreboard.jpg',
 };
 
-interface PointsGuideProps {
-  events: CampusEvent[];
-  onViewTeams: () => void;
-}
-
-export function PointsGuide({ events, onViewTeams }: PointsGuideProps) {
+export function PointsGuide({ events }: { events: CampusEvent[] }) {
   return (
     <details className="arena-scoring">
       <summary className="scoring-toggle">
@@ -31,9 +26,6 @@ export function PointsGuide({ events, onViewTeams }: PointsGuideProps) {
             <EventScorecard key={event.id} event={event} />
           ))}
         </div>
-        <button type="button" className="arena-button primary" onClick={onViewTeams}>
-          View registration counts <ArrowRight aria-hidden="true" />
-        </button>
       </div>
     </details>
   );

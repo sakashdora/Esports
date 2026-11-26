@@ -1,5 +1,5 @@
 import { ArrowRight, CalendarDays, Clock3, MapPin, Trophy } from 'lucide-react';
-import { ACADEMY_MAP_URL, ACADEMY_NAME } from '../lib/academy';
+import { ACADEMY_MAP_URL } from '../lib/academy';
 import { EVENT_ENTRY_ISO, type CampusEvent } from '../lib/defaultEvents';
 import { getEventBannerUrl } from '../lib/eventArtwork';
 import type { AppRoute } from './Navbar';
@@ -27,7 +27,7 @@ export function ChampionshipStage({ events, loading, onNavigate }: { events: Cam
             <span><CalendarDays aria-hidden="true" /><time dateTime={EVENT_ENTRY_ISO}>13th December 2026</time></span>
             <span><Clock3 aria-hidden="true" />ENTRY 9:30 AM IST</span>
             <a className="campus-map-link" href={ACADEMY_MAP_URL} target="_blank" rel="noopener noreferrer">
-              <MapPin aria-hidden="true" /><span>{ACADEMY_NAME}</span>
+              <MapPin aria-hidden="true" /><span>Srusti Campus</span>
             </a>
           </div>
           <div className="hero-actions">
@@ -57,7 +57,7 @@ export function ChampionshipStage({ events, loading, onNavigate }: { events: Cam
           </div>
         </article>)}
       </div>
-      <PointsGuide events={events} onViewTeams={() => onNavigate({ page: 'live' })} />
+      <PointsGuide events={events} />
       <a className="arena-button secondary mt-4" href="/tournament-guide">Explore tournament guide <ArrowRight aria-hidden="true" /></a>
     </section>
   </div>;

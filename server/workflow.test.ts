@@ -11,9 +11,11 @@ test('local registration, review, reupload, privacy and admin authorization', as
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'efest-workflow-'));
   const result = spawnSync(process.execPath, ['--import', pathToFileURL(path.resolve('node_modules/tsx/dist/loader.mjs')).href, '--input-type=module', '-e', `
     import assert from 'node:assert/strict';
-    const { createRegistrationWithProof, trackRegistration, decideRegistrationPayment, resubmitPaymentProof, listPublicLiveBoard, updateEventConfig, listPublicEvents, issueLocalAdminToken, verifyAdminToken } = await import(${JSON.stringify(new URL('./store.ts', import.meta.url).href)});
+    const { createRegistrationWithProof, trackRegistration, decideRegistrationPayment, resubmitPaymentProof, updateEventConfig, listPublicEvents, issueLocalAdminToken, verifyAdminToken } = await import(${JSON.stringify(new URL('./store.ts', import.meta.url).href)});
     const { createApiApp } = await import(${JSON.stringify(new URL('./app.ts', import.meta.url).href)});
     const { OTHER_ACADEMIC_LEVEL } = await import(${JSON.stringify(new URL('../src/lib/tournamentRules.ts', import.meta.url).href)});
+    const { default: jsQR } = await import(${JSON.stringify(pathToFileURL(path.resolve('node_modules/jsqr/dist/jsQR.js')).href)});
+    const { PNG } = await import(${JSON.stringify(pathToFileURL(path.resolve('node_modules/pngjs/lib/png.js')).href)});
     const members = ['IGL','P2','P3','P4','SUB'].map((slotRole, index) => ({
       slotRole, fullName: 'Private Student '+index, inGameName: 'Player'+index, characterId: '10000'+index,
       academicLevel: index === 1 ? OTHER_ACADEMIC_LEVEL : 'UG',
@@ -39,10 +41,6 @@ test('local registration, review, reupload, privacy and admin authorization', as
     const approved = await decideRegistrationPayment({registrationId:bundle.registration.id,decision:'approve',actorEmail:'admin@example.test',actorId:null});
     assert.equal(approved.registration.status,'verified');
     assert.equal(approved.registration.slotNumber,'A1');
-    const board = await listPublicLiveBoard();
-    assert.deepEqual(Object.keys(board).sort(), ['generatedAt','summary']);
-    assert.equal(board.summary.totalActive,1);
-    assert.equal(board.summary.verifiedCount,1);
     delete process.env.ADMIN_DEMO_PASSCODE;
     assert.equal((await verifyAdminToken('Bearer invalid')).ok,false);
     assert.throws(()=>issueLocalAdminToken('admin@example.test'));
@@ -61,12 +59,83 @@ test('local registration, review, reupload, privacy and admin authorization', as
       assert.equal(allowed.status,200);
       assert.equal(allowed.headers.get('cache-control'),'no-store');
       assert.equal(allowed.headers.get('x-frame-options'),'DENY');
+      const overview = await allowed.json();
+      assert.equal(overview.bundles.length,1);
+      assert.equal(overview.bundles[0].registration.status,'verified');
       const badLogin = await fetch(base+'/api/admin/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email:'admin@example.test',password:'wrong-password'})});
       assert.equal(badLogin.status,401);
       const login = await fetch(base+'/api/admin/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email:'admin@example.test',password:'isolated-test-password'})});
       assert.equal(login.status,200);
       const loginData = await login.json();
+      assert.equal(loginData.role,'admin');
       const adminHeaders = {Authorization:'Bearer '+loginData.token,'Content-Type':'application/json'};
+      const jsonHeaders = {'Content-Type':'application/json'};
+      const post = (url, body, headers = jsonHeaders, method = 'POST') => fetch(base+url,{method,headers,body:JSON.stringify(body)});
+      const volunteerPassword = 'test-volunteer-pass';
+      const volunteerBody = {loginId:'Front-Desk',password:volunteerPassword};
+      assert.equal((await post('/api/admin/volunteers',volunteerBody)).status,401);
+      assert.equal((await post('/api/admin/volunteers',{...volunteerBody,password:'short'},adminHeaders)).status,400);
+      const volunteerAccount = await post('/api/admin/volunteers',volunteerBody,adminHeaders);
+      assert.equal(volunteerAccount.status,201);
+      assert.deepEqual(await volunteerAccount.json(),{loginId:'front-desk'});
+      assert.equal((await post('/api/admin/volunteers',volunteerBody,adminHeaders)).status,409);
+      const volunteers = await fetch(base+'/api/admin/volunteers',{headers:adminHeaders});
+      assert.deepEqual(await volunteers.json(),{volunteers:[{loginId:'front-desk'}]});
+      const volunteerSignIn = (password) => post('/api/admin/login',{email:'FRONT-DESK',password});
+      assert.equal((await volunteerSignIn('wrong-password')).status,401);
+      const volunteerLogin = await volunteerSignIn(volunteerPassword);
+      assert.equal(volunteerLogin.status,200);
+      const volunteer = await volunteerLogin.json();
+      assert.equal(volunteer.role,'volunteer');
+      const volunteerHeaders = {...jsonHeaders,Authorization:'Bearer '+volunteer.token};
+      for (const route of ['/api/admin/overview','/api/admin/volunteers','/api/admin/proof-image/'+bundle.proofs[0].id]) {
+        assert.equal((await fetch(base+route,{headers:volunteerHeaders})).status,401);
+      }
+      const passRequest = (phone) => post('/api/registrations/check-in-pass',{teamCode:bundle.registration.teamCode,iglPhone:phone});
+      assert.equal((await passRequest(undefined)).status,404);
+      assert.equal((await passRequest('9876543211')).status,404);
+      const pass = await passRequest(input.iglPhone);
+      assert.equal(pass.status,200);
+      assert.equal(pass.headers.get('cache-control'),'no-store');
+      assert.match(pass.headers.get('content-disposition'),new RegExp(bundle.registration.teamCode+'-check-in.png'));
+      const passPng = PNG.sync.read(Buffer.from(await pass.arrayBuffer()));
+      const scan = jsQR(new Uint8ClampedArray(passPng.data),passPng.width,passPng.height);
+      assert.ok(scan,'downloaded QR should be readable');
+      assert.equal((await post('/api/check-in/lookup',{code:scan.data})).status,401);
+      assert.equal((await fetch(base+'/api/check-in/attendance')).status,401);
+      const found = await post('/api/check-in/lookup',{code:scan.data.replace('Test Squad','Untrusted QR Name')},volunteerHeaders);
+      assert.equal(found.status,200);
+      const {squad:checkedSquad} = await found.json();
+      assert.equal(checkedSquad.teamName,input.teamName);
+      assert.equal(checkedSquad.players.length,5);
+      assert.equal(checkedSquad.players[1].college,'Private College 1');
+      assert.equal(checkedSquad.players[0].attendance,null);
+      assert.ok(!JSON.stringify(checkedSquad).includes(input.iglEmail));
+      assert.ok(!JSON.stringify(checkedSquad).includes(input.iglPhone));
+      const presentUrl = '/api/check-in/'+bundle.registration.teamCode+'/present';
+      const player = {memberId:checkedSquad.players[0].id};
+      assert.equal((await post(presentUrl,player)).status,401);
+      assert.equal((await post(presentUrl,{memberId:'cccccccc-ffff-4444-8888-aaaaaaaaaaaa'},volunteerHeaders)).status,404);
+      const firstMark = await post(presentUrl,player,volunteerHeaders);
+      assert.equal(firstMark.status,200);
+      const {mark} = await firstMark.json();
+      assert.equal(mark.checkedInBy,'front-desk');
+      const repeatMark = await post(presentUrl,player,adminHeaders);
+      assert.deepEqual((await repeatMark.json()).mark,mark);
+      const adminScan = await post('/api/check-in/lookup',{code:bundle.registration.teamCode},adminHeaders);
+      assert.deepEqual((await adminScan.json()).squad.players[0].attendance,mark);
+      for (const headers of [adminHeaders,volunteerHeaders]) {
+        const attendance = await fetch(base+'/api/check-in/attendance',{headers});
+        assert.equal(attendance.status,200);
+        assert.deepEqual(await attendance.json(),{entries:[{...mark,fullName:members[0].fullName,teamName:input.teamName,teamCode:bundle.registration.teamCode}],hasMore:false});
+      }
+      const resetUrl = '/api/admin/volunteers/front-desk/password';
+      const reset = {password:'new-test-volunteer-pass'};
+      assert.equal((await post(resetUrl,reset,volunteerHeaders,'PATCH')).status,401);
+      assert.equal((await post(resetUrl,reset,adminHeaders,'PATCH')).status,200);
+      assert.equal((await fetch(base+'/api/check-in/attendance',{headers:volunteerHeaders})).status,401);
+      assert.equal((await volunteerSignIn(volunteerPassword)).status,401);
+      assert.equal((await volunteerSignIn(reset.password)).status,200);
       for (const format of ['xlsx','pdf']) {
         const denied = await fetch(base+'/api/admin/export/'+format,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
         assert.equal(denied.status,401);
@@ -145,41 +214,20 @@ test('local registration, review, reupload, privacy and admin authorization', as
       assert.deepEqual(await malformed.json(),{error:'Invalid request body.'});
       const proofDenied=await fetch(base+'/api/admin/proof-image/'+bundle.proofs[0].id);
       assert.equal(proofDenied.status,401);
-      const publicBoard=await fetch(base+'/api/live-registrations');
-      const publicText=await publicBoard.text();
-      assert.equal(publicBoard.status,200);
-      assert.deepEqual(Object.keys(JSON.parse(publicText)).sort(), ['generatedAt','realtime','summary']);
-      assert.equal(publicText.includes(bundle.registration.teamCode),false);
-      assert.equal(publicText.includes(input.teamName),false);
-      assert.equal(publicText.includes(input.collegeName),false);
-      assert.equal(publicText.includes('Private College'),false);
-      assert.equal(publicText.includes(members[0].inGameName),false);
-      assert.equal(publicText.includes(input.iglEmail),false);
-      assert.equal(publicText.includes(input.iglPhone),false);
-      const { get } = await import('node:http');
-      const frame = await new Promise((resolve, reject) => {
-        const request = get(base+'/api/live-registrations/stream', response => {
-          let buffer = '';
-          response.setEncoding('utf8');
-          response.on('data', chunk => {
-            buffer += chunk;
-            const boundary = buffer.indexOf('\\n\\n');
-            if (boundary < 0) return;
-            resolve(buffer.slice(0, boundary));
-            response.destroy();
-          });
-          response.on('end', () => reject(new Error('Live stream closed before sending a snapshot.')));
-          response.on('error', reject);
-        });
-        request.setTimeout(3000, () => request.destroy(new Error('Live stream timed out.')));
-        request.on('error', reject);
-      });
-      const dataLine = frame.split('\\n').find(line => line.startsWith('data: '));
-      assert.ok(dataLine);
-      const snapshot = JSON.parse(dataLine.slice(6));
-      assert.deepEqual(Object.keys(snapshot).sort(), ['generatedAt','summary']);
-      assert.equal(snapshot.summary.totalActive,1);
-      assert.equal(frame.includes(bundle.registration.teamCode),false);
+      for (const route of ['/api/live-registrations', '/api/live-registrations/stream']) {
+        assert.equal((await fetch(base+route)).status,404);
+      }
+      for (const route of ['/api/events','/api/events/'+bgmi.slug]) {
+        const publicEvents = await fetch(base+route);
+        assert.equal(publicEvents.status,200);
+        const publicText = await publicEvents.text();
+        const payload = JSON.parse(publicText);
+        const publicBgmi = payload.event || payload.events.find((event) => event.slug === bgmi.slug);
+        assert.equal(publicBgmi.maxTeams,bgmi.maxTeams);
+        for (const value of ['registeredCount','verifiedCount','pendingCount',bundle.registration.teamCode,input.teamName,input.collegeName,'Private College',members[0].inGameName,input.iglEmail,input.iglPhone]) {
+          assert.equal(publicText.includes(value),false);
+        }
+      }
       // Latest proof is reported first after a re-upload.
       const tracked = await trackRegistration(bundle.registration.teamCode,input.iglPhone);
       assert.equal(tracked.proofs[0].utrNumber,'123456789013');
@@ -191,6 +239,8 @@ test('local registration, review, reupload, privacy and admin authorization', as
       const resent = await resubmitPaymentProof({teamCode:second.registration.teamCode,iglPhone:'9876500001',utrNumber:'223456789012',upiApp:'UPI',fileBuffer:png('03')});
       assert.equal(resent.registration.status,'pending');
       assert.equal(resent.proofs[0].reviewStatus,'pending');
+      assert.equal((await post('/api/check-in/lookup',{code:second.registration.teamCode},adminHeaders)).status,404);
+      assert.equal((await post('/api/registrations/check-in-pass',{teamCode:second.registration.teamCode,iglPhone:'9876500001'})).status,404);
       // Another team still cannot reuse that UTR.
       await assert.rejects(createRegistrationWithProof({...input,teamName:'Copy Squad',iglPhone:'9876500002',members:squad('30000'),utrNumber:'223456789012',fileBuffer:png('04')}));
       // A seat vacated by a rejected team is reused; occupied seats are never duplicated.
@@ -254,9 +304,49 @@ test('local registration, review, reupload, privacy and admin authorization', as
       const secondApproved = await decideRegistrationPayment({registrationId:second.registration.id,decision:'approve',actorEmail:'admin@example.test',actorId:null});
       assert.equal(secondApproved.registration.slotNumber,'A2');
       await decideRegistrationPayment({registrationId:bundle.registration.id,decision:'reject',reason:'Test rejection',actorEmail:'admin@example.test',actorId:null});
+      assert.equal((await post('/api/check-in/lookup',{code:scan.data},adminHeaders)).status,404);
+      assert.equal((await post(presentUrl,player,adminHeaders)).status,404);
       const third = await createRegistrationWithProof({...input,teamName:'Third Squad',iglPhone:'9876500003',members:squad('40000'),utrNumber:'423456789012',fileBuffer:png('05')});
       const thirdApproved = await decideRegistrationPayment({registrationId:third.registration.id,decision:'approve',actorEmail:'admin@example.test',actorId:null});
       assert.equal(thirdApproved.registration.slotNumber,'A1');
+
+      // Multiple tournaments for one game can share a code prefix. Tracking must still
+      // distinguish both teams even when they register with the same leader phone.
+      const createSameGameEvent = async (title) => {
+        const response = await post('/api/admin/events',{title,gameTitle:'BGMI',maxTeams:2,upiVpa:'college@sbi'},adminHeaders);
+        assert.equal(response.status,201);
+        return (await response.json()).event;
+      };
+      const arenaOne = await createSameGameEvent('Same Game Arena One');
+      const arenaTwo = await createSameGameEvent('Same Game Arena Two');
+      const arenaRegistration = (event, suffix) => createRegistrationWithProof({
+        ...input, eventSlug:event.slug, teamName:'Arena Team '+suffix,
+        members:squad('700'+suffix), utrNumber:'34012345678'+suffix, fileBuffer:png('1'+suffix),
+      });
+      const arenaTeamOne = await arenaRegistration(arenaOne,1);
+      const arenaTeamTwo = await arenaRegistration(arenaTwo,2);
+      assert.notEqual(arenaTeamOne.registration.teamCode,arenaTeamTwo.registration.teamCode);
+      for(const {registration} of [arenaTeamOne,arenaTeamTwo]) {
+        const trackedTeam = await trackRegistration(registration.teamCode,input.iglPhone);
+        assert.equal(trackedTeam.registration.id,registration.id);
+      }
+      await deletePost(adminHeaders,{ids:[arenaTeamTwo.registration.id]});
+      const arenaTeamThree = await arenaRegistration(arenaOne,3);
+      assert.notEqual(arenaTeamThree.registration.teamCode,arenaTeamTwo.registration.teamCode);
+      const overflow = await arenaRegistration(arenaOne,4);
+      assert.equal(overflow.registration.status,'waitlisted');
+      const approveArenaTeam = (team) => decideRegistrationPayment({registrationId:team.registration.id,decision:'approve',actorEmail:'admin@example.test',actorId:null});
+      await approveArenaTeam(arenaTeamOne);
+      await approveArenaTeam(arenaTeamThree);
+      const waiting = await approveArenaTeam(overflow);
+      assert.equal(waiting.registration.slotNumber,'WL-1');
+      assert.equal((await approveArenaTeam(overflow)).registration.slotNumber,'WL-1');
+      const overflowPass = {teamCode:overflow.registration.teamCode,iglPhone:input.iglPhone};
+      assert.equal((await post('/api/registrations/check-in-pass',overflowPass)).status,404);
+      await decideRegistrationPayment({registrationId:arenaTeamOne.registration.id,decision:'reject',reason:'Synthetic team withdrew',actorEmail:'admin@example.test',actorId:null});
+      const promoted = await approveArenaTeam(overflow);
+      assert.equal(promoted.registration.slotNumber,'A1');
+      assert.equal((await post('/api/registrations/check-in-pass',overflowPass)).status,200);
     } finally { server.close(); }
   `], { cwd: fixture, encoding: 'utf8', env: { ...process.env, SUPABASE_URL: '', SUPABASE_ANON_KEY: '', SUPABASE_SERVICE_ROLE_KEY: '', VERCEL: '', SMTP_HOST: '', SMTP_USER: '', SMTP_PASS: '' } });
   assert.equal(result.status, 0, result.stderr + result.stdout);

@@ -23,7 +23,7 @@ import './registration.css';
 
 interface RegisterViewProps {
   events: CampusEvent[];
-  initialSlug: string;
+  event: CampusEvent;
   onNavigate: (next: AppRoute) => void;
   onRefreshEvents: () => void;
 }
@@ -94,18 +94,13 @@ const REGISTRATION_STEPS = ['Squad details', 'Player roster', 'Payment', 'Receip
 
 export function RegisterView({
   events,
-  initialSlug,
+  event,
   onNavigate,
   onRefreshEvents,
 }: RegisterViewProps) {
-  const [selectedSlug, setSelectedSlug] = useState(initialSlug);
-  const event = useMemo(
-    () => events.find((e) => e.slug === selectedSlug) || events[0],
-    [events, selectedSlug]
-  );
-
   // An unfinished registration from this browser (refresh, closed tab, lost connection).
   const [savedDraft] = useState(() => loadDraft());
+  const sameTournamentDraft = savedDraft?.eventSlug === event.slug ? savedDraft : null;
   const [draftRestored, setDraftRestored] = useState(Boolean(savedDraft));
   const [teamName, setTeamName] = useState(savedDraft?.teamName ?? '');
   const [iglPhone, setIglPhone] = useState(savedDraft?.iglPhone ?? '');
@@ -131,19 +126,19 @@ export function RegisterView({
   const leaderName = leader?.fullName ?? '';
   const collegeName = leader?.collegeOverride ?? '';
   const [step, setStep] = useState<1 | 2 | 3 | 4>(() => {
-    if (savedDraft?.step !== 3) return savedDraft?.step ?? 1;
-    const roster = validateSquadSubmission({ ...savedDraft, eventSlug: event?.slug ?? initialSlug, collegeName, members });
+    if (sameTournamentDraft?.step !== 3) return sameTournamentDraft?.step ?? 1;
+    const roster = validateSquadSubmission({ ...sameTournamentDraft, collegeName, members });
     return roster.valid ? 3 : 2;
   });
   const stepHeading = useRef<HTMLHeadingElement>(null);
   const previousStep = useRef(step);
   const [eligibilityConfirmed, setEligibilityConfirmed] = useState(savedDraft?.eligibilityConfirmed ?? false);
   const [fairPlayConfirmed, setFairPlayConfirmed] = useState(savedDraft?.fairPlayConfirmed ?? false);
-  const [activeSkillConfirmed, setActiveSkillConfirmed] = useState(savedDraft?.activeSkillConfirmed ?? false);
+  const [activeSkillConfirmed, setActiveSkillConfirmed] = useState(sameTournamentDraft?.activeSkillConfirmed ?? false);
 
   // Payment step state
-  const [utrNumber, setUtrNumber] = useState(savedDraft?.utrNumber ?? '');
-  const [upiApp, setUpiApp] = useState(savedDraft?.upiApp ?? 'Google Pay');
+  const [utrNumber, setUtrNumber] = useState(sameTournamentDraft?.utrNumber ?? '');
+  const [upiApp, setUpiApp] = useState(sameTournamentDraft?.upiApp ?? 'Google Pay');
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
 
@@ -157,6 +152,22 @@ export function RegisterView({
     emailNote: string;
   } | null>(null);
 
+  const [formEventSlug, setFormEventSlug] = useState(event.slug);
+  if (formEventSlug !== event.slug) {
+    // Keep the roster, but reset the event-specific state before rendering the new entry form.
+    setFormEventSlug(event.slug);
+    setStep(1);
+    setActiveSkillConfirmed(false);
+    setUtrNumber('');
+    setUpiApp('Google Pay');
+    setScreenshotFile(null);
+    setScreenshotPreview(null);
+    setDraftRestored(false);
+    setReceipt(null);
+    setFieldErrors({});
+    setSubmitError('');
+  }
+
   const activeMembers = useMemo(
     () => members.filter((m) => (hasSubstitute ? true : m.slotRole !== 'SUB')),
     [members, hasSubstitute]
@@ -164,7 +175,7 @@ export function RegisterView({
   const requiredMembers = members.filter((member) => member.slotRole !== 'SUB');
   const substitute = members.find((member) => member.slotRole === 'SUB');
   const rosterErrors = step === 2 ? validateSquadSubmission({
-    eventSlug: event?.slug ?? initialSlug,
+    eventSlug: event.slug,
     teamName, collegeName, iglPhone, iglEmail,
     hasSubstitute: false,
     members: requiredMembers,
@@ -210,22 +221,23 @@ export function RegisterView({
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, [step]);
 
-  // Save progress shortly after every change. Screenshots are files and cannot be kept.
+  // Save the current step before a quick reload. Screenshots are files and cannot be kept.
   useEffect(() => {
-    if (step === 4 || !event) return;
+    if (step === 4) return;
     const hasContent = [teamName, collegeName, iglPhone, iglEmail, utrNumber].some((v) => v.trim()) ||
       members.some((m) => m.fullName.trim() || m.inGameName.trim() || m.characterId.trim() ||
         m.collegeOverride?.trim() || m.otherAcademicLevel?.trim());
     if (!hasContent) return;
-    const timer = window.setTimeout(() => {
-      saveDraft({
-        eventSlug: event.slug, step, teamName, collegeName, iglPhone, iglEmail, hasSubstitute,
-        members, eligibilityConfirmed, fairPlayConfirmed, activeSkillConfirmed, utrNumber, upiApp,
-      });
-    }, 400);
-    return () => window.clearTimeout(timer);
-  }, [event, step, teamName, collegeName, iglPhone, iglEmail, hasSubstitute, members,
+    saveDraft({
+      eventSlug: event.slug, step, teamName, collegeName, iglPhone, iglEmail, hasSubstitute,
+      members, eligibilityConfirmed, fairPlayConfirmed, activeSkillConfirmed, utrNumber, upiApp,
+    });
+  }, [event.slug, step, teamName, collegeName, iglPhone, iglEmail, hasSubstitute, members,
     eligibilityConfirmed, fairPlayConfirmed, activeSkillConfirmed, utrNumber, upiApp]);
+
+  useEffect(() => {
+    if (screenshotPreview) return () => URL.revokeObjectURL(screenshotPreview);
+  }, [screenshotPreview]);
 
   function startOver() {
     clearDraft();
@@ -482,13 +494,12 @@ export function RegisterView({
                     <select
                       id="reg-event"
                       value={event.slug}
-                      onChange={(e) => setSelectedSlug(e.target.value)}
+                      onChange={(e) => onNavigate({ page: 'register', slug: e.target.value })}
                       className="mt-1.5 w-full rounded-md border border-white/15 bg-[#110D0C] px-3.5 py-2.5 text-sm text-white focus:border-[#D41B14] focus:outline-none"
                     >
                       {events.map((item) => (
                         <option key={item.id} value={item.slug}>
-                          {eventLabel(item)} ({item.registeredCount || 0}/{item.maxTeams}{' '}
-                          Teams)
+                          {eventLabel(item)}
                         </option>
                       ))}
                     </select>

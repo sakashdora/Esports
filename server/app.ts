@@ -1,14 +1,14 @@
-import { scheduleConfirmation } from './notifications.js';
+import { registrationEmailParams, scheduleConfirmation } from './notifications.js';
 import { ClientInputError, clientErrorMessage } from './errors.js';
 import { filterAdminRegistrations, type AdminFilters } from '../src/lib/adminFilters.js';
 import { exportAdminPdf, exportAdminWorkbook } from './adminExports.js';
 import 'dotenv/config';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
-import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
-import { isSmtpConfigured, sendTeamConfirmationEmail } from './email.js';
+import { createCheckInQr, isSmtpConfigured, resolveAppUrl, sendTeamConfirmationEmail } from './email.js';
+import { mountCheckInRoutes, signInVolunteer } from './checkIn.js';
 import {
   createExtensibleEvent,
   createRegistrationWithProof,
@@ -17,6 +17,7 @@ import {
   getProofFile,
   deleteRegistrations,
   getRegistrationBundleById,
+  getLocalAdminPasscode,
   getLocalQrFile,
   getSupabaseAnonClient,
   getSupabaseServiceClient,
@@ -24,7 +25,6 @@ import {
   issueLocalAdminToken,
   listAdminDashboardData,
   listPublicEvents,
-  listPublicLiveBoard,
   recordEmailAudit,
   resubmitPaymentProof,
   saveOfficialQrImage,
@@ -35,21 +35,9 @@ import {
 } from './store.js';
 import type { PlayerInput } from '../src/lib/tournamentRules.js';
 
-const liveBoardEmitter = new EventEmitter();
-liveBoardEmitter.setMaxListeners(100);
-
-// Serverless instances (Vercel) cannot hold long-lived streams or share in-process events,
-// so the live board polls there instead of streaming.
-const supportsStreaming = !process.env.VERCEL;
-
-// Public read endpoints may be briefly cached by the CDN; this absorbs traffic spikes
-// without making counts noticeably stale.
+// Brief public caching absorbs repeat reads during traffic spikes.
 function setPublicCache(res: Response) {
   res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=2, must-revalidate');
-}
-
-function emitLiveBoardUpdate() {
-  liveBoardEmitter.emit('update', { timestamp: new Date().toISOString() });
 }
 
 const upload = multer({
@@ -105,7 +93,7 @@ export function createApiApp(): Express {
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Content-Security-Policy', "frame-ancestors 'none'; object-src 'none'; base-uri 'self'");
-    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
     res.setHeader('Cache-Control', 'no-store');
     next();
   });
@@ -140,67 +128,6 @@ export function createApiApp(): Express {
       const message = 'Failed to load events';
       res.status(500).json({ error: message });
     }
-  });
-
-  // Public registration totals (JSON and server-sent events).
-  app.get('/api/live-registrations', async (_req, res) => {
-    try {
-      const board = await listPublicLiveBoard();
-      setPublicCache(res);
-      res.json({ ...board, realtime: supportsStreaming });
-    } catch (err) {
-      const message = 'Failed to load live registered teams.';
-      res.status(500).json({ error: message });
-    }
-  });
-
-  app.get('/api/live-registrations/stream', async (req, res) => {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders?.();
-
-    if (!supportsStreaming) {
-      // Tell the browser to reconnect slowly; the page polls the JSON endpoint instead.
-      res.write('retry: 60000\n\n');
-      try {
-        const board = await listPublicLiveBoard();
-        res.write(`event: board\ndata: ${JSON.stringify(board)}\n\n`);
-      } catch {
-        // The page falls back to polling.
-      }
-      res.end();
-      return;
-    }
-
-    const sendSnapshot = async () => {
-      try {
-        const board = await listPublicLiveBoard();
-        if (!res.writableEnded) {
-          res.write(`event: board\ndata: ${JSON.stringify(board)}\n\n`);
-        }
-      } catch {
-        // Ignore transient read errors during stream push
-      }
-    };
-
-    await sendSnapshot();
-
-    const onUpdate = () => {
-      void sendSnapshot();
-    };
-    liveBoardEmitter.on('update', onUpdate);
-
-    const heartbeat = setInterval(() => {
-      if (!res.writableEnded) {
-        res.write(`: ping ${Date.now()}\n\n`);
-      }
-    }, 25000);
-
-    req.on('close', () => {
-      clearInterval(heartbeat);
-      liveBoardEmitter.off('update', onUpdate);
-    });
   });
 
   app.get('/api/events/:slug', async (req, res) => {
@@ -258,7 +185,6 @@ export function createApiApp(): Express {
 
         scheduleConfirmation(bundle);
 
-        emitLiveBoardUpdate();
 
         return res.status(201).json({
           registration: bundle.registration,
@@ -349,7 +275,6 @@ export function createApiApp(): Express {
           upiApp: String(req.body.upiApp || 'UPI'),
           fileBuffer: req.file.buffer,
         });
-        emitLiveBoardUpdate();
         return res.json({ ok: true, registration: bundle.registration });
       } catch (err) {
         const message = clientErrorMessage(err, 'Re-upload failed.');
@@ -358,26 +283,47 @@ export function createApiApp(): Express {
     }
   );
 
-  // 6. Admin Login
+  app.post('/api/registrations/check-in-pass', rateLimit(15, 60_000), async (req, res) => {
+    try {
+      const { teamCode, iglPhone } = req.body ?? {};
+      const bundle = typeof teamCode === 'string' && typeof iglPhone === 'string'
+        ? await trackRegistration(teamCode, iglPhone)
+        : null;
+      const qr = bundle && await createCheckInQr(registrationEmailParams(bundle), resolveAppUrl());
+      if (!qr) return res.status(404).json({ error: 'No confirmed check-in pass found. Verify your Team ID and team leader phone number.' });
+      res.attachment(`${bundle.registration.teamCode}-check-in.png`).type('png').send(qr.png);
+    } catch {
+      res.status(500).json({ error: 'Unable to prepare the check-in QR. Please try again.' });
+    }
+  });
+
+  // 6. Admin and volunteer sign-in
   app.post('/api/admin/login', rateLimit(15, 60_000), async (req, res) => {
     try {
       const email = String(req.body.email || '').trim().toLowerCase();
       const password = String(req.body.password || '');
+
+      const volunteer = await signInVolunteer(email, password);
+      if (volunteer) {
+        if (!volunteer.token) return res.status(401).json({ error: 'Invalid credentials.' });
+        return res.json({ token: volunteer.token, email, role: 'volunteer' });
+      }
 
       if (!isSupabaseConfigured()) {
         // The passcode fallback is for local development only. On Vercel it can never be
         // legitimate (storage there is temporary), so it must not be usable even if the
         // database settings go missing, and an old passcode in git history must not open it.
         if (process.env.VERCEL) return res.status(503).json({ error: 'Administrator login is not configured.' });
-        const expected = process.env.ADMIN_DEMO_PASSCODE;
+        const expected = getLocalAdminPasscode();
         if (!expected) return res.status(503).json({ error: 'Administrator login is not configured.' });
         if (password !== expected) {
           return res.status(401).json({ error: 'Invalid credentials.' });
         }
-        const adminEmail = email || 'info.esport@srustiacademy.ac.in';
+        const adminEmail = email || 'admin@samt.local';
         return res.json({
           token: issueLocalAdminToken(adminEmail),
           email: adminEmail,
+          role: 'admin',
           mode: 'local',
         });
       }
@@ -406,6 +352,7 @@ export function createApiApp(): Express {
       return res.json({
         token: data.session.access_token,
         email: String(allowRow.email),
+        role: 'admin',
         mode: 'supabase',
       });
     } catch (err) {
@@ -413,6 +360,8 @@ export function createApiApp(): Express {
       return res.status(500).json({ error: message });
     }
   });
+
+  mountCheckInRoutes(app, requireAdmin, rateLimit(30, 60_000));
 
   // 7. Protected Admin Dashboard Overview
   app.get('/api/admin/overview', requireAdmin, async (_req: AdminRequest, res) => {
@@ -467,7 +416,6 @@ export function createApiApp(): Express {
     try {
       const result = await deleteRegistrations(req.body?.ids);
       console.info(JSON.stringify({ operation: 'admin-delete', deleted: result.deleted }));
-      emitLiveBoardUpdate();
       return res.json({ ok: true, deleted: result.deleted });
     } catch (err) {
       return res.status(400).json({ error: clientErrorMessage(err, 'Delete failed.') });
@@ -490,7 +438,6 @@ export function createApiApp(): Express {
 
       scheduleConfirmation(bundle);
 
-      emitLiveBoardUpdate();
 
       return res.json({
         ok: true,
@@ -516,41 +463,15 @@ export function createApiApp(): Express {
         const bundle = await getRegistrationBundleById(req.params.id);
         if (!bundle) return res.status(404).json({ error: 'Registration not found.' });
 
-        const latestProof = bundle.proofs[0];
-        const statusForEmail =
-          bundle.registration.status === 'verified'
-            ? 'verified'
-            : bundle.registration.status === 'reupload_required'
-              ? 'reupload_required'
-              : bundle.registration.status === 'rejected'
-                ? 'rejected'
-                : 'pending';
-
-        const emailRes = await sendTeamConfirmationEmail({
-          toEmail: bundle.registration.iglEmail,
-          teamCode: bundle.registration.teamCode,
-          teamName: bundle.registration.teamName,
-          eventTitle: bundle.event.title,
-          gameTitle: bundle.event.gameTitle,
-          status: statusForEmail,
-          totalFee: bundle.registration.totalFee,
-          lunchCount: bundle.registration.lunchCount,
-          vegCount: bundle.registration.vegCount,
-          nonVegCount: bundle.registration.nonVegCount,
-          utrNumber: latestProof?.utrNumber || '',
-          slotNumber: bundle.registration.slotNumber,
-          groupName: bundle.registration.groupName,
-          rejectionReason: bundle.registration.rejectionReason,
-          venueLabel: bundle.event.venueLabel,
-          eventDateLabel: bundle.event.eventDateLabel,
-        });
+        const emailRes = await sendTeamConfirmationEmail(registrationEmailParams(bundle));
 
         await recordEmailAudit(
           bundle.registration.id,
           emailRes.sent,
           emailRes.sent
             ? `Manual resend by ${req.admin!.email} to ${bundle.registration.iglEmail}`
-            : emailRes.error || 'Manual resend failed'
+            : 'Manual resend failed',
+          bundle.registration.status
         );
 
         return res.json({ ok: emailRes.sent, error: emailRes.error });
@@ -565,7 +486,6 @@ export function createApiApp(): Express {
   app.post('/api/admin/events', requireAdmin, async (req, res) => {
     try {
       const evt = await createExtensibleEvent(req.body);
-      emitLiveBoardUpdate();
       res.status(201).json({ event: evt });
     } catch (err) {
       const message = clientErrorMessage(err, 'Failed to create event.');
@@ -576,7 +496,6 @@ export function createApiApp(): Express {
   app.patch('/api/admin/events/:id', requireAdmin, async (req, res) => {
     try {
       const evt = await updateEventConfig(req.params.id, req.body);
-      emitLiveBoardUpdate();
       res.json({ event: evt });
     } catch (err) {
       const message = clientErrorMessage(err, 'Failed to update event.');

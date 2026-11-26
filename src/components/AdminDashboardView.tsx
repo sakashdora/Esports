@@ -13,7 +13,7 @@ import {
   Upload,
   XCircle,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 // Proof images are private, so they are fetched with the admin token and kept as local
 // object URLs. Selecting a team again (or one that was prefetched) shows instantly.
@@ -91,6 +91,10 @@ import { filterAdminRegistrations } from '../lib/adminFilters';
 import { buildUpiIntentUri, calculateRegistrationFee, escapeCsvCell } from '../lib/tournamentRules';
 import { compressScreenshot } from '../lib/imageCompression';
 import { PaymentQrPanel } from './PaymentQrPanel';
+import { VOLUNTEER_ID_KEY, VOLUNTEER_TOKEN_KEY } from '../lib/checkIn';
+import { CheckInDesk } from './CheckInDesk';
+import { VolunteerAccounts } from './VolunteerAccounts';
+import type { AppRoute } from './Navbar';
 
 interface AdminBundle {
   registration: {
@@ -151,12 +155,13 @@ interface AuditLog {
 
 interface AdminDashboardViewProps {
   onEventsUpdated: () => void;
+  onNavigate: (route: AppRoute) => void;
 }
 
 const STORAGE_TOKEN_KEY = 'samt_admin_token';
 const STORAGE_EMAIL_KEY = 'samt_admin_email';
 
-export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps) {
+export function AdminDashboardView({ onEventsUpdated, onNavigate }: AdminDashboardViewProps) {
   const [token, setToken] = useState<string>(() => sessionStorage.getItem(STORAGE_TOKEN_KEY) || '');
   const [adminEmail, setAdminEmail] = useState<string>(
     () => sessionStorage.getItem(STORAGE_EMAIL_KEY) || ''
@@ -178,7 +183,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
   const [loggingIn, setLoggingIn] = useState(false);
 
   // Dashboard data
-  const [tab, setTab] = useState<'queue' | 'rosters' | 'events' | 'audit'>('queue');
+  const [tab, setTab] = useState<'queue' | 'rosters' | 'events' | 'audit' | 'check-in' | 'volunteers'>('queue');
   const [events, setEvents] = useState<CampusEvent[]>([]);
   const [bundles, setBundles] = useState<AdminBundle[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -283,6 +288,14 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
         body: JSON.stringify({ email: loginEmail, password: loginPass }),
       });
       const json = await readAdminLoginResponse(res);
+      if (json.role === 'volunteer') {
+        sessionStorage.setItem(VOLUNTEER_TOKEN_KEY, json.token);
+        sessionStorage.setItem(VOLUNTEER_ID_KEY, json.email);
+        onNavigate({ page: 'volunteer' });
+        return;
+      }
+      sessionStorage.removeItem(VOLUNTEER_TOKEN_KEY);
+      sessionStorage.removeItem(VOLUNTEER_ID_KEY);
       sessionStorage.setItem(STORAGE_TOKEN_KEY, json.token);
       sessionStorage.setItem(STORAGE_EMAIL_KEY, json.email);
       activeToken.current = json.token;
@@ -297,7 +310,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
     }
   }
 
-  function handleLogout() {
+  const handleLogout = useCallback(() => {
     clearProofImageCache();
     sessionStorage.removeItem(STORAGE_TOKEN_KEY);
     sessionStorage.removeItem(STORAGE_EMAIL_KEY);
@@ -309,7 +322,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
     setToken('');
     setAdminEmail('');
     setSelectedId(null);
-  }
+  }, []);
 
   const selectedBundle = useMemo(
     () => bundles.find((b) => b.registration.id === selectedId) || null,
@@ -691,17 +704,17 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
         <div className="mx-auto max-w-md rounded-xl border border-slate-200 bg-white p-8">
           <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
             <img
-              src="/assets/aistudio/Prospectus_2026_-_27_-_1_bb4cb47c.png"
-              alt="SAMT Crest"
+              src="/assets/brand/srusti-academy-crest.png"
+              alt="Srusti crest"
               referrerPolicy="no-referrer"
               className="h-10 w-10 object-contain"
             />
             <div>
               <h1 className="text-lg font-bold text-slate-900">
-                Tournament Admin Console
+                Tournament staff sign-in
               </h1>
               <p className="text-xs text-slate-500">
-                Sign in with your authorized administrator account.
+                Use your admin email or volunteer ID.
               </p>
             </div>
           </div>
@@ -709,15 +722,17 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
           <form onSubmit={handleLogin} className="mt-6 space-y-4">
             <div>
               <label htmlFor="admin-email" className="block text-xs font-medium text-slate-700">
-                Administrator Email
+                Admin email or volunteer ID
               </label>
               <input
                 id="admin-email"
                 autoComplete="username"
-                type="email"
+                type="text"
+                autoCapitalize="none"
+                spellCheck={false}
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
-                placeholder="Administrator email"
+                placeholder="Email or volunteer ID"
                 required
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-[#233D8B] focus:outline-none"
               />
@@ -750,7 +765,7 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
               disabled={loggingIn}
               className="w-full rounded-md bg-[#233D8B] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1a2f6e] disabled:opacity-50"
             >
-              {loggingIn ? 'Signing In...' : 'Sign In to Verification Console'}
+              {loggingIn ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
         </div>
@@ -809,6 +824,35 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
           </div>
         </div>
 
+        <div className="no-print mt-5 flex flex-wrap items-center gap-1 border-b border-slate-200">
+          {([
+            ['queue', 'Verification Queue'],
+            ['check-in', 'Check-in'],
+            ['volunteers', 'Volunteers'],
+            ['rosters', 'Participant Rosters & Meals'],
+            ['events', 'Events & UPI QR Setup'],
+            ['audit', 'Audit Logs & Supabase SQL'],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={tab === key}
+              onClick={() => {
+                setTab(key);
+                if (key === 'audit' && !schemaSql) loadSchemaSql();
+              }}
+              className={`border-b-2 px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors ${
+                tab === key
+                  ? 'border-[#233D8B] text-[#233D8B]'
+                  : 'border-transparent text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab !== 'volunteers' && tab !== 'check-in' && <>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button disabled={exporting || loading} onClick={() => exportReport('xlsx')} className="rounded-md bg-[#233D8B] px-4 py-2 text-sm text-white disabled:opacity-50">{exporting ? 'Preparing report…' : 'Export Excel (.xlsx)'}</button>
           <button disabled={exporting || loading} onClick={() => exportReport('pdf')} className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm disabled:opacity-50">Export PDF</button>
@@ -911,33 +955,9 @@ export function AdminDashboardView({ onEventsUpdated }: AdminDashboardViewProps)
             </button>
           </div>
         </fieldset>
-        {/* Navigation Tabs */}
-        <div className="no-print mt-6 flex flex-wrap items-center gap-1 border-b border-slate-200">
-          {(
-            [
-              ['queue', 'Verification Queue'],
-              ['rosters', 'Participant Rosters & Meals'],
-              ['events', 'Events & UPI QR Setup'],
-              ['audit', 'Audit Logs & Supabase SQL'],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => {
-                setTab(key);
-                if (key === 'audit' && !schemaSql) loadSchemaSql();
-              }}
-              className={`border-b-2 px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors ${
-                tab === key
-                  ? 'border-[#233D8B] text-[#233D8B]'
-                  : 'border-transparent text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        </>}
+        {tab === 'check-in' && <div className="mt-6"><CheckInDesk token={token} onSessionExpired={handleLogout} /></div>}
+        {tab === 'volunteers' && <div className="mt-6"><VolunteerAccounts token={token} onSessionExpired={handleLogout} /></div>}
 
         {/* TAB 1: Verification Queue + Side-by-Side Inspector */}
         {tab === 'queue' && (

@@ -56,9 +56,6 @@ export interface CampusEvent {
   venueLabel: string;
   isOpen: boolean;
   rulesJson: EventRulesConfig;
-  registeredCount?: number;
-  verifiedCount?: number;
-  pendingCount?: number;
 }
 
 export const EVENT_ENTRY_ISO = '2026-12-13T09:30:00+05:30';
